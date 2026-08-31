@@ -1,0 +1,44 @@
+# <PROJECT_NAME> 工程规则
+
+始终使用简体中文回复。
+
+## 仓库事实
+
+- Git 根目录：`<PROJECT_ROOT>`。
+- 产品包与目录：`<PACKAGE_LAYOUT>`。
+- 真实构建命令：`<BUILD_COMMANDS>`。
+- 静态检查/测试命令：`<STATIC_CHECKS_AND_TESTS>`。
+- 需要用户在目标硬件确认的验证：`<HARDWARE_VALIDATION>`。
+
+## 嵌入式 C 约束
+
+- 未经用户明确批准，不修改：`<PROTECTED_HARDWARE_CONTRACTS>`。
+- 受保护构建输入：`<BUILD_INPUTS>`；变更时说明影响并运行受影响目标构建。
+- 中断处理只做有界工作；不得在中断上下文执行 Flash 擦写、协议解析、无界等待
+  或其他 `<ISR_FORBIDDEN_OPERATIONS>`。
+- 修改 DMA、共享状态、持久化、协议、时序或硬件资源时，检查直接调用者、
+  相关状态机和对应 `.trellis/spec/` 合同。
+- 新增函数注释必须说明参数单位/范围、返回值、前置条件、阻塞性、是否可在
+  中断中调用、可重入性/线程安全性及寄存器/全局状态副作用。
+- 构建、静态检查、测试与硬件验证分别报告；未执行的项标为 `not run` 或
+  `not applicable` 并说明原因，禁止捏造通用 lint/typecheck 命令。
+
+## Git
+
+- 保留用户已有改动；不执行未经授权的提交、推送、合并或重写历史。
+- 提交标题使用简体中文并遵守 Conventional Commits，例如 `feat: 添加采样状态机`。
+- `.trellis/config.yaml` 保持 `session_auto_commit: false`。
+
+<!-- TRELLIS:START -->
+# Trellis Instructions
+
+本项目使用 Trellis。工作流、Spec、任务和会话记录位于 `.trellis/`；项目级
+Skills 位于 `.agents/skills/`；Codex/Claude 子代理定义位于 `.codex/agents/`
+与 `.claude/agents/`。
+
+优先遵循 `.trellis/workflow.md`。任务在 `planning` 或 `planning-inline` 时，
+必须使用 `trellis-brainstorm`、`grill-me` 和
+`<PROJECT_PREFIX>-trellis-grill-adapter`；实施前必须完成收敛并获得后续用户批准。
+
+<!-- TRELLIS:END -->
+

@@ -1,0 +1,28 @@
+# TrellisForge project overrides. Keep this file after `trellis init`.
+session_auto_commit: false
+session_commit_message: "chore: 记录 Trellis 会话"
+max_journal_lines: 2000
+
+# Replace with the target repository's packages, or remove this section for a
+# single-package project.
+packages:
+  main:
+    path: .
+default_package: main
+
+channel:
+  worker_guard:
+    idle_timeout: 5m
+    max_live_workers: 6
+
+codex:
+  dispatch_mode: auto
+
+context_injection:
+  max_file_bytes: 32768
+  max_artifact_bytes: 65536
+  max_total_bytes: 131072
+
+prompt_injection:
+  skip_keyword: "no-trellis"
+

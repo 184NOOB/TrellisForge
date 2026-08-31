@@ -1,0 +1,6 @@
+# Local validation and editor files
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.vscode/
+

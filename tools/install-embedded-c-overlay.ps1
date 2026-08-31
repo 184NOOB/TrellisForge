@@ -72,6 +72,17 @@ if (Test-Path -LiteralPath $agentsDestination) {
     $conflicts += $agentsDestination
 }
 
+foreach ($sourceFile in $sourceFiles) {
+    $relative = $sourceFile.FullName.Substring($sourceRoot.Length).TrimStart('\', '/').Replace('__PROJECT_PREFIX__', $ProjectPrefix)
+    $destination = Join-Path $targetRootFull $relative
+    if (Test-Path -LiteralPath $destination -PathType Container) {
+        throw "目标路径是目录，无法覆盖模板文件: $destination"
+    }
+}
+if (Test-Path -LiteralPath $agentsDestination -PathType Container) {
+    throw "AGENTS.md.trellisforge-template 目标路径是目录，无法覆盖: $agentsDestination"
+}
+
 if ($conflicts.Count -gt 0 -and -not $Force) {
     $preview = $conflicts | Select-Object -First 10 | ForEach-Object { "  $_" }
     throw ("发现 $($conflicts.Count) 个将被覆盖的文件。请先审查差异；确认后使用 -Force。`n" + ($preview -join "`n"))
@@ -129,26 +140,47 @@ if ($Force) {
     }
 }
 
-foreach ($sourceFile in $sourceFiles) {
-    $relative = $sourceFile.FullName.Substring($sourceRoot.Length).TrimStart('\', '/')
-    if ($relative -eq 'AGENTS.md.template') {
-        continue
+$writtenDestinations = @()
+try {
+    foreach ($sourceFile in $sourceFiles) {
+        $relative = $sourceFile.FullName.Substring($sourceRoot.Length).TrimStart('\', '/')
+        if ($relative -eq 'AGENTS.md.template') {
+            continue
+        }
+        $relative = $relative.Replace('__PROJECT_PREFIX__', $ProjectPrefix)
+        $destination = Join-Path $targetRootFull $relative
+        $destinationParent = Split-Path -Parent $destination
+        New-Item -ItemType Directory -Path $destinationParent -Force -ErrorAction Stop | Out-Null
+
+        $content = [System.IO.File]::ReadAllText($sourceFile.FullName, [System.Text.UTF8Encoding]::new($false))
+        $content = $content.Replace('PROJECT_PREFIX', $ProjectPrefix)
+        $content = $content.Replace('PROJECT_NAME', $ProjectName)
+        [System.IO.File]::WriteAllText($destination, $content, [System.Text.UTF8Encoding]::new($false))
+        $writtenDestinations += $destination
     }
-    $relative = $relative.Replace('__PROJECT_PREFIX__', $ProjectPrefix)
-    $destination = Join-Path $targetRootFull $relative
-    $destinationParent = Split-Path -Parent $destination
-    New-Item -ItemType Directory -Path $destinationParent -Force | Out-Null
 
-    $content = [System.IO.File]::ReadAllText($sourceFile.FullName, [System.Text.UTF8Encoding]::new($false))
-    $content = $content.Replace('PROJECT_PREFIX', $ProjectPrefix)
-    $content = $content.Replace('PROJECT_NAME', $ProjectName)
-    [System.IO.File]::WriteAllText($destination, $content, [System.Text.UTF8Encoding]::new($false))
+    $agentsTemplate = Join-Path $sourceRoot 'AGENTS.md.template'
+    $agentsContent = [System.IO.File]::ReadAllText($agentsTemplate, [System.Text.UTF8Encoding]::new($false))
+    $agentsContent = $agentsContent.Replace('PROJECT_PREFIX', $ProjectPrefix).Replace('PROJECT_NAME', $ProjectName)
+    [System.IO.File]::WriteAllText($agentsDestination, $agentsContent, [System.Text.UTF8Encoding]::new($false))
+    $writtenDestinations += $agentsDestination
 }
-
-$agentsTemplate = Join-Path $sourceRoot 'AGENTS.md.template'
-$agentsContent = [System.IO.File]::ReadAllText($agentsTemplate, [System.Text.UTF8Encoding]::new($false))
-$agentsContent = $agentsContent.Replace('PROJECT_PREFIX', $ProjectPrefix).Replace('PROJECT_NAME', $ProjectName)
-[System.IO.File]::WriteAllText($agentsDestination, $agentsContent, [System.Text.UTF8Encoding]::new($false))
+catch {
+    foreach ($destination in $writtenDestinations) {
+        $relative = $destination.Substring($targetRootFull.Length).TrimStart('\', '/')
+        $wasBackedUp = @($overwrittenFiles | Where-Object { $_.Relative -eq $relative }).Count -gt 0
+        if (-not $wasBackedUp -and (Test-Path -LiteralPath $destination -PathType Leaf)) {
+            Remove-Item -LiteralPath $destination -Force -ErrorAction SilentlyContinue
+        }
+    }
+    foreach ($file in $overwrittenFiles) {
+        $backup = Join-Path $backupRoot $file.Relative
+        if ($backupRoot -and (Test-Path -LiteralPath $backup -PathType Leaf)) {
+            Copy-Item -LiteralPath $backup -Destination $file.Source -Force -ErrorAction SilentlyContinue
+        }
+    }
+    throw
+}
 
 Write-Host 'TrellisForge 覆盖层已安装。'
 if ($backupRoot) {

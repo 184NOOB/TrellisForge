@@ -13,7 +13,9 @@ TrellisForge 是一套面向嵌入式 C 项目的 Trellis 项目级覆盖模板�
 从 [docs/接入指南.md](docs/接入指南.md) 开始。最短接入命令为：
 
 ```powershell
+# 在目标项目根目录执行
 trellis init
+# 在 TrellisForge 根目录执行
 & .\tools\install-embedded-c-overlay.ps1 -TargetRoot C:\path\to\project -ProjectPrefix example -ProjectName "Example Firmware" -Force
 ```
 

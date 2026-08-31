@@ -8,7 +8,7 @@
 | `.trellis/config.yaml` | `-Force` 覆盖前备份，随后填写 | 禁用会话自动提交、包和上下文注入配置 |
 | `.trellis/scripts/` | `-Force` 覆盖同名前备份 | 会话隔离与规划/批准门禁实现及测试 |
 | `.trellis/spec/shared/` | `-Force` 覆盖同名前备份，随后填写 | 嵌入式 C 的仓库、验证和硬件合同骨架 |
-| `.trellis/spec/shared/trellis-maintenance.md` | 新增 | 上游更新、受保护定制和升级后验证合同 |
+| `.trellis/spec/shared/trellis-maintenance.md` | 覆盖前备份（首次接入时新增） | 上游更新、受保护定制和升级后验证合同 |
 | `.agents/skills/` | `-Force` 覆盖同名前备份 | Grill Me、规划 adapter、审查 profile、定制 `trellis-finish-work` |
 | `.claude/` | `-Force` 覆盖前备份 | Claude Code Hook、代理与设置 |
 | `.claude/commands/trellis/` | `-Force` 覆盖前备份 | Claude `/trellis:finish-work` 与 `/trellis:continue` 路由命令 |

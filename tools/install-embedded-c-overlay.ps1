@@ -49,7 +49,11 @@ if ($cacheFiles.Count -gt 0) {
 }
 
 $sourceFiles = @(Get-ChildItem -LiteralPath $sourceRoot -Recurse -File |
-    Where-Object { $_.FullName -notmatch '[\\/]__pycache__[\\/]' -and $_.Extension -notin '.pyc', '.pyo' })
+    Where-Object {
+        $_.FullName -notmatch '[\\/]__pycache__[\\/]' -and
+        $_.Extension -notin '.pyc', '.pyo' -and
+        $_.Name -notin 'AGENTS.md.template', 'TEMPLATE-CONTENTS.md'
+    })
 $conflicts = @()
 foreach ($sourceFile in $sourceFiles) {
     $relative = $sourceFile.FullName.Substring($sourceRoot.Length).TrimStart('\', '/')
@@ -94,7 +98,13 @@ if ($Force) {
     }
 
     if ($overwrittenFiles.Count -gt 0) {
-        $backupRoot = Join-Path $targetRootFull ('.trellisforge-backup\' + (Get-Date -Format 'yyyyMMdd-HHmmss'))
+        $backupBase = (& git -C $targetRootFull rev-parse --path-format=absolute --git-path trellisforge-backup 2>$null)
+        if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($backupBase)) {
+            throw "无法解析 Git 元数据备份目录: $targetRootFull"
+        }
+        $backupBase = $backupBase.Trim()
+        $backupRoot = Join-Path $backupBase ((Get-Date -Format 'yyyyMMdd-HHmmss') + '-' + [Guid]::NewGuid().ToString('N'))
+        New-Item -ItemType Directory -Path $backupRoot -ErrorAction Stop | Out-Null
         $backupEntries = @()
         foreach ($file in $overwrittenFiles) {
             $backup = Join-Path $backupRoot $file.Relative

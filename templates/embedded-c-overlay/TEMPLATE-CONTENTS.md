@@ -18,6 +18,8 @@
 安装脚本没有删除文件，也不复制 `.trellis/tasks/`、`.trellis/workspace/`、
 `.trellis/.runtime/` 和 `.trellis/.template-hashes.json`。
 `-Force` 备份所有实际被覆盖的模板文件，并在备份根目录写入
-`backup-manifest.json`；根 `AGENTS.md` 始终不自动覆盖。
+`backup-manifest.json`；备份位于 Git 元数据目录下，不会成为工作树未跟踪文件；
+根 `AGENTS.md` 始终不自动覆盖。`TEMPLATE-CONTENTS.md` 仅供 Forge 维护者阅读，
+不会安装到目标仓库。
 模板只包含源码和配置，不含 Python `__pycache__` 或 `.pyc/.pyo` 缓存；安装器
 发现缓存时会拒绝继续。

@@ -1,6 +1,6 @@
 ---
 name: PROJECT_PREFIX-trellis-grill-adapter
-description: Connects Trellis brainstorm decision ownership and the upstream grill-me interview format to Siemens planning artifacts and the project-local start gate. Use together with trellis-brainstorm and grill-me for every task in planning or planning-inline, after task creation and before implementation approval.
+description: Connects Trellis brainstorm decision ownership and the upstream grill-me interview format to this project's planning artifacts and the project-local start gate. Use together with trellis-brainstorm and grill-me for every task in planning or planning-inline, after task creation and before implementation approval.
 ---
 
 # PROJECT_NAME Trellis Grill Adapter

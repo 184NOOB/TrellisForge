@@ -9,7 +9,7 @@
 | `.trellis/scripts/` | 覆盖同名文件 | 会话隔离与规划/批准门禁实现及测试 |
 | `.trellis/spec/shared/` | 新增/填写 | 嵌入式 C 的仓库、验证和硬件合同骨架 |
 | `.trellis/spec/shared/trellis-maintenance.md` | 新增 | 上游更新、受保护定制和升级后验证合同 |
-| `.agents/skills/` | 新增 | Grill Me、规划 adapter、审查 profile |
+| `.agents/skills/` | 新增/覆盖同名 Skill | Grill Me、规划 adapter、审查 profile、定制 `trellis-finish-work` |
 | `.claude/` | 直接覆盖（`-Force` 前备份） | Claude Code Hook、代理与设置 |
 | `.codex/` | 直接覆盖（`-Force` 前备份） | Codex Hook、代理与设置 |
 | `AGENTS.md.template` | 人工合并 | 目标项目事实与硬约束，不自动覆盖根 AGENTS.md |

@@ -16,7 +16,7 @@
 - `.trellis/agents/`
 - `.trellis/scripts/common/planning_gate.py` 及其任务/会话隔离依赖和测试
 - `.trellis/spec/shared/` 中的项目维护与验证合同
-- `.agents/skills/` 项目级 Skill
+- `.agents/skills/` 项目级 Skill，特别是定制 `trellis-finish-work`
 - `.claude/` 和 `.codex/` 的项目代理、Hook 与平台配置
 - 根 `AGENTS.md` 的 Trellis 管理块及项目规则
 
@@ -37,4 +37,3 @@ git diff --check
 
 最后创建一个小型文档任务做规划、审批、`task.py start`、代理派发和 Hook 注入
 冒烟验证，再接受上游更新。
-

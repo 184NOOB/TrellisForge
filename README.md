@@ -14,7 +14,7 @@ TrellisForge 是一套面向嵌入式 C 项目的 Trellis 项目级覆盖模板�
 
 ```powershell
 trellis init
-& .\tools\install-embedded-c-overlay.ps1 -TargetRoot C:\path\to\project -ProjectPrefix example -ProjectName "Example Firmware"
+& .\tools\install-embedded-c-overlay.ps1 -TargetRoot C:\path\to\project -ProjectPrefix example -ProjectName "Example Firmware" -Force
 ```
 
 安装后必须按指南填写 `AGENTS.md` 和 `.trellis/spec/` 中的项目事实，再提交。

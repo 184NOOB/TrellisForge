@@ -7,3 +7,4 @@ bootloader, library, or host-tool package.
 - [Repository layout](repository-layout.md)
 - [Validation policy](validation.md)
 - [Hardware contracts](hardware-contracts.md)
+- [Trellis maintenance](trellis-maintenance.md)

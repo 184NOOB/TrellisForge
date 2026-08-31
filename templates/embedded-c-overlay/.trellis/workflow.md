@@ -588,7 +588,7 @@ The platform prelude auto-handles the context load requirement:
 2. Read `{TASK_DIR}/prd.md`, then `design.md` if present, then `implement.md` if present
 3. Consult materials under `{TASK_DIR}/research/`
 4. Implement the code per reviewed artifacts
-5. Run applicable project checks/builds; record unavailable or inapplicable lint/type-check instead of inventing commands
+5. Run only project-defined affected static checks, tests, and target builds; record unavailable or inapplicable categories instead of inventing commands
 
 [/codex-inline, Kilo, Antigravity, Devin]
 
@@ -637,8 +637,8 @@ The check agent's job:
 - Review code changes against specs
 - Review code changes against `prd.md`, `design.md` if present, and `implement.md` if present
 - Auto-fix issues it finds
-- Run applicable configured checks and builds; report lint, type-check, tests,
-  builds, and hardware validation separately as pass/fail/not run/not applicable
+- Run applicable configured checks and builds; report static checks, tests,
+  target builds, and hardware validation separately as pass/fail/not run/not applicable
   with reasons, and never invent generic checks for the project type
 
 [/Claude Code, Cursor, OpenCode, codex-sub-agent, Kiro, Gemini, Qoder, CodeBuddy, Copilot, Droid, Pi, Oh My Pi, ZCode, Snow, Reasonix, Trae, Grok, Kimi Code]

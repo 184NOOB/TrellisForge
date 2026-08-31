@@ -632,8 +632,8 @@ or when a precise uncached line is required.
 
 - Do not stage/commit/push/fetch, merge/rebase, switch branches/worktrees, or change Trellis task lifecycle state
 - Follow all dev specs injected above
-- Do not invent generic Web lint/type-check commands for this C firmware repository
-- Keep static checks, APP/Bootloader builds, and user-only hardware validation distinct; report every unavailable check with a reason
+- Do not invent generic Web lint/type-check commands for this embedded C project
+- Keep static checks, target builds, and user-only hardware validation distinct; report every unavailable check with a reason
 - Report list of modified/created files when done"""
 
 
@@ -676,7 +676,7 @@ or when a precise uncached line is required.
 
 - Fix issues yourself, don't just report
 - Do not stage/commit/push/fetch, merge/rebase, switch branches/worktrees, or change Trellis task lifecycle state
-- Do not invent generic Web lint/type-check commands for this C firmware repository"""
+- Do not invent generic Web lint/type-check commands for this embedded C project"""
 
 
 def build_finish_prompt(original_prompt: str, context: str) -> str:
@@ -720,7 +720,7 @@ Finish checklist and requirements:
 - Verify all acceptance criteria in prd.md are met
 - Verify design.md and implement.md constraints when those files are present
 - Do not stage/commit/push/fetch, merge/rebase, switch branches/worktrees, or change Trellis task lifecycle state
-- Do not invent generic Web lint/type-check commands for this C firmware repository"""
+- Do not invent generic Web lint/type-check commands for this embedded C project"""
 
 
 

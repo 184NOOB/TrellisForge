@@ -83,10 +83,9 @@ The supervising main session owns commits. Report the post-fix state; do not com
 - Evidence: <implementation or validation evidence>
 
 ## Verification
-- Lint: <pass|fail|not run|not applicable + reason>
-- TypeCheck: <pass|fail|not run|not applicable + reason>
+- Static checks: <pass|fail|not run|not applicable + reason>
 - Tests: <pass|fail|not run|not applicable + reason>
-- builds/static checks: <pass|fail|not run|not applicable + reason>
+- Target builds: <pass|fail|not run|not applicable + reason>
 - Hardware validation: <user-confirmed pass|fail|not run|not applicable + reason>
 - Checks not run: <commands or environments and reasons>
 

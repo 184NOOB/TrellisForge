@@ -84,7 +84,11 @@ Read the task's prd.md, design.md if present, and implement.md if present:
 
 ### 4. Verify
 
-Run project's lint and typecheck commands to verify changes.
+Run only the affected static checks, tests, and target builds explicitly
+defined by the task PRD, `AGENTS.md`, or validation Specs. Do not invent
+generic Web lint/typecheck commands. If a category has no applicable command,
+report `not applicable` or `not run` with the reason. Keep hardware validation
+separate from executable checks.
 
 ---
 
@@ -95,18 +99,19 @@ Run project's lint and typecheck commands to verify changes.
 
 ### Files Modified
 
-- `src/components/Feature.tsx` - New component
-- `src/hooks/useFeature.ts` - New hook
+- `<path>` - <one-line description>
 
 ### Implementation Summary
 
-1. Created Feature component...
-2. Added useFeature hook...
+1. <implementation step>
+2. <implementation step>
 
 ### Verification Results
 
-- Lint: Passed
-- TypeCheck: Passed
+- Static checks: <pass|fail|not run|not applicable + reason>
+- Tests: <pass|fail|not run|not applicable + reason>
+- Target builds: <pass|fail|not run|not applicable + reason>
+- Hardware validation: <user-confirmed pass|fail|not run|not applicable + reason>
 ```
 
 ---

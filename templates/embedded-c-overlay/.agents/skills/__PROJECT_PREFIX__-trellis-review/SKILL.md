@@ -26,7 +26,7 @@ planning summary.
 - Run one main-session review after implementation and before commit.
 - Do not dispatch an independent `trellis-check` agent.
 - Do not load the bundled generic `trellis-check` Skill; it contains
-  cross-project Web assumptions that are not authoritative for this firmware.
+  cross-project Web assumptions that are not authoritative for this embedded C project.
 - Read `prd.md`, acceptance criteria, `design.md` / `implement.md` when
   present, and the affected package plus shared embedded C project Specs.
 - Use changed-scope: tracked diff, listed untracked task files, changed files,
@@ -36,8 +36,8 @@ planning summary.
   explicitly check ISR boundedness, DMA buffer ownership, shared state,
   scheduler blocking, persistent-state restore order, fixed hardware
   contracts, Flash layout, and protocol compatibility.
-- Run relevant fast tests, static checks, and available targeted builds.
-  Report lint, type-check, tests, builds, and hardware validation separately as
+- Run only project-defined affected fast tests, static checks, and target builds.
+  Report static checks, tests, target builds, and hardware validation separately as
   pass/fail/not run/not applicable with reasons; never invent generic Web checks.
 - After a fix, rerun only failed or directly affected checks; do not repeat a
   complete light review unless the task scope materially changes.
@@ -79,7 +79,7 @@ planning summary.
 - Codex inline mode suppresses implement-agent dispatch, not review dispatch;
   use independent `trellis-check` agents whenever the platform supports them.
 - Use full-scope for the final review: complete task diff, affected packages or
-  firmware layers, applicable Specs, cross-layer contracts, tests, builds, and
+  embedded C layers, applicable Specs, cross-layer contracts, tests, builds, and
   required hardware-validation records.
 - Repeat the relevant review after fixes until all blocking findings are
   resolved. A blocking correctness, safety, or acceptance failure cannot be

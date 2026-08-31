@@ -705,7 +705,7 @@ Finish checklist and requirements:
    - If new pattern/convention found: read target spec file → update it → update index.md if needed
    - If infra/cross-layer change: follow the 7-section mandatory template from update-spec.md
    - If pure code fix with no new patterns: skip this step
-4. **Run final checks** - Execute lint and typecheck
+4. **Run final checks** - Execute only affected static checks, tests, and available target builds defined by the task or project; report unavailable categories and hardware validation separately
 5. **Confirm ready** - Ensure code is ready for PR
 
 ## Important Constraints

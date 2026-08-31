@@ -35,7 +35,14 @@ if (-not (Test-Path -LiteralPath (Join-Path $targetRootFull '.trellis') -PathTyp
     throw "请先在目标仓库运行 trellis init: $targetRootFull"
 }
 
-$sourceFiles = Get-ChildItem -LiteralPath $sourceRoot -Recurse -File
+$cacheFiles = @(Get-ChildItem -LiteralPath $sourceRoot -Recurse -File |
+    Where-Object { $_.FullName -match '[\\/]__pycache__[\\/]' -or $_.Extension -in '.pyc', '.pyo' })
+if ($cacheFiles.Count -gt 0) {
+    throw "模板目录包含 Python 缓存，拒绝安装。请先清理: $($cacheFiles[0].FullName)"
+}
+
+$sourceFiles = @(Get-ChildItem -LiteralPath $sourceRoot -Recurse -File |
+    Where-Object { $_.FullName -notmatch '[\\/]__pycache__[\\/]' -and $_.Extension -notin '.pyc', '.pyo' })
 $conflicts = @()
 foreach ($sourceFile in $sourceFiles) {
     $relative = $sourceFile.FullName.Substring($sourceRoot.Length).TrimStart('\', '/')
@@ -57,6 +64,28 @@ if (Test-Path -LiteralPath $agentsDestination) {
 if ($conflicts.Count -gt 0 -and -not $Force) {
     $preview = $conflicts | Select-Object -First 10 | ForEach-Object { "  $_" }
     throw ("发现 $($conflicts.Count) 个将被覆盖的文件。请先审查差异；确认后使用 -Force。`n" + ($preview -join "`n"))
+}
+
+$backupRoot = $null
+if ($Force) {
+    $platformConfigPaths = @(
+        '.claude\settings.json',
+        '.codex\hooks.json',
+        '.codex\config.toml'
+    )
+    $existingPlatformConfigs = @($platformConfigPaths | Where-Object {
+        Test-Path -LiteralPath (Join-Path $targetRootFull $_) -PathType Leaf
+    })
+
+    if ($existingPlatformConfigs.Count -gt 0) {
+        $backupRoot = Join-Path $targetRootFull ('.trellisforge-backup\' + (Get-Date -Format 'yyyyMMdd-HHmmss'))
+        foreach ($relativePath in $existingPlatformConfigs) {
+            $source = Join-Path $targetRootFull $relativePath
+            $backup = Join-Path $backupRoot $relativePath
+            New-Item -ItemType Directory -Path (Split-Path -Parent $backup) -Force | Out-Null
+            Copy-Item -LiteralPath $source -Destination $backup
+        }
+    }
 }
 
 foreach ($sourceFile in $sourceFiles) {
@@ -81,5 +110,8 @@ $agentsContent = $agentsContent.Replace('PROJECT_PREFIX', $ProjectPrefix).Replac
 [System.IO.File]::WriteAllText($agentsDestination, $agentsContent, [System.Text.UTF8Encoding]::new($false))
 
 Write-Host 'TrellisForge 覆盖层已安装。'
+if ($backupRoot) {
+    Write-Host "已有 Claude/Codex 项目配置已备份到: $backupRoot"
+}
 Write-Host "请将 $agentsDestination 的项目规则合并到 AGENTS.md，并填写所有 <...> 占位符。"
 Write-Host '然后运行 docs/接入指南.md 中的脚本与 Hook 验证命令。'

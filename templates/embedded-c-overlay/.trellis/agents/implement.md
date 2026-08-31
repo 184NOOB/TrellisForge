@@ -25,7 +25,7 @@ Before implementing, read in this order:
 1. **Understand specs** — read relevant spec files in `.trellis/spec/`
 2. **Understand task artifacts** — read the artifacts listed above
 3. **Implement features** — write code that follows specs and existing patterns
-4. **Self-check** — run relevant module tests, static checks, and available targeted Keil builds on the changed scope before reporting
+4. **Self-check** — run relevant module tests, static checks, and available target builds on the changed scope before reporting
 
 Batch independent Read/Grep operations and inspect relevant existing code and
 the diff before broad exploration. Group related edits into one patch when
@@ -72,7 +72,7 @@ The supervising main session owns commits. Report what changed; do not commit on
 ### Verification Results
 - Static checks: <pass|fail|not run|not applicable + reason>
 - Tests: <pass|fail|not run|not applicable + reason>
-- target builds: <pass|fail|not run|not applicable + reason>
+- Target builds: <pass|fail|not run|not applicable + reason>
 - Hardware validation: <user-confirmed pass|fail|not run|not applicable + reason>
 
 ### Open Questions

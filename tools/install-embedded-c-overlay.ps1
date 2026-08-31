@@ -82,6 +82,23 @@ foreach ($sourceFile in $sourceFiles) {
 if (Test-Path -LiteralPath $agentsDestination -PathType Container) {
     throw "AGENTS.md.trellisforge-template 目标路径是目录，无法覆盖: $agentsDestination"
 }
+foreach ($sourceFile in $sourceFiles) {
+    $relative = $sourceFile.FullName.Substring($sourceRoot.Length).TrimStart('\', '/').Replace('__PROJECT_PREFIX__', $ProjectPrefix)
+    $parent = Split-Path -Parent (Join-Path $targetRootFull $relative)
+    while ($parent) {
+        if (Test-Path -LiteralPath $parent) {
+            if (-not (Test-Path -LiteralPath $parent -PathType Container)) {
+                throw "目标父路径不是目录，无法创建模板文件: $parent"
+            }
+            break
+        }
+        $nextParent = Split-Path -Parent $parent
+        if ($nextParent -eq $parent) {
+            break
+        }
+        $parent = $nextParent
+    }
+}
 
 if ($conflicts.Count -gt 0 -and -not $Force) {
     $preview = $conflicts | Select-Object -First 10 | ForEach-Object { "  $_" }
@@ -89,6 +106,7 @@ if ($conflicts.Count -gt 0 -and -not $Force) {
 }
 
 $backupRoot = $null
+$overwrittenFiles = @()
 if ($Force) {
     $overwrittenFiles = @($sourceFiles | ForEach-Object {
         $relative = $_.FullName.Substring($sourceRoot.Length).TrimStart('\', '/')
@@ -155,15 +173,15 @@ try {
         $content = [System.IO.File]::ReadAllText($sourceFile.FullName, [System.Text.UTF8Encoding]::new($false))
         $content = $content.Replace('PROJECT_PREFIX', $ProjectPrefix)
         $content = $content.Replace('PROJECT_NAME', $ProjectName)
-        [System.IO.File]::WriteAllText($destination, $content, [System.Text.UTF8Encoding]::new($false))
         $writtenDestinations += $destination
+        [System.IO.File]::WriteAllText($destination, $content, [System.Text.UTF8Encoding]::new($false))
     }
 
     $agentsTemplate = Join-Path $sourceRoot 'AGENTS.md.template'
     $agentsContent = [System.IO.File]::ReadAllText($agentsTemplate, [System.Text.UTF8Encoding]::new($false))
     $agentsContent = $agentsContent.Replace('PROJECT_PREFIX', $ProjectPrefix).Replace('PROJECT_NAME', $ProjectName)
-    [System.IO.File]::WriteAllText($agentsDestination, $agentsContent, [System.Text.UTF8Encoding]::new($false))
     $writtenDestinations += $agentsDestination
+    [System.IO.File]::WriteAllText($agentsDestination, $agentsContent, [System.Text.UTF8Encoding]::new($false))
 }
 catch {
     foreach ($destination in $writtenDestinations) {
@@ -173,10 +191,12 @@ catch {
             Remove-Item -LiteralPath $destination -Force -ErrorAction SilentlyContinue
         }
     }
-    foreach ($file in $overwrittenFiles) {
-        $backup = Join-Path $backupRoot $file.Relative
-        if ($backupRoot -and (Test-Path -LiteralPath $backup -PathType Leaf)) {
-            Copy-Item -LiteralPath $backup -Destination $file.Source -Force -ErrorAction SilentlyContinue
+    if ($backupRoot) {
+        foreach ($file in $overwrittenFiles) {
+            $backup = Join-Path $backupRoot $file.Relative
+            if (Test-Path -LiteralPath $backup -PathType Leaf) {
+                Copy-Item -LiteralPath $backup -Destination $file.Source -Force -ErrorAction SilentlyContinue
+            }
         }
     }
     throw

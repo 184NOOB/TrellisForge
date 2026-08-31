@@ -339,6 +339,14 @@ def _materialize_directory(
             for f in os.listdir(full_path)
             if f.endswith(".md") and os.path.isfile(os.path.join(full_path, f))
         )
+        omitted_files = md_files[max_files:]
+        if omitted_files:
+            print(
+                f"[inject-subagent-context] WARN: {dir_path} has {len(md_files)} "
+                f"Markdown files; injected the first {max_files} and omitted: "
+                + ", ".join(omitted_files),
+                file=sys.stderr,
+            )
         for filename in md_files[:max_files]:
             relative_path = os.path.join(dir_path, filename)
             block = _materialize_file(base_path, relative_path, reason, limits, budget)
@@ -380,7 +388,7 @@ def read_jsonl_entries(base_path: str, jsonl_path: str) -> list[dict]:
     saw_real_entry = False
     try:
         with open(full_path, "r", encoding="utf-8") as f:
-            for line in f:
+            for line_number, line in enumerate(f, start=1):
                 line = line.strip()
                 if not line:
                     continue
@@ -400,10 +408,18 @@ def read_jsonl_entries(base_path: str, jsonl_path: str) -> list[dict]:
                             "reason": item.get("reason") or "-",
                         }
                     )
-                except json.JSONDecodeError:
+                except json.JSONDecodeError as exc:
+                    print(
+                        f"[inject-subagent-context] WARN: {jsonl_path}:{line_number} "
+                        f"invalid JSONL row skipped: {exc.msg}",
+                        file=sys.stderr,
+                    )
                     continue
-    except Exception:
-        pass
+    except Exception as exc:
+        print(
+            f"[inject-subagent-context] WARN: unable to read {jsonl_path}: {exc}",
+            file=sys.stderr,
+        )
 
     if not saw_real_entry:
         print(

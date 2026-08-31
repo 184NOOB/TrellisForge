@@ -75,24 +75,47 @@ if ($conflicts.Count -gt 0 -and -not $Force) {
 
 $backupRoot = $null
 if ($Force) {
-    $overwrittenPlatformFiles = @($sourceFiles | ForEach-Object {
+    $overwrittenFiles = @($sourceFiles | ForEach-Object {
         $relative = $_.FullName.Substring($sourceRoot.Length).TrimStart('\', '/')
+        if ($relative -eq 'AGENTS.md.template') {
+            return
+        }
         $relative = $relative.Replace('__PROJECT_PREFIX__', $ProjectPrefix)
-        if ($relative -match '^(?:\.claude|\.codex)[\\/]') {
-            $destination = Join-Path $targetRootFull $relative
-            if (Test-Path -LiteralPath $destination -PathType Leaf) {
-                [PSCustomObject]@{ Source = $destination; Relative = $relative }
-            }
+        $destination = Join-Path $targetRootFull $relative
+        if (Test-Path -LiteralPath $destination -PathType Leaf) {
+            [PSCustomObject]@{ Source = $destination; Relative = $relative }
         }
     })
+    if (Test-Path -LiteralPath $agentsDestination -PathType Leaf) {
+        $overwrittenFiles += [PSCustomObject]@{
+            Source = $agentsDestination
+            Relative = 'AGENTS.md.trellisforge-template'
+        }
+    }
 
-    if ($overwrittenPlatformFiles.Count -gt 0) {
+    if ($overwrittenFiles.Count -gt 0) {
         $backupRoot = Join-Path $targetRootFull ('.trellisforge-backup\' + (Get-Date -Format 'yyyyMMdd-HHmmss'))
-        foreach ($file in $overwrittenPlatformFiles) {
+        $backupEntries = @()
+        foreach ($file in $overwrittenFiles) {
             $backup = Join-Path $backupRoot $file.Relative
             New-Item -ItemType Directory -Path (Split-Path -Parent $backup) -Force | Out-Null
             Copy-Item -LiteralPath $file.Source -Destination $backup
+            $backupEntries += [ordered]@{
+                path = $file.Relative.Replace('\', '/')
+                sha256 = (Get-FileHash -LiteralPath $file.Source -Algorithm SHA256).Hash.ToLowerInvariant()
+            }
         }
+        $backupManifest = [ordered]@{
+            schema_version = 1
+            created_at = (Get-Date).ToString('o')
+            files = $backupEntries
+        }
+        $manifestPath = Join-Path $backupRoot 'backup-manifest.json'
+        [System.IO.File]::WriteAllText(
+            $manifestPath,
+            ($backupManifest | ConvertTo-Json -Depth 3),
+            [System.Text.UTF8Encoding]::new($false)
+        )
     }
 }
 
@@ -119,7 +142,8 @@ $agentsContent = $agentsContent.Replace('PROJECT_PREFIX', $ProjectPrefix).Replac
 
 Write-Host 'TrellisForge 覆盖层已安装。'
 if ($backupRoot) {
-    Write-Host "已有 Claude/Codex 项目配置已备份到: $backupRoot"
+    Write-Host "所有将被模板覆盖的既有文件已备份到: $backupRoot"
+    Write-Host "备份清单: $(Join-Path $backupRoot 'backup-manifest.json')"
 }
 Write-Host "请将 $agentsDestination 的项目规则合并到 AGENTS.md，并填写所有 <...> 占位符。"
 Write-Host '然后运行 docs/接入指南.md 中的脚本与 Hook 验证命令。'

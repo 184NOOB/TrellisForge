@@ -8,4 +8,3 @@ Replace every placeholder with a verified constraint.
 - Shared state, interrupt masking and concurrency rules: `<CONCURRENCY_CONTRACTS>`
 - Protocol/wire compatibility contracts: `<PROTOCOL_CONTRACTS>`
 - Board-only validation that AI cannot claim as passed: `<HARDWARE_TESTS>`
-

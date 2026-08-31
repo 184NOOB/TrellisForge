@@ -15,4 +15,3 @@
 
 安装脚本没有删除文件，也不复制 `.trellis/tasks/`、`.trellis/workspace/`、
 `.trellis/.runtime/` 和 `.trellis/.template-hashes.json`。
-

@@ -13,4 +13,3 @@ Report each category separately as `pass`, `fail`, `not run`, or `not
 applicable`, with the exact command or reason. A host build does not prove
 hardware behavior. Do not substitute generic Web lint/typecheck commands for
 the project-defined checks.
-

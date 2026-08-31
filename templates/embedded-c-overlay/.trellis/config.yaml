@@ -25,4 +25,3 @@ context_injection:
 
 prompt_injection:
   skip_keyword: "no-trellis"
-

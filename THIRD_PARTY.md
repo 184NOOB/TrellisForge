@@ -13,4 +13,3 @@ revision: b76d047529a9873331ce2d7fa5516b22651f7ace
 Keep upstream Grill Me semantics separate from the project adapter. Project
 Trellis policy belongs in `__PROJECT_PREFIX__-trellis-grill-adapter`, not in
 the copied upstream skill.
-

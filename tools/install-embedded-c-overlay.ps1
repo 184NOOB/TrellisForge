@@ -27,8 +27,15 @@ if (-not (Test-Path -LiteralPath $targetRootFull -PathType Container)) {
     throw "目标目录不存在: $targetRootFull"
 }
 
-if (-not (Test-Path -LiteralPath (Join-Path $targetRootFull '.git') -PathType Container)) {
+ $gitPath = Join-Path $targetRootFull '.git'
+if (-not (Test-Path -LiteralPath $gitPath -PathType Container) -and
+    -not (Test-Path -LiteralPath $gitPath -PathType Leaf)) {
     throw "目标不是 Git 仓库根目录: $targetRootFull"
+}
+
+$resolvedRoot = (& git -C $targetRootFull rev-parse --show-toplevel 2>$null)
+if ($LASTEXITCODE -ne 0 -or [System.IO.Path]::GetFullPath($resolvedRoot.Trim()) -ne $targetRootFull.TrimEnd('\')) {
+    throw "目标目录不是 Git 工作树根目录: $targetRootFull"
 }
 
 if (-not (Test-Path -LiteralPath (Join-Path $targetRootFull '.trellis') -PathType Container)) {
@@ -68,22 +75,23 @@ if ($conflicts.Count -gt 0 -and -not $Force) {
 
 $backupRoot = $null
 if ($Force) {
-    $platformConfigPaths = @(
-        '.claude\settings.json',
-        '.codex\hooks.json',
-        '.codex\config.toml'
-    )
-    $existingPlatformConfigs = @($platformConfigPaths | Where-Object {
-        Test-Path -LiteralPath (Join-Path $targetRootFull $_) -PathType Leaf
+    $overwrittenPlatformFiles = @($sourceFiles | ForEach-Object {
+        $relative = $_.FullName.Substring($sourceRoot.Length).TrimStart('\', '/')
+        $relative = $relative.Replace('__PROJECT_PREFIX__', $ProjectPrefix)
+        if ($relative -match '^(?:\.claude|\.codex)[\\/]') {
+            $destination = Join-Path $targetRootFull $relative
+            if (Test-Path -LiteralPath $destination -PathType Leaf) {
+                [PSCustomObject]@{ Source = $destination; Relative = $relative }
+            }
+        }
     })
 
-    if ($existingPlatformConfigs.Count -gt 0) {
+    if ($overwrittenPlatformFiles.Count -gt 0) {
         $backupRoot = Join-Path $targetRootFull ('.trellisforge-backup\' + (Get-Date -Format 'yyyyMMdd-HHmmss'))
-        foreach ($relativePath in $existingPlatformConfigs) {
-            $source = Join-Path $targetRootFull $relativePath
-            $backup = Join-Path $backupRoot $relativePath
+        foreach ($file in $overwrittenPlatformFiles) {
+            $backup = Join-Path $backupRoot $file.Relative
             New-Item -ItemType Directory -Path (Split-Path -Parent $backup) -Force | Out-Null
-            Copy-Item -LiteralPath $source -Destination $backup
+            Copy-Item -LiteralPath $file.Source -Destination $backup
         }
     }
 }

@@ -11,6 +11,7 @@
 | `.trellis/spec/shared/trellis-maintenance.md` | 新增 | 上游更新、受保护定制和升级后验证合同 |
 | `.agents/skills/` | 新增/覆盖同名 Skill | Grill Me、规划 adapter、审查 profile、定制 `trellis-finish-work` |
 | `.claude/` | 直接覆盖（`-Force` 前备份） | Claude Code Hook、代理与设置 |
+| `.claude/commands/trellis/` | 直接覆盖 | Claude `/trellis:finish-work` 与 `/trellis:continue` 路由命令 |
 | `.codex/` | 直接覆盖（`-Force` 前备份） | Codex Hook、代理与设置 |
 | `AGENTS.md.template` | 人工合并 | 目标项目事实与硬约束，不自动覆盖根 AGENTS.md |
 

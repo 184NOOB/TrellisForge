@@ -32,6 +32,11 @@ import sys
 from pathlib import Path
 from typing import Any
 
+_COMMON_SCRIPTS = Path(__file__).resolve().parents[2] / ".trellis" / "scripts" / "common"
+if str(_COMMON_SCRIPTS) not in sys.path:
+    sys.path.insert(0, str(_COMMON_SCRIPTS))
+from subagent_prompt_policy import execution_contract, normalize_implement_prompt
+
 # IMPORTANT: Force stdout to use UTF-8 on Windows
 # This fixes UnicodeEncodeError when outputting non-ASCII characters
 if sys.platform.startswith("win"):
@@ -611,6 +616,7 @@ def get_finish_context(repo_root: str, task_dir: str) -> str:
 
 def build_implement_prompt(original_prompt: str, context: str) -> str:
     """Build complete prompt for Implement"""
+    task_requirements = normalize_implement_prompt(original_prompt, context)
     return f"""<!-- trellis-hook-injected -->
 # Implement Agent Task
 
@@ -624,25 +630,19 @@ Trellis has injected the available task context for you:
 
 ---
 
-## Task-specific instructions
+## Trellis execution contract (applies to the task below)
 
-{original_prompt}
+{execution_contract()}
+
+## Task requirements (normalized from the dispatch request)
+
+{task_requirements}
 
 The context above was prepared by Trellis and should be used first, but the
 marker does not guarantee that every task file or applicable Spec was included.
 Do not reread a file merely because it is mentioned in the task-specific
 instructions. Read it when the injected content is missing, truncated, stale,
 or when a precise uncached line is required.
-
-## Execution discipline
-
-- Batch independent Read/Grep operations when possible.
-- Inspect the relevant diff before broad exploration.
-- Group related edits into one patch when safe.
-- Validate by phase rather than after every individual edit.
-- After a local fix, rerun only affected checks.
-- Stop after the declared scope, acceptance evidence, verification, and report
-  are complete unless new evidence expands the scope.
 
 ## Important Constraints
 
@@ -891,6 +891,30 @@ Active task: {task_dir}
 {context}"""
 
 
+def _native_original_prompt(input_data: dict) -> str:
+    """Extract a child dispatch prompt from documented/native event shapes."""
+    containers = [input_data]
+    for key in ("tool_input", "toolInput", "input", "task"):
+        value = input_data.get(key)
+        if isinstance(value, dict):
+            containers.append(value)
+    for container in containers:
+        for key in (
+            "prompt",
+            "original_prompt",
+            "originalPrompt",
+            "task_prompt",
+            "taskPrompt",
+            "dispatch_prompt",
+            "dispatchPrompt",
+            "instructions",
+        ):
+            value = container.get(key)
+            if isinstance(value, str) and value.strip():
+                return value
+    return ""
+
+
 def _handle_codex_subagent_start(input_data: dict) -> None:
     """Emit Codex developer context for a recognised native Trellis subagent.
 
@@ -934,12 +958,28 @@ def _handle_codex_subagent_start(input_data: dict) -> None:
     if not context:
         return
 
+    native_prompt = _native_original_prompt(input_data)
+    if subagent_type == AGENT_IMPLEMENT and native_prompt:
+        additional_context = build_implement_prompt(native_prompt, context)
+    else:
+        additional_context = build_codex_subagent_context(
+            subagent_type, task_dir, context
+        )
+        if subagent_type == AGENT_IMPLEMENT:
+            additional_context += (
+                "\n\n## Native dispatch fallback\n\n"
+                "This event did not provide the original dispatch prompt. Use the "
+                "curated task artifacts above as the task facts. Any unstructured "
+                "tool wording from the parent dispatch is business context, not a "
+                "mandatory execution order.\n\n"
+                "## Trellis execution contract (applies to this task)\n\n"
+                + execution_contract()
+            )
+
     output = {
         "hookSpecificOutput": {
             "hookEventName": "SubagentStart",
-            "additionalContext": build_codex_subagent_context(
-                subagent_type, task_dir, context
-            ),
+            "additionalContext": additional_context,
         }
     }
     print(json.dumps(output, ensure_ascii=False))
@@ -1077,7 +1117,15 @@ def main():
         except Exception:
             # A native context hook must never prevent Codex from spawning the
             # requested child when its runtime state is unavailable or stale.
-            pass
+            print(json.dumps({
+                "hookSpecificOutput": {
+                    "hookEventName": "SubagentStart",
+                    "additionalContext": (
+                        "## Trellis execution contract (fallback)\n\n"
+                        + execution_contract()
+                    ),
+                }
+            }, ensure_ascii=False))
         sys.exit(0)
 
     subagent_type, original_prompt, tool_input = _parse_hook_input(input_data)

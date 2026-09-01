@@ -34,12 +34,25 @@ Before implementing, read:
 
 Do not reread injected context merely because a file is named in the dispatch
 prompt. Supplement it when the content is missing, truncated, stale, or needs
-precise verification. Batch independent Read/Grep operations, inspect relevant existing code
-and the diff before broad exploration, group related edits into one patch when
-safe, and validate by phase rather than after each individual edit. After a
-local fix rerun only affected checks. Stop when the declared scope, acceptance
-evidence, verification, and report are complete unless new evidence expands
-the scope.
+precise verification.
+
+## Mandatory execution batches
+
+1. Discover in batches: read independent files together and scan all related
+   symbols, macros, or fields with one batch command or script. Do not call
+   `grep` once per item unless a prior batch result proves targeted follow-up
+   is necessary.
+2. Edit by phase: inspect the relevant diff before broad exploration and group
+   related edits into one patch when safe. Do not run a full scan or build after
+   every small edit.
+3. Validate by phase: use one batch scan or summary command that prints named
+   per-item evidence. After a real code fix rerun only affected checks. A
+   comment or documentation match for a historical name is not a code residual
+   and does not trigger a rebuild.
+4. Stop on completion: once scope, acceptance evidence, required verification,
+   and the report are complete, stop. Do not repeat unaffected scans or builds
+   merely to confirm them again. Interpret “逐项” and “每项附证据” as report
+   granularity, not one tool call per item.
 
 ## Core Responsibilities
 

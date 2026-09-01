@@ -27,12 +27,24 @@ Before implementing, read in this order:
 3. **Implement features** — write code that follows specs and existing patterns
 4. **Self-check** — run relevant module tests, static checks, and available target builds on the changed scope before reporting
 
-Batch independent Read/Grep operations and inspect relevant existing code and
-the diff before broad exploration. Group related edits into one patch when
-safe, validate by phase rather than after each individual edit, and after a
-local fix rerun only affected checks. Stop when the declared scope, acceptance
-evidence, verification, and report are complete unless new evidence expands
-the scope.
+## Execution batches (mandatory)
+
+1. **Discover in batches** — read independent files together and scan all
+   related symbols, macros, or fields with one batch command or script. Do not
+   call `grep` once per item unless a prior batch result proves that item needs
+   targeted follow-up.
+2. **Edit by phase** — inspect the relevant diff before broad exploration and
+   group related edits into one patch when safe. Do not run a full scan or build
+   after every small edit.
+3. **Validate by phase** — produce named per-item evidence from a single batch
+   scan or summary command. After a real code fix, rerun only affected checks;
+   comment or documentation matches for historical names are not code
+   residuals and do not trigger a rebuild.
+4. **Stop on completion** — once scope, acceptance evidence, required
+   verification, and the report are complete, stop. Do not repeat unaffected
+   scans or builds merely to confirm them again. If task wording says “逐项”
+   or “每项附证据”, interpret that as report granularity, not one tool call
+   per item.
 
 ## Forbidden Operations
 

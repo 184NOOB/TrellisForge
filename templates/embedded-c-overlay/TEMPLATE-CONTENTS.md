@@ -6,7 +6,9 @@
 | --- | --- | --- |
 | `.trellis/workflow.md` | `-Force` 覆盖前备份 | 规划、实施、审查路由和子代理效率规则 |
 | `.trellis/config.yaml` | `-Force` 覆盖前备份，随后填写 | 禁用会话自动提交、包和上下文注入配置 |
-| `.trellis/scripts/` | `-Force` 覆盖同名前备份 | 会话隔离与规划/批准门禁实现及测试 |
+| `.trellis/scripts/` | `-Force` 覆盖同名前备份 | 会话隔离、规划/批准门禁、子代理提示规范化实现及测试 |
+| `.trellis/scripts/common/subagent_prompt_policy.py` | `-Force` 覆盖前备份（首次接入时新增） | 保守识别目标/范围/验收/命令/执行策略，仅批量化明确执行策略中的碎片化操作 |
+| `.trellis/scripts/tests/test_subagent_prompt_contract.py` | `-Force` 覆盖前备份（首次接入时新增） | Claude/Codex Hook、Native fallback、编号步骤和中文变体行为测试 |
 | `.trellis/spec/shared/` | `-Force` 覆盖同名前备份，随后填写 | 嵌入式 C 的仓库、验证和硬件合同骨架 |
 | `.trellis/spec/shared/trellis-maintenance.md` | 覆盖前备份（首次接入时新增） | 上游更新、受保护定制和升级后验证合同 |
 | `.agents/skills/` | `-Force` 覆盖同名前备份 | Grill Me、规划 adapter、审查 profile、定制 `trellis-finish-work` |

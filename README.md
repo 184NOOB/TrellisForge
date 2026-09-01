@@ -53,6 +53,20 @@ Trellis 覆盖层，不修改 Trellis 的全局安装目录，也不包含任何
 | 多任务树常把所有节点都用 `--no-start` 创建，再用 `task.py start` 绕过规划阶段选择任务 | 父任务和延后兄弟任务可延后启动，下一步唯一子任务必须绑定当前会话；`task.py start` 只用于已批准规划进入实施 | `.trellis/workflow.md`、任务创建与上下文脚本 | 将任务选择、规划批准和实施启动拆成可审计的状态转换，避免用启动命令绕过规划门禁。 |
 | 子代理每轮只读一个文件、改一处、立刻验证，导致大量重复思考和无效工具轮次 | 一次批量读取和检索，集中完成相关编辑；按阶段验证，修复后只复验受影响检查，满足范围和验收证据后立即停止 | `.trellis/workflow.md`、`.trellis/agents/implement.md`、`.trellis/agents/check.md`、`.claude/agents/`、`.codex/agents/` | 通过减少模型重新加载上下文的轮次降低总耗时，而不是依赖更快编译。 |
 | 实施和审查提示词经常把完整 PRD、Spec、research、清单和 diff 再粘贴一遍，Hook 已注入的内容也被重新阅读 | 派发只携带任务路径、目标、范围、非目标、已有验收条件和验证命令；先用 Hook 上下文，只有证据显示缺失时补读 | `.trellis/workflow.md`、两套 `.claude/hooks/inject-subagent-context.py`、`.codex/hooks/inject-subagent-context.py`、implement/check agents | 降低重复 prompt、上下文回传和思考成本；保留 `original_prompt`，因此这是可审计的工作流约束，不是按长度截断。 |
+| 主代理把“逐个 grep”“每项单独构建”等工具编排写进实施提示，子代理按小步操作并反复验证 | 在实施派发入口保守分区；只改写明确“执行策略”中的碎片化编排，编号步骤和常见中文变体统一改为批量扫描/按阶段验证；目标、范围、验收条件和验证命令保持原文 | `.trellis/scripts/common/subagent_prompt_policy.py`、`.trellis/scripts/tests/test_subagent_prompt_contract.py`、两套注入 Hook、三个 implement 模板、`.trellis/workflow.md` | 将“逐项”解释为报告粒度而不是一次工具调用，减少重复 Read/Grep/Edit/Bash 和无效重建；保留无法安全分区的业务要求，避免正则误改验收语义 |
 | 审查代理被要求重新完整探索实现过程，或无证据地扫描整个 Spec/仓库 | 先看完整 diff、任务清单和验收条件，再按 diff、调用图、review profile 和项目规则决定补读范围 | `.agents/skills/__PROJECT_PREFIX__-trellis-review/`、`.claude/agents/trellis-check.md`、`.codex/agents/trellis-check.toml` | 用 `light/standard/strict` 对应 changed-scope、affected-scope、full-scope，避免审查重复实现探索。 |
 | 通用模板要求运行并不存在的 Web `lint/typecheck`，对嵌入式 C 造成无效验证轮次 | 只运行任务或项目定义的静态检查、测试和目标构建；无适用命令就记录 `not applicable` 或 `not run` | `.trellis/agents/implement.md`、`.trellis/agents/check.md`、`.claude/agents/`、`.codex/agents/`、`.agents/skills/__PROJECT_PREFIX__-trellis-review/` | 分开报告构建、静态检查、单元测试和实体硬件验证，避免虚构命令引发重复尝试；迁移其他语言时替换为真实检查命令。 |
 | 默认的收尾入口可能把代码提交、任务归档和 session journal 混成一个动作 | Phase 3.4 单独取得代码提交批准；`finish-work` 只归档和记录 journal，bookkeeping 变化再单独批准 | `.agents/skills/trellis-finish-work/`、`.claude/commands/trellis/`、`.trellis/workflow.md`、`.trellis/spec/shared/trellis-maintenance.md` | 分离代码变更与运行记录的审批对象，并提供 `/trellis:continue`、`/trellis:finish-work` 路由入口。 |
+
+### 本次子代理提示规范化修复
+
+本次修复针对一个具体耗时来源：主代理提示中把等价检查拆成“逐个 grep”“每项分别构建”等微步骤，实施代理就会按项目逐次调用工具并反复验证。原有的批量操作文字只是静态说明，Hook 仍把原始提示原样传递，因而没有形成运行时约束。
+
+解决方案是增加共享的 `subagent_prompt_policy.py`。实施派发时，它按目标、范围、非目标、验收条件、验证命令和执行策略进行保守分区；只有明确位于执行策略分区的碎片化工具编排才会被改写为一次批量扫描或阶段统一验证。编号列表先剥离编号再处理，`每一个`、`逐一`、`挨个`、`每项分别`、`每处重新编译` 等中文变体有回归测试。无法安全识别的内容原样保留并标记为业务要求，避免误改真实验收条件；该机制是提示级约束，不是工具层硬拦截。
+
+涉及文件：
+
+- `.trellis/scripts/common/subagent_prompt_policy.py`：共享分区、去重和批量化规则；
+- `.trellis/scripts/tests/test_subagent_prompt_contract.py`：23 项规范化、JSON 输出和 Claude/Codex 行为测试；
+- `.claude/hooks/inject-subagent-context.py`、`.codex/hooks/inject-subagent-context.py`：普通派发和 Codex Native 实施入口接入规范化器与执行契约；
+- `.claude/agents/trellis-implement.md`、`.codex/agents/trellis-implement.toml`、`.trellis/agents/implement.md`、`.trellis/workflow.md`：把批量读取、阶段验证和完成即停止写成实施规则。

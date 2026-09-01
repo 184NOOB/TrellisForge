@@ -233,6 +233,22 @@ Tools: `trellis-implement` / `trellis-research` are sub-agent types only (Task/A
 Flow: `trellis-implement` -> `PROJECT_PREFIX-trellis-review` -> light main-session review OR standard/strict `trellis-check` Agent -> `trellis-update-spec` -> commit (Phase 3.4) -> `/trellis:finish-work`.
 Main-session default: dispatch the implement sub-agent. Review dispatch follows the persisted profile: light stays in the main session and does not load the bundled generic `trellis-check` Skill; standard/strict dispatch the independent `trellis-check` Agent when supported. Sub-agent self-exemption: if already running as `trellis-implement`, do NOT spawn another `trellis-implement` or `trellis-check`; if already running as `trellis-check`, do NOT spawn another `trellis-check` or `trellis-implement`. Dispatch is main session only.
 Dispatch prompt starts with `Active task: <task path from task.py current>`. Read context: jsonl entries -> `prd.md` -> `design.md if present` -> `implement.md if present`.
+
+### Sub-agent dispatch efficiency contract
+
+The main session must describe acceptance evidence without prescribing one tool
+call per item. “逐项验收” and “每项附证据” mean that the final report lists
+each result; they do not mean one `grep`, read, edit, or build per symbol,
+field, or file. For equivalent checks, require one batch command or script that
+prints named per-item results. Do not dispatch instructions such as “每个符号
+单独 grep” or “每个字段单独执行命令”.
+
+An implement sub-agent must batch independent reads and searches, group related
+edits, validate at phase boundaries, and rerun only checks affected by a real
+code fix. A comment or documentation match for a historical name is not a code
+residual and must not trigger a rebuild. Once scope, acceptance evidence,
+required verification, and the report are complete, the sub-agent stops; it
+does not repeat an unaffected scan or build merely to confirm it again.
 [/workflow-state:in_progress]
 
 <!-- Per-turn breadcrumb: shown while status='in_progress' when

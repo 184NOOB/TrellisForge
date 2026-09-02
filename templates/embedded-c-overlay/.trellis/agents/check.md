@@ -27,7 +27,7 @@ Read `<task-path>/research/task-change-manifest.md` when present. Combine it wit
 
 1. **Get the diff** — inspect the complete task change set with `git status --short`, the manifest, and `git diff` / `git diff --staged`
 2. **Review against task artifacts** — does the diff satisfy `prd.md` (and `design.md` / `implement.md` if present)?
-3. **Review against specs** — read only the applicable `.trellis/spec/` files proved relevant by the manifest, diff, call graph, acceptance criteria, selected review profile, or project rules
+3. **Review against specs and the verification plan** — read only the applicable `.trellis/spec/` files proved relevant by the manifest, diff, call graph, acceptance criteria, selected review profile, or project rules; confirm `<task>/execution-plan.json` `required_checks` still cover the prd.md acceptance criteria (renamed, dropped, or trivialized checks are a verification downgrade and must be reported)
 4. **Self-fix** — when an issue is mechanical and small, fix it directly with the editing tools you have
 5. **Run verification** — relevant tests, static checks, and available target builds; never invent generic Web lint/type-check commands
 6. **Report** — concrete findings with `file:line` citations and what was fixed vs. what is open

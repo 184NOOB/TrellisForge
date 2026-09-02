@@ -1,5 +1,10 @@
 """Execution-plan state machine shared by plan.py and platform hooks.
 
+Design sources: the Trellis execution-plan design, superseded on the
+verification model by the Trellis two-level verification PRD
+(schema 3: two verification levels ``minimal`` / ``report`` plus explicit
+``required_checks``; no ``risk``, ``raw``, or ``required_evidence``).
+
 Per task directory two persisted files exist:
 
     <task-path>/execution-plan.json      current plan + state (single source of truth)
@@ -18,7 +23,6 @@ import hashlib
 import json
 import os
 import re
-import secrets
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -26,7 +30,8 @@ from typing import Any
 
 PLAN_FILE = "execution-plan.json"
 EVENTS_FILE = "execution-events.jsonl"
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
+REPORT_FILE = "final-report.md"
 
 PLAN_STATUSES = ("proposed", "approved")
 TASK_STATUSES = ("pending", "in_progress", "completed", "blocked")
@@ -34,9 +39,9 @@ TASK_STATUSES = ("pending", "in_progress", "completed", "blocked")
 DEFAULT_MAX_TASKS = 8
 DEFAULT_MAX_EDITS_PER_FILE = 5
 
-# Kebab-ish identifier for task ids and registered verification check ids.
+# Kebab-ish identifier for task ids and declared required-check ids.
 # Enforcing identifier shape (no spaces / shell metacharacters) is what keeps
-# declared verification checks as declarative IDs.
+# required checks declarative IDs, not shell commands.
 ID_RE = re.compile(r"^[a-z0-9][a-z0-9_.\-]*$")
 
 # Fields that must not be silently edited while a plan is approved.
@@ -47,22 +52,27 @@ _GUARDED_TASK_FIELDS = (
     "depends_on",
     "scope",
     "batch_groups",
-    "risk",
     "verification",
+    "no_check_reason",
 )
 # Fields plan.py manages inside a task; models must not hand-edit them.
 _MANAGED_TASK_FIELDS = ("verification_results",)
 
-RISK_LEVELS = ("normal", "high", "final")
-VERIFICATION_LEVELS = ("minimal", "raw", "report")
-MINIMUM_VERIFICATION_LEVEL = {
-    "normal": "minimal",
-    "high": "raw",
-    "final": "report",
-}
-DEFAULT_MINIMAL_RESULT_ID = "phase-result"
+# Two-level verification model (schema 3): minimal = phase execution record,
+# report = final acceptance. No risk->level mapping exists anymore.
+VERIFICATION_LEVELS = ("minimal", "report")
+_VERIFICATION_KEYS = ("level", "required_checks", "report_path")
+# Schema-3 plans must not carry these pre-schema-3 fields (checked at plan
+# top level and per task).
+_LEGACY_TASK_FIELDS = (
+    "risk",
+    "required_evidence",
+    "evidence",
+    "check_results",
+    "checks",
+    "required_artifacts",
+)
 MAX_INLINE_COMMAND_LENGTH = 512
-MAX_COMMAND_SUMMARY_LENGTH = 160
 
 
 class PlanError(Exception):
@@ -278,17 +288,22 @@ def append_event(task_dir: Path, event: dict[str, Any]) -> None:
 
 
 def mutate_with_audit(
-    task_dir: Path, original_text: str, plan: dict[str, Any], event: dict[str, Any]
+    task_dir: Path,
+    original_text: str,
+    plan: dict[str, Any],
+    event: dict[str, Any] | list[dict[str, Any]],
 ) -> None:
-    """Save the new plan, then append its audit event.
+    """Save the new plan, then append its audit event(s).
 
-    If the audit append fails, the plan file is restored to ``original_text``
+    If any audit append fails, the plan file is restored to ``original_text``
     so the JSON state never advances without its event. This is the design's
     rollback requirement; failures here are disk-level and reported loudly.
     """
     save_plan(task_dir, plan)
+    events = event if isinstance(event, list) else [event]
     try:
-        append_event(task_dir, event)
+        for one in events:
+            append_event(task_dir, one)
     except OSError as exc:
         try:
             _atomic_write(plan_path(task_dir), original_text)
@@ -388,19 +403,6 @@ def _validate_id_list(value: Any, where: str, *, allow_empty: bool) -> list[str]
     return result
 
 
-def _validate_string_list(value: Any, where: str) -> list[str]:
-    if not isinstance(value, list):
-        raise PlanError(f"{where}: must be a list of strings")
-    result: list[str] = []
-    for item in value:
-        if not isinstance(item, str) or not item.strip():
-            raise PlanError(f"{where}: entries must be non-empty strings")
-        result.append(item.strip())
-    if len(set(result)) != len(result):
-        raise PlanError(f"{where}: duplicate entries")
-    return result
-
-
 def validate_plan_shape(plan: dict[str, Any], task_rel: str) -> list[str]:
     """Structural validation. Returns list of human-readable issues (empty = OK)."""
     issues: list[str] = []
@@ -409,7 +411,17 @@ def validate_plan_shape(plan: dict[str, Any], task_rel: str) -> list[str]:
         issues.append(msg)
 
     if plan.get("schema") != SCHEMA_VERSION:
-        issue(f"schema must be {SCHEMA_VERSION}")
+        issue(
+            f"schema must be {SCHEMA_VERSION} (legacy plans are not migrated; "
+            "regenerate with `plan.py template` — do not edit the schema field "
+            "of an old plan to force it through)"
+        )
+    top_legacy = [f for f in _LEGACY_TASK_FIELDS if f in plan]
+    if top_legacy:
+        issue(
+            "schema 3 does not accept these top-level fields: "
+            + ", ".join(top_legacy)
+        )
     if not isinstance(plan.get("revision"), int) or plan.get("revision", 0) < 1:
         issue("revision must be an integer >= 1")
     if plan.get("status") not in PLAN_STATUSES:
@@ -473,46 +485,80 @@ def validate_plan_shape(plan: dict[str, Any], task_rel: str) -> list[str]:
             issue(f"{where}.objective must be a non-empty string")
         if task.get("status") not in TASK_STATUSES:
             issue(f"{where}.status must be one of {TASK_STATUSES}")
-        if any(field in task for field in ("required_evidence", "evidence", "check_results", "checks")):
-            issue(f"{where}: legacy verification fields are not supported; use risk and verification")
-        risk = task.get("risk")
-        if risk not in RISK_LEVELS:
-            issue(f"{where}.risk must be one of {RISK_LEVELS}")
+        legacy = [f for f in _LEGACY_TASK_FIELDS if f in task]
+        if legacy:
+            issue(
+                f"{where}: schema 3 does not accept these fields: "
+                + ", ".join(legacy)
+                + "; declare checks as verification.required_checks "
+                "(minimal|report levels only)"
+            )
         verification = task.get("verification")
         if not isinstance(verification, dict):
             issue(f"{where}.verification must be an object")
             verification = {}
+        unknown_verif = sorted(set(verification) - set(_VERIFICATION_KEYS))
+        if unknown_verif:
+            issue(
+                f"{where}.verification has unsupported keys: "
+                + ", ".join(unknown_verif)
+                + " (allowed: " + ", ".join(_VERIFICATION_KEYS) + ")"
+            )
         level = verification.get("level")
         if level not in VERIFICATION_LEVELS:
             issue(f"{where}.verification.level must be one of {VERIFICATION_LEVELS}")
-        violation = _verification_level_violation(risk, level)
-        if violation:
-            issue(f"{where}: {violation['rule']} (requested {level})")
         try:
-            checks = _validate_id_list(
-                verification.get("checks", []), f"{where}.verification.checks",
+            required_checks = _validate_id_list(
+                verification.get("required_checks"),
+                f"{where}.verification.required_checks",
                 allow_empty=True,
             )
         except PlanError as exc:
             issue(str(exc))
-            checks = []
-        try:
-            artifacts = verification.get("required_artifacts", [])
-            artifacts = _validate_string_list(artifacts, f"{where}.verification.required_artifacts")
-            for artifact in artifacts:
-                _validate_relative_path(artifact, f"{where}.verification.required_artifacts")
-            if level == "raw" and not artifacts:
-                issue(f"{where}: verification.level=raw requires required_artifacts")
-            report_artifacts = [
-                artifact for artifact in artifacts if artifact.lower().endswith(".md")
-            ]
-            if level == "report" and report_artifacts != ["final-report.md"]:
+            required_checks = []
+        no_check_reason = task.get("no_check_reason")
+        if no_check_reason is not None and (
+            not isinstance(no_check_reason, str) or not no_check_reason.strip()
+        ):
+            issue(f"{where}.no_check_reason must be a non-empty string when present")
+        scope_obj = task.get("scope")
+        has_writes = bool(
+            isinstance(scope_obj, dict)
+            and isinstance(scope_obj.get("write"), list)
+            and any(isinstance(w, str) and w.strip() for w in scope_obj["write"])
+        )
+        # An empty required_checks may never bypass verification: it is legal
+        # only for a pure read-only/analysis phase that states why (PRD 5.2).
+        if not required_checks:
+            if has_writes:
                 issue(
-                    f"{where}: verification.level=report requires exactly "
-                    "required_artifacts=[\"final-report.md\"]"
+                    f"{where}: phases with non-empty scope.write must declare at "
+                    "least one verification.required_checks"
                 )
-        except PlanError as exc:
-            issue(str(exc))
+            elif level == "report":
+                issue(
+                    f"{where}: level=report must declare at least one "
+                    "verification.required_checks"
+                )
+            elif not (isinstance(no_check_reason, str) and no_check_reason.strip()):
+                issue(
+                    f"{where}: empty verification.required_checks requires a "
+                    "non-empty no_check_reason (read-only/analysis phases only)"
+                )
+        elif isinstance(no_check_reason, str) and no_check_reason.strip():
+            issue(
+                f"{where}: no_check_reason is only valid when "
+                "verification.required_checks is empty"
+            )
+        report_path = verification.get("report_path")
+        if level == "report":
+            if report_path != REPORT_FILE:
+                issue(
+                    f"{where}: verification.level=report requires "
+                    f"verification.report_path == \"{REPORT_FILE}\""
+                )
+        elif report_path is not None:
+            issue(f"{where}: verification.report_path is only valid for level=report")
         for field in _MANAGED_TASK_FIELDS:
             # Only a proposed (pre-approval / post-revise) plan must be clean:
             # Active approved plans legitimately carry verification_results.
@@ -536,7 +582,19 @@ def validate_plan_shape(plan: dict[str, Any], task_rel: str) -> list[str]:
                     continue
                 for entry in entries:
                     try:
-                        _validate_relative_path(entry, f"{where}.scope.{key}")
+                        normalized = _validate_relative_path(
+                            entry, f"{where}.scope.{key}"
+                        )
+                        # A pattern made only of wildcards (no fixed segment)
+                        # matches every repo path, defeating scope entirely.
+                        segments = [s for s in normalized.split("/") if s]
+                        if key == "write" and segments and all(
+                            s in ("*", "**") for s in segments
+                        ):
+                            issue(
+                                f"{where}.scope.write: unbounded pattern "
+                                f"'{entry}' would match the whole repository"
+                            )
                     except PlanError as exc:
                         issue(str(exc))
         deps = task.get("depends_on")
@@ -552,6 +610,8 @@ def validate_plan_shape(plan: dict[str, Any], task_rel: str) -> list[str]:
 
     for tid, task in by_id.items():
         for dep in task.get("depends_on") or []:
+            if not isinstance(dep, str):
+                continue  # non-string entries already reported above
             if dep not in by_id:
                 issue(f"task {tid} depends on unknown id: {dep}")
             if dep == tid:
@@ -559,6 +619,54 @@ def validate_plan_shape(plan: dict[str, Any], task_rel: str) -> list[str]:
     cycle = _find_cycle(by_id)
     if cycle:
         issue("dependency cycle: " + " -> ".join(cycle))
+
+    # PRD 8.2: at most one report phase per plan; when present it must be
+    # terminal and cover every other phase. Every real task should end with
+    # one so final acceptance produces final-report.md (2.2 review confirms).
+    report_ids = [
+        tid
+        for tid, t in by_id.items()
+        if isinstance(t.get("verification"), dict)
+        and t["verification"].get("level") == "report"
+    ]
+    if len(report_ids) > 1:
+        issue(
+            "at most one verification.level=report task is allowed, found: "
+            + ", ".join(sorted(report_ids))
+        )
+    if len(report_ids) == 1:
+        rid = report_ids[0]
+        dependents = sorted(
+            tid for tid, t in by_id.items() if rid in (t.get("depends_on") or [])
+        )
+        if dependents:
+            issue(
+                f"report task {rid} must be terminal; these tasks depend on it: "
+                + ", ".join(dependents)
+            )
+        # Final acceptance must come after ALL work: the report phase has to
+        # (transitively) depend on every other phase, or it could complete
+        # before the phases it is supposed to summarize.
+        reachable: set[str] = set()
+        stack = [
+            d for d in by_id[rid].get("depends_on") or []
+            if isinstance(d, str) and d in by_id
+        ]
+        while stack:
+            node = stack.pop()
+            if node in reachable:
+                continue
+            reachable.add(node)
+            stack.extend(
+                d for d in by_id[node].get("depends_on") or []
+                if isinstance(d, str) and d in by_id
+            )
+        uncovered = sorted(set(by_id) - reachable - {rid})
+        if uncovered:
+            issue(
+                f"report task {rid} must (transitively) depend on every other "
+                "task; not covered: " + ", ".join(uncovered)
+            )
 
     for entry in plan.get("tasks", []):
         if isinstance(entry, dict) and entry.get("status") == "in_progress" and plan.get("status") == "proposed":
@@ -578,7 +686,7 @@ def _find_cycle(by_id: dict[str, dict[str, Any]]) -> list[str] | None:
             return None
         state[node] = 1
         for dep in by_id[node].get("depends_on") or []:
-            if dep in by_id:
+            if isinstance(dep, str) and dep in by_id:
                 found = visit(dep, stack + [node])
                 if found:
                     return found
@@ -600,80 +708,6 @@ def _expected_revision(events: list[dict[str, Any]]) -> int:
     return 1 + len(history_of(events, "plan_revised"))
 
 
-def _verification_level_violation(risk: Any, level: Any) -> dict[str, str] | None:
-    """Return the canonical minimum-level violation for one risk/level pair."""
-    minimum = MINIMUM_VERIFICATION_LEVEL.get(risk)
-    if not minimum or level not in VERIFICATION_LEVELS:
-        return None
-    if VERIFICATION_LEVELS.index(level) >= VERIFICATION_LEVELS.index(minimum):
-        return None
-    return {
-        "risk": str(risk),
-        "requested_level": str(level),
-        "minimum_level": minimum,
-        "rule": f"risk={risk} requires level>={minimum}",
-        "reason": "verification level is below the minimum allowed for this risk",
-    }
-
-
-def _verification_policy_issues(plan: dict[str, Any]) -> list[dict[str, str]]:
-    violations: list[dict[str, str]] = []
-    for task in plan.get("tasks", []):
-        if not isinstance(task, dict):
-            continue
-        risk = task.get("risk")
-        verification = task.get("verification")
-        level = verification.get("level") if isinstance(verification, dict) else None
-        violation = _verification_level_violation(risk, level)
-        if violation:
-            violations.append({"task_id": str(task.get("id", "")), **violation})
-    return violations
-
-
-def _write_reject_reports(task_dir: Path, repo_root: Path, plan: dict[str, Any], violations: list[dict[str, str]]) -> list[str]:
-    report_dir = task_dir / "reject-reports"
-    written: list[str] = []
-    try:
-        report_dir.mkdir(parents=True, exist_ok=True)
-        for violation in violations:
-            timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-            short_hash = secrets.token_hex(4)
-            report_path = report_dir / f"reject-{timestamp}-{short_hash}.json"
-            report = {
-                "type": "verification-policy-rejection",
-                "time": _utc_now(),
-                "task": task_rel_path(repo_root, task_dir),
-                "revision": plan.get("revision"),
-                "plan_fingerprint": plan_fingerprint(plan),
-                **violation,
-                "reasons": [violation["reason"]],
-            }
-            _atomic_write(report_path, json.dumps(report, ensure_ascii=False, indent=2) + "\n")
-            written.append(rel_posix(repo_root, report_path))
-    except OSError as exc:
-        raise PlanError(
-            "verification policy rejected the plan, and reject_report could not be written: "
-            f"{exc}"
-        ) from exc
-    return written
-
-
-def _reject_report_suffix(
-    task_dir: Path,
-    repo_root: Path,
-    plan: dict[str, Any],
-    violations: list[dict[str, str]],
-) -> str:
-    """Write rejection reports without hiding the original validation issues."""
-    if not violations:
-        return ""
-    try:
-        reports = _write_reject_reports(task_dir, repo_root, plan, violations)
-    except PlanError as exc:
-        return f"; reject report write failed: {exc}"
-    return f"; reject reports: {', '.join(reports)}" if reports else ""
-
-
 def cmd_validate(repo_root: Path, task_dir: Path) -> str:
     events, corrupt = read_events(task_dir)
     if corrupt:
@@ -688,9 +722,7 @@ def cmd_validate(repo_root: Path, task_dir: Path) -> str:
     if plan.get("status") == "approved":
         issues = validate_plan_shape(plan, task_rel)
         if issues:
-            violations = _verification_policy_issues(plan)
-            suffix = _reject_report_suffix(task_dir, repo_root, plan, violations)
-            raise PlanError("approved plan failed re-validation:\n- " + "\n- ".join(issues) + suffix)
+            raise PlanError("approved plan failed re-validation:\n- " + "\n- ".join(issues))
         stored = plan.get("approved_fingerprint")
         if plan_fingerprint(plan) != stored:
             raise PlanError(
@@ -698,16 +730,69 @@ def cmd_validate(repo_root: Path, task_dir: Path) -> str:
                 hint="run plan.py revise --reason \"...\" before editing the plan",
             )
         if int(plan.get("revision", 0)) != _expected_revision(events):
-            raise PlanError("approved plan revision disagrees with the audit history")
+            expected_rev = _expected_revision(events)
+            raise PlanError(
+                f"approved plan revision {plan.get('revision')} disagrees with "
+                f"the audit history (expected {expected_rev})",
+                hint=f"the revision was likely hand-edited: set it back to "
+                     f"{expected_rev} keeping \"status\": \"approved\", then use "
+                     "plan.py revise to change the plan (approve itself never "
+                     "changes the revision, so a mismatch is not a crash "
+                     "artifact)",
+            )
+        approvals = history_of(events, "plan_approved")
+        if (
+            not approvals
+            or int(approvals[-1].get("revision", -1)) != int(plan.get("revision", -2))
+        ):
+            raise PlanError(
+                "approved plan has no matching plan_approved event at this revision",
+                hint="a crash likely saved the plan before its plan_approved "
+                     "event landed; hand-edit \"status\" back to \"proposed\" "
+                     "and run validate to redo the approval",
+            )
         return f"plan already approved at revision {plan['revision']} (no changes)"
 
     issues = validate_plan_shape(plan, task_rel)
 
     revision = plan.get("revision")
     if isinstance(revision, int) and revision != _expected_revision(events):
+        expected_rev = _expected_revision(events)
+        if revision == expected_rev + 1:
+            issues.append(
+                f"revision {revision} disagrees with audit history (expected "
+                f"{expected_rev}); if a crash interrupted revise before its "
+                "plan_revised event landed, run plan.py revise --reason \"...\" "
+                "again — it heals the missing event — then edit and validate"
+            )
+        elif revision > expected_rev:
+            issues.append(
+                f"revision {revision} disagrees with audit history (expected "
+                f"{expected_rev}); only plan.py revise bumps revisions. To "
+                f"recover: set revision back to {expected_rev} with status "
+                "\"approved\" and run revise, or to exactly "
+                f"{expected_rev + 1} and run revise to heal a crashed revise"
+            )
+        else:
+            issues.append(
+                f"revision {revision} disagrees with audit history "
+                f"(expected {expected_rev}); bump it only via plan.py revise"
+            )
+    approvals = history_of(events, "plan_approved")
+    if (
+        approvals
+        and isinstance(revision, int)
+        and int(approvals[-1].get("revision", -1)) == revision
+    ):
+        # The sanctioned paths never leave a plan 'proposed' at an already
+        # approved revision: that only happens when a model hand-flips the
+        # status to dodge revise. Refuse the silent re-approval.
         issues.append(
-            f"revision {revision} disagrees with audit history "
-            f"(expected {_expected_revision(events)}); bump it only via plan.py revise"
+            f"revision {revision} is already approved in the audit log but the "
+            "plan says 'proposed' — a status hand-flip cannot re-approve it; "
+            "restore \"status\": \"approved\" and use plan.py revise to reopen "
+            "the plan (revise reverts unauthorized guarded edits to the "
+            "last-approved snapshot)"
         )
 
     # Completed tasks exist only by audit history: a model cannot mark work
@@ -751,9 +836,7 @@ def cmd_validate(repo_root: Path, task_dir: Path) -> str:
         issues.append(f"verification result map does not match the audit log: {line}")
 
     if issues:
-        violations = _verification_policy_issues(plan)
-        suffix = _reject_report_suffix(task_dir, repo_root, plan, violations)
-        raise PlanError("plan validation failed:\n- " + "\n- ".join(issues) + suffix)
+        raise PlanError("plan validation failed:\n- " + "\n- ".join(issues))
 
     plan["task"] = task_rel
     plan.setdefault("created_by", "trellis-implement")
@@ -787,9 +870,40 @@ def cmd_revise(repo_root: Path, task_dir: Path, reason: str) -> str:
     events = require_clean_audit(task_dir)
     plan = load_plan(task_dir)
     if plan.get("status") != "approved":
+        # Crash self-heal: a revise that saved its proposed plan but died
+        # before appending plan_revised would otherwise deadlock between
+        # validate ("bump only via revise") and revise ("only approved may be
+        # revised"). The file state proves the revise happened; finish it.
+        expected_rev = _expected_revision(events)
+        approvals_seen = history_of(events, "plan_approved")
+        if (
+            plan.get("status") == "proposed"
+            and isinstance(plan.get("revision"), int)
+            and plan["revision"] == expected_rev + 1
+            and approvals_seen
+            and int(approvals_seen[-1].get("revision", -1)) == expected_rev
+        ):
+            append_event(task_dir, {
+                "event": "plan_revised",
+                "from_revision": expected_rev,
+                "to_revision": int(plan["revision"]),
+                "reason": reason.strip()
+                + " (healed missing plan_revised event; heal replays the event "
+                  "only — content is not trusted, validate re-applies every rule)",
+                "recovered": True,
+            })
+            return (
+                f"audit healed for revision {plan['revision']} (the earlier "
+                "revise saved the plan before its event landed). The heal "
+                "validates nothing about the current content: edit "
+                "execution-plan.json if needed, then plan.py validate, and the "
+                "2.2 review should treat this revision as a normal plan change"
+            )
         raise PlanError(
             "only the currently approved plan revision may be revised",
-            hint="an unapproved (proposed) plan can simply be edited, then validated",
+            hint="an unapproved (proposed) plan can simply be edited, then "
+                 "validated; a proposed plan whose revision was already bumped "
+                 "is recovered by running revise again (it heals the audit event)",
         )
     approvals = history_of(events, "plan_approved")
     if not approvals or int(approvals[-1].get("revision", -1)) != int(plan.get("revision", -2)):
@@ -845,10 +959,19 @@ def cmd_revise(repo_root: Path, task_dir: Path, reason: str) -> str:
     for task in plan.get("tasks", []):
         if not isinstance(task, dict):
             continue
-        if task.get("status") in ("in_progress", "blocked"):
+        new_status = (
+            "completed" if task.get("id") in completed else "pending"
+        )
+        # Only tasks that actually fall back to pending belong in the reset
+        # note; an audit-completed task re-derived to completed was not reset
+        # even if its JSON said in_progress/blocked.
+        if (
+            task.get("status") in ("in_progress", "blocked")
+            and new_status == "pending"
+        ):
             reset.append(str(task.get("id")))
-        task["status"] = "completed" if task.get("id") in completed else "pending"
-        if task["status"] != "completed":
+        task["status"] = new_status
+        if new_status != "completed":
             for field in _MANAGED_TASK_FIELDS:
                 task.pop(field, None)
     plan["revision"] = int(plan["revision"]) + 1
@@ -923,6 +1046,30 @@ def _last_boundary_index(events: list[dict[str, Any]]) -> int:
     return -1
 
 
+def _replay_start_index(
+    events: list[dict[str, Any]], tid: str, is_completed: bool
+) -> int:
+    """First event index whose check_recorded entries count for the task's map.
+
+    A completed task's map is preserved across revisions, but revise cleared
+    any superseded record set, so its window starts at the last plan_revised
+    before completion (whole log when there was none). A non-completed task
+    counts only events after the latest plan_approved / plan_revised boundary.
+    """
+    if is_completed:
+        done = [
+            i for i, e in enumerate(events)
+            if e.get("event") == "task_completed" and str(e.get("task")) == tid
+        ]
+        if done:
+            prior = [
+                i for i, e in enumerate(events)
+                if e.get("event") == "plan_revised" and i < done[-1]
+            ]
+            return prior[-1] if prior else -1
+    return _last_boundary_index(events)
+
+
 def replay_verification_results(
     events: list[dict[str, Any]], plan: dict[str, Any]
 ) -> dict[str, dict[str, Any]]:
@@ -930,9 +1077,8 @@ def replay_verification_results(
 
     Mirrors replay_statuses for the managed fields so _require_mutable can
     reject hand-forged verification results, not just hand-forged
-    statuses. Completed tasks compare against the whole log (their maps are
-    preserved across revisions); other tasks only against events since the
-    last boundary.
+    statuses. Each task replays from its own window start (see
+    _replay_start_index).
     """
     task_ids = {
         str(t.get("id"))
@@ -944,13 +1090,15 @@ def replay_verification_results(
         for t in plan.get("tasks", [])
         if isinstance(t, dict) and t.get("status") == "completed"
     }
-    boundary = _last_boundary_index(events)
+    starts = {
+        tid: _replay_start_index(events, tid, tid in completed) for tid in task_ids
+    }
     results: dict[str, dict[str, Any]] = {tid: {} for tid in task_ids}
     for index, event in enumerate(events):
         tid = str(event.get("task") or "")
         if tid not in task_ids:
             continue
-        if tid not in completed and index <= boundary:
+        if index <= starts[tid]:
             continue
         name = event.get("event")
         if name == "check_recorded":
@@ -1010,7 +1158,9 @@ def _require_mutable(task_dir: Path, plan: dict[str, Any]) -> list[dict[str, Any
         raise PlanError(
             "verification result map does not match the audit replay: "
             + "; ".join(verification_drift),
-            hint="verification results may only be registered through plan.py record/check",
+            hint="verification results may only be registered through plan.py record; "
+                 "if the plan JSON led the audit after a crash between save and append, "
+                 "recover with plan.py revise --reason \"...\" and re-validate",
         )
     require_plan_intact(plan)
     if plan.get("status") != "approved":
@@ -1128,15 +1278,15 @@ def _validate_result_exit_code(result: str, exit_code: int) -> None:
 def _command_record_fields(command: str, summary: str | None) -> dict[str, Any]:
     if not isinstance(command, str) or not command.strip():
         raise PlanError("--command must be a non-empty string")
+    # PRD 5.2/8.1: every check record carries command id, exit code, and a
+    # short summary; the summary is mandatory so results stay readable
+    # without preserving full command output.
+    if not isinstance(summary, str) or not summary.strip():
+        raise PlanError("--summary is required (short human-readable result text)")
     normalized = command.strip()
-    clean_summary = summary.strip() if isinstance(summary, str) and summary.strip() else None
+    clean_summary = summary.strip()
     if len(normalized) <= MAX_INLINE_COMMAND_LENGTH:
-        fields: dict[str, Any] = {"command": normalized}
-        if clean_summary:
-            fields["summary"] = clean_summary
-        return fields
-    if not clean_summary:
-        clean_summary = normalized[:MAX_COMMAND_SUMMARY_LENGTH].rstrip() + "…"
+        return {"command": normalized, "summary": clean_summary}
     return {
         "command_sha256": hashlib.sha256(normalized.encode("utf-8")).hexdigest(),
         "command_length": len(normalized),
@@ -1161,15 +1311,20 @@ def _record_result(
     if task.get("status") != "in_progress":
         raise PlanError(f"task {task_id} is not in_progress; start it first")
     _validate_result_exit_code(result, exit_code)
-    declared = set((task.get("verification") or {}).get("checks") or [])
-    if declared and check_id not in declared:
+    declared = set((task.get("verification") or {}).get("required_checks") or [])
+    if check_id not in declared:
         raise PlanError(
-            f"'{check_id}' is not a registered verification check of {task_id}",
-            hint=f"registered: {', '.join(sorted(declared))}",
+            f"'{check_id}' is not a declared required check of {task_id}",
+            hint=f"declared: {', '.join(sorted(declared)) or '(none — read-only '
+                 'phases with no_check_reason need no record at all)'}",
         )
-    if not declared and check_id != DEFAULT_MINIMAL_RESULT_ID:
+    existing = (task.get("verification_results") or {}).get(check_id)
+    if isinstance(existing, dict) and existing.get("result") == "fail":
         raise PlanError(
-            f"tasks without declared checks use the fixed result id '{DEFAULT_MINIMAL_RESULT_ID}'"
+            f"{task_id}/{check_id} is recorded as fail and cannot be ignored or "
+            "overwritten in this revision",
+            hint="plan.py block this phase, revise the plan, and re-run the check "
+                 "in the new revision",
         )
     command_fields = _command_record_fields(command, summary)
     stored = _resolve_artifact_path(repo_root, task_dir, artifact_path) if artifact_path else None
@@ -1211,44 +1366,13 @@ def cmd_record(
     exit_code: int,
     artifact_path: str | None,
     summary: str | None,
-    check_id: str | None = None,
+    check_id: str,
 ) -> str:
-    plan = load_plan(task_dir)
-    task = _task_by_id(plan, task_id)
-    checks = (task.get("verification") or {}).get("checks") or []
-    if checks:
-        if check_id is None and command in checks:
-            check_id = command
-        if check_id is None:
-            raise PlanError(
-                "record requires --check <declared-check-id> when --command is an actual command"
-            )
-        if not ID_RE.match(check_id):
-            raise PlanError(f"--check '{check_id}' is not a kebab-case identifier")
-        if check_id not in checks:
-            raise PlanError(
-                f"'{check_id}' is not a declared verification check of {task_id}",
-                hint=f"declared: {', '.join(map(str, checks))}",
-            )
-    else:
-        if check_id is not None:
-            raise PlanError("--check is not allowed when verification.checks is empty")
-        check_id = DEFAULT_MINIMAL_RESULT_ID
+    if not isinstance(check_id, str) or not ID_RE.match(check_id):
+        raise PlanError("--check must be a kebab-case declared check id")
     return _record_result(
         repo_root, task_dir, task_id, check_id, result, command,
         exit_code, artifact_path, summary,
-    )
-
-
-def cmd_check(
-    repo_root: Path, task_dir: Path, task_id: str, check_id: str,
-    result: str, artifact_path: str | None,
-) -> str:
-    if result not in ("pass", "fail"):
-        raise PlanError("result must be pass|fail")
-    return _record_result(
-        repo_root, task_dir, task_id, check_id, result, check_id,
-        0 if result == "pass" else 1, artifact_path, None,
     )
 
 
@@ -1260,15 +1384,21 @@ def cmd_done(repo_root: Path, task_dir: Path, task_id: str) -> str:
         raise PlanError(
             f"task {task_id} is {task.get('status')}; done requires in_progress",
         )
+    by_id = {t.get("id"): t for t in plan.get("tasks", []) if isinstance(t, dict)}
+    unmet = [
+        dep for dep in task.get("depends_on") or []
+        if by_id.get(dep, {}).get("status") != "completed"
+    ]
+    if unmet:
+        raise PlanError(
+            f"task {task_id} has unmet dependencies: {', '.join(unmet)}",
+            hint="dependencies must be completed before done (they should also "
+                 "have been before start; a drifted plan needs revise)",
+        )
     verification = task.get("verification") or {}
     level = verification.get("level")
     results = task.get("verification_results") or {}
-    if not results:
-        raise PlanError(
-            f"task {task_id} has no verification result",
-            hint="record a result with: plan.py record",
-        )
-    declared_checks = verification.get("checks") or []
+    declared_checks = verification.get("required_checks") or []
     missing_checks = [c for c in declared_checks if c not in results]
     failed = [
         check for check, entry in results.items()
@@ -1279,7 +1409,8 @@ def cmd_done(repo_root: Path, task_dir: Path, task_id: str) -> str:
     if failed:
         raise PlanError(
             f"task {task_id} verification checks not all passed: {', '.join(map(str, failed))}",
-            hint="record each result with: plan.py record or plan.py check",
+            hint="record each declared check with: plan.py record <id> --check <check-id> "
+                 "--result pass --command <command-id> --exit-code 0 --summary \"...\"",
         )
     registered_artifacts = {
         str(entry.get("artifact"))
@@ -1293,57 +1424,47 @@ def cmd_done(repo_root: Path, task_dir: Path, task_id: str) -> str:
             raise PlanError(f"artifact file is no longer valid: {artifact}: {exc}") from exc
         if current != artifact:
             raise PlanError(f"artifact path changed after registration: {artifact}")
-    if level in ("raw", "report"):
-        required_artifacts = verification.get("required_artifacts") or []
-        missing_artifacts = [
-            a for a in required_artifacts
-            if _artifact_requirement_key(repo_root, task_dir, a) not in registered_artifacts
-        ]
-        if missing_artifacts:
+    if level == "report":
+        # PRD 8.2: the single final acceptance report must exist in the task
+        # directory and be registered through record --artifact.
+        if not (task_dir / REPORT_FILE).is_file():
             raise PlanError(
-                f"task {task_id} missing required artifacts: {', '.join(missing_artifacts)}",
-                hint="record each artifact with --artifact",
+                f"task {task_id} report verification requires the task-directory "
+                f"file {REPORT_FILE}",
+                hint=f"write {REPORT_FILE}, then: plan.py record {task_id} "
+                     f"--check <check-id> --result pass --command <id> "
+                     f"--exit-code 0 --summary \"...\" --artifact {REPORT_FILE}",
             )
-    declared_reports = [
-        _artifact_requirement_key(repo_root, task_dir, artifact)
-        for artifact in verification.get("required_artifacts") or []
-        if str(artifact).lower().endswith(".md")
-    ]
-    if level == "report" and not any(
-        report_path in registered_artifacts for report_path in declared_reports
-    ):
-        raise PlanError(
-            f"task {task_id} report verification requires a final Markdown artifact",
-            hint="record the final report with --artifact <path>.md",
-        )
-    over = edits_over_limit(repo_root, plan, task_id)
-    if over:
-        detail = ", ".join(f"{f}:{n}" for f, n in over)
-        raise PlanError(
-            f"task {task_id} exceeded constraints.max_edits_per_file ({detail})",
-            hint="this counter comes from the PreToolUse reminder hook; if it is "
-                 "wrong, group edits or revise the plan limit consciously",
-        )
+        report_key = _artifact_requirement_key(repo_root, task_dir, REPORT_FILE)
+        if report_key not in registered_artifacts:
+            raise PlanError(
+                f"task {task_id} must register {REPORT_FILE} through plan.py "
+                "record --artifact",
+                hint=f"plan.py record {task_id} --check <declared-check> --result pass "
+                     f"--command <id> --exit-code 0 --summary \"...\" --artifact {REPORT_FILE}",
+            )
     task["status"] = "completed"
+    all_done = all(
+        isinstance(t, dict) and t.get("status") == "completed"
+        for t in plan.get("tasks", [])
+    )
     original_text = plan_path(task_dir).read_text(encoding="utf-8")
-    events_after: list[str] = []
-    mutate_with_audit(
-        task_dir,
-        original_text,
-        plan,
+    audit_events: list[dict[str, Any]] = [
         {
             "event": "task_completed",
             "task": task_id,
             "fingerprint": task_fingerprint(task),
-        },
-    )
-    if all(
-        isinstance(t, dict) and t.get("status") == "completed" for t in plan.get("tasks", [])
-    ):
-        append_event(task_dir, {"event": "plan_completed", "revision": plan["revision"]})
-        events_after.append("all tasks completed")
+        }
+    ]
+    if all_done:
+        # Same atomic write as the completion event (AC5: no state change
+        # without its audit trail, no bare append outside the rollback path).
+        audit_events.append(
+            {"event": "plan_completed", "revision": plan["revision"]}
+        )
+    mutate_with_audit(task_dir, original_text, plan, audit_events)
     return f"task {task_id} → completed" + (
-        "; " + "; ".join(events_after) if events_after else ""
+        "; all tasks completed" if all_done else ""
     )
 
 
@@ -1444,7 +1565,10 @@ def format_status(task_dir: Path, repo_root: Path | None = None, *, verbose: boo
             marks: list[str] = []
             verification = task.get("verification") or {}
             results = task.get("verification_results") or {}
-            missing = [n for n in verification.get("checks") or [] if n not in results]
+            missing = [
+                n for n in verification.get("required_checks") or []
+                if n not in results
+            ]
             failed = [
                 c for c, entry in results.items()
                 if not isinstance(entry, dict) or entry.get("result") != "pass"
@@ -1453,30 +1577,18 @@ def format_status(task_dir: Path, repo_root: Path | None = None, *, verbose: boo
                 marks.append(f"missing checks: {', '.join(missing)}")
             if failed:
                 marks.append(f"checks pending/failed: {', '.join(map(str, failed))}")
-            level = verification.get("level")
-            if level in ("raw", "report"):
-                required = verification.get("required_artifacts") or []
+            if verification.get("level") == "report":
                 registered = {
                     str(entry.get("artifact")) for entry in results.values()
                     if isinstance(entry, dict) and entry.get("artifact")
                 }
-                absent = [
-                    a for a in required
-                    if _artifact_requirement_key(repo_root or task_dir, task_dir, a) not in registered
-                ]
-                if absent:
-                    marks.append(f"missing artifacts: {', '.join(absent)}")
-            required = verification.get("required_artifacts") or []
-            declared_reports = {
-                _artifact_requirement_key(repo_root or task_dir, task_dir, artifact)
-                for artifact in required
-                if str(artifact).lower().endswith(".md")
-            }
-            if level == "report" and not any(
-                str(entry.get("artifact", "")) in declared_reports
-                for entry in results.values() if isinstance(entry, dict)
-            ):
-                marks.append("missing final report")
+                report_key = _artifact_requirement_key(
+                    repo_root or task_dir, task_dir, REPORT_FILE
+                )
+                if not (task_dir / REPORT_FILE).is_file():
+                    marks.append(f"missing {REPORT_FILE} file")
+                elif report_key not in registered:
+                    marks.append(f"{REPORT_FILE} not registered via record --artifact")
             suffix = f"  ({'; '.join(marks)})" if marks else ""
             lines.append(f"  [{state:>12}] {tid}{suffix}")
     if all(t.get("status") == "completed" for t in plan.get("tasks", []) if isinstance(t, dict)):
@@ -1485,7 +1597,9 @@ def format_status(task_dir: Path, repo_root: Path | None = None, *, verbose: boo
 
 
 # ---------------------------------------------------------------------------
-# Edit counters (written by the optional Claude PreToolUse hook, read by done)
+# Edit counters (written by the optional Claude PreToolUse hook for its own
+# advisory reminders). Per the two-level PRD, hooks never feed state: plan.py
+# done does NOT consult these counters.
 # ---------------------------------------------------------------------------
 
 def edits_dir(repo_root: Path) -> Path:
@@ -1521,37 +1635,6 @@ def bump_edit(
     except OSError:
         pass  # counters are advisory; never break the edit flow over them
     return new_count
-
-
-def edits_over_limit(
-    repo_root: Path, plan: dict[str, Any], task_id: str
-) -> list[tuple[str, int]]:
-    """Return [(file, count)] beyond constraints.max_edits_per_file.
-
-    Empty when the counting hook never ran (e.g. Codex, inline, or hooks
-    disabled): the limit is advisory there, per the design's rule that all
-    hard rejection must live in plan.py where it can observe the fact.
-    """
-    task_rel = plan.get("task")
-    revision = plan.get("revision")
-    if not isinstance(task_rel, str) or not isinstance(revision, int):
-        return []
-    path = edits_file(repo_root, task_rel)
-    if not path.is_file():
-        return []
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
-        return []
-    if not isinstance(data, dict) or data.get("revision") != revision:
-        return []
-    limits = (plan.get("constraints") or {}).get("max_edits_per_file", DEFAULT_MAX_EDITS_PER_FILE)
-    if not isinstance(limits, int):
-        limits = DEFAULT_MAX_EDITS_PER_FILE
-    task_counts = (data.get("counts") or {}).get(task_id) or {}
-    return [
-        (f, int(n)) for f, n in task_counts.items() if isinstance(n, int) and n > limits
-    ]
 
 
 # ---------------------------------------------------------------------------
@@ -1615,7 +1698,10 @@ def plan_protocol_block(repo_root: Path, task_dir: Path) -> str:
         f"- State files: `{task_display}/{PLAN_FILE}` + "
         f"`{task_display}/{EVENTS_FILE}`.\n"
         f"- plan.py is the ONLY sanctioned state advancer; never hand-edit task statuses.\n"
-        f"- Advance with: `{cli} --task \"<task-path>\" <command>` (validate/status/start/record/check/done/block/revise).\n"
+        f"- Advance with: `{cli} --task \"<task-path>\" <command>` (validate/status/start/record/done/block/revise).\n"
+        f"- Verification is two-level: `minimal` = record every declared `required_checks` result "
+        f"(no phase Markdown, no mandatory raw logs); `report` = the single terminal acceptance "
+        f"phase that also writes `{REPORT_FILE}` and registers it via `record --artifact`.\n"
     )
     try:
         if not plan_exists(task_dir):
@@ -1624,7 +1710,11 @@ def plan_protocol_block(repo_root: Path, task_dir: Path) -> str:
                 + base
                 + "\n**Round 1 — plan generation (MANDATORY before any source edit):**\n"
                   f"1. Read PRD/Spec/code, then create execution-plan.json (`{cli} template` prints the skeleton; "
-                  "max 8 tasks, per-task depends_on/scope.write/risk/verification).\n"
+                  "max 8 tasks, per-task depends_on/scope.write/verification {level, required_checks}; "
+                  "empty required_checks only for read-only phases with a no_check_reason; "
+                  "end it with a terminal level=report task (report_path "
+                  "final-report.md) transitively depending on every other "
+                  "phase; validation allows at most one).\n"
                   "2. Do NOT modify business source code while the plan is unapproved.\n"
                   f"3. Run `{cli} validate`. Only an approved plan unlocks editing.\n"
             )
@@ -1643,13 +1733,20 @@ def plan_protocol_block(repo_root: Path, task_dir: Path) -> str:
             + base
             + f"\nApproved at revision {status['revision']}. Current in_progress: {active}; "
               f"next runnable: {', '.join(status['runnable']) or '(none)'}.\n"
-              "Per task loop: `start <id>` → work → `record <id> --result pass|fail --command <id-or-command> --exit-code <number> [--check <declared-check-id>]` "
-              "(or the compatible `check <id> <name> --result pass`; use "
-              "`phase-result` as the name when no checks are declared) "
-              "→ `done <id>`. When the plan itself is wrong or a phase fails: `block <id> --reason \"...\"` (this is also "
-              "how failures are audited; there is no separate failed state), then `revise --reason \"...\"` "
-              "→ edit → `validate`. Read-only work (search/analysis) needs no task lock, but each edit-bearing phase does.\n"
-              "Note: `check --result pass` is your attestation of a run you actually performed; plan.py never executes "
+              "Per phase loop: `start <id>` → batch read / batch edit / batch check inside scope.write "
+              "→ `record <id> --check <declared-check> --result pass|fail --command <command-id> "
+              "--exit-code <number> --summary \"<short text>\" [--artifact <task-relative-path>]` "
+              "for every declared required check → `done <id>`. "
+              "Do not write per-phase Markdown and do not reformat full command output; record results only.\n"
+              "The terminal level=report phase additionally: confirm all dependencies completed, run and "
+              f"record every declared final check, write `{task_display}/{REPORT_FILE}` summarizing changed "
+              f"files, phase results, check results, skipped items, and known risks, then `record` it with "
+              f"`--artifact {REPORT_FILE}` before `done`.\n"
+              "A recorded fail is permanent for the revision — done refuses; recover with "
+              "`block <id> --reason \"...\"` (this is also how failures are audited; there is no separate "
+              "failed state) → `revise --reason \"...\"` → edit → `validate`. "
+              "Read-only work (search/analysis) needs no task lock, but each edit-bearing phase does.\n"
+              f"Note: `record --result pass` is your attestation of a run you actually performed; plan.py never executes "
               "checks, and independent verification stays with the Phase 2.2 review/check stage.\n"
             + "\n"
             + format_status(task_dir, repo_root, verbose=True)
@@ -1697,13 +1794,11 @@ TEMPLATE: dict[str, Any] = {
             "objective": "<what must be established>",
             "depends_on": [],
             "scope": {"read": ["<repo-relative glob>"], "write": []},
-            "batch_groups": ["<optional group ids>"],
-            "risk": "normal",
             "verification": {
                 "level": "minimal",
-                "checks": ["<check-id>"],
-                "required_artifacts": [],
+                "required_checks": [],
             },
+            "no_check_reason": "<why this phase is pure read-only/analysis>",
         },
         {
             "id": "edit-x",
@@ -1712,25 +1807,22 @@ TEMPLATE: dict[str, Any] = {
             "objective": "<what must change>",
             "depends_on": ["discover-x"],
             "scope": {"read": ["<path>"], "write": ["<path glob>"]},
-            "risk": "normal",
             "verification": {
                 "level": "minimal",
-                "checks": ["<check-id>"],
-                "required_artifacts": [],
+                "required_checks": ["<check-id>"],
             },
         },
         {
-            "id": "verify",
-            "title": "unified verification",
+            "id": "verify-final",
+            "title": "final acceptance",
             "status": "pending",
             "objective": "<what proves the task>",
             "depends_on": ["edit-x"],
-            "scope": {"read": ["<path>"], "write": []},
-            "risk": "final",
+            "scope": {"read": ["<path>"], "write": [REPORT_FILE]},
             "verification": {
                 "level": "report",
-                "checks": ["final-review"],
-                "required_artifacts": ["final-report.md"],
+                "required_checks": ["build", "test", "diff-check"],
+                "report_path": REPORT_FILE,
             },
         },
     ],

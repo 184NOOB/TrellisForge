@@ -69,6 +69,7 @@ git diff              # View specific changes
 
 Read the task's prd.md, design.md if present, and implement.md if present, then read relevant specs in `.trellis/spec/` to check code:
 
+- Does `<task>/execution-plan.json` declare `required_checks` that still match the acceptance criteria in prd.md — renamed, dropped, or trivialized checks across revisions are a verification downgrade and must be reported
 - Does it satisfy the task requirements
 - Does it follow the technical design and implementation plan when present
 - Does it follow directory structure conventions

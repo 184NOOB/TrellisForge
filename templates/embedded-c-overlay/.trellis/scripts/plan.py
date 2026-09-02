@@ -3,7 +3,10 @@
 
 Platform-neutral: works identically under Claude Code, Codex, and inline
 sessions because it is plain command-line flow; hooks may DISPLAY plan state
-but never advance it. See .trellis/workflow.md Phase 2.
+but never advance it. Two-level verification (schema 3): minimal records
+declared required_checks, report produces the single final-report.md.
+See .trellis/workflow.md Phase 2, the Trellis execution-plan design,
+and the Trellis two-level verification PRD.
 
 Usage (from the repo root):
 
@@ -11,15 +14,16 @@ Usage (from the repo root):
     python .trellis/scripts/plan.py [--task <path>] validate
     python .trellis/scripts/plan.py [--task <path>] status [--quiet]
     python .trellis/scripts/plan.py [--task <path>] start <task-id>
-    python .trellis/scripts/plan.py [--task <path>] record <task-id> --result pass|fail --command <id-or-command> --exit-code <number> [--check <check-id>] [--artifact <task-relative-path>] [--summary <text>]
-    python .trellis/scripts/plan.py [--task <path>] check <task-id> <check-id> --result pass|fail [--artifact <task-relative-path>]
+    python .trellis/scripts/plan.py [--task <path>] record <task-id> --check <check-id> --result pass|fail --command <command-id> --exit-code <number> --summary <text> [--artifact <task-relative-path>]
     python .trellis/scripts/plan.py [--task <path>] done <task-id>
     python .trellis/scripts/plan.py [--task <path>] block <task-id> --reason "..."
     python .trellis/scripts/plan.py [--task <path>] revise --reason "..."
 
 Exit codes: 0 = success, 1 = rejected or invalid state (reason printed to
-stderr). Sub-agents should always pass --task with the path from their
-dispatch prompt's `Active task:` line for deterministic resolution.
+stderr), 2 = argparse usage error (bad/missing flags). `--task` may appear
+before or after the subcommand. Sub-agents should always pass --task with the
+path from their dispatch prompt's `Active task:` line for deterministic
+resolution.
 """
 from __future__ import annotations
 
@@ -35,7 +39,6 @@ if str(SCRIPTS_DIR) not in sys.path:
 from common.execution_plan import (  # noqa: E402
     PlanError,
     cmd_block,
-    cmd_check,
     cmd_done,
     cmd_record,
     cmd_revise,
@@ -59,41 +62,53 @@ if sys.platform.startswith("win"):
 
 
 def build_parser() -> argparse.ArgumentParser:
+    # --task is accepted globally AND on every subcommand (SUPPRESS default so
+    # a not-given sub-level flag never clobbers the global value).
+    task_parent = argparse.ArgumentParser(add_help=False)
+    task_parent.add_argument(
+        "--task",
+        default=argparse.SUPPRESS,
+        help="task directory (path or slug)",
+    )
     parser = argparse.ArgumentParser(
         prog="plan.py",
         description="Trellis execution-plan advancer (execution-plan.json + audit log).",
     )
     parser.add_argument(
         "--task",
+        default=None,
         help="task directory (path or slug); defaults to the resolved active task",
     )
     sub = parser.add_subparsers(dest="subcommand", required=True)
 
-    sub.add_parser("template", help="print an execution-plan.json skeleton")
-    sub.add_parser("validate", help="validate the model-authored plan; approves it")
-    status_p = sub.add_parser("status", help="show plan and task state")
+    sub.add_parser("template", parents=[task_parent],
+                   help="print an execution-plan.json skeleton")
+    sub.add_parser("validate", parents=[task_parent],
+                   help="validate the model-authored plan; approves it")
+    status_p = sub.add_parser("status", parents=[task_parent],
+                              help="show plan and task state")
     status_p.add_argument("--quiet", action="store_true", help="compact summary only")
-    start_p = sub.add_parser("start", help="start a dependency-ready task")
+    start_p = sub.add_parser("start", parents=[task_parent],
+                             help="start a dependency-ready task")
     start_p.add_argument("task_id")
-    record_p = sub.add_parser("record", help="record a verification result; does not execute commands")
+    record_p = sub.add_parser("record", parents=[task_parent],
+                              help="record a required-check result; does not execute commands")
     record_p.add_argument("task_id")
+    record_p.add_argument("--check", required=True, help="declared verification.required_checks id")
     record_p.add_argument("--result", required=True, choices=("pass", "fail"))
-    record_p.add_argument("--command", required=True)
+    record_p.add_argument("--command", required=True, help="command identifier (not full shell output)")
     record_p.add_argument("--exit-code", required=True, type=int)
-    record_p.add_argument("--check", default=None, help="declared verification check id")
-    record_p.add_argument("--artifact", default=None)
-    record_p.add_argument("--summary", default=None)
-    ck_p = sub.add_parser("check", help="record a registered check result")
-    ck_p.add_argument("task_id")
-    ck_p.add_argument("check_id")
-    ck_p.add_argument("--result", required=True, choices=("pass", "fail"))
-    ck_p.add_argument("--artifact", default=None)
-    done_p = sub.add_parser("done", help="complete a task (verification checks enforced)")
+    record_p.add_argument("--summary", required=True, help="short human-readable result text")
+    record_p.add_argument("--artifact", default=None, help="optional task-relative reference (build log, report, …)")
+    done_p = sub.add_parser("done", parents=[task_parent],
+                            help="complete a task (verification checks enforced)")
     done_p.add_argument("task_id")
-    block_p = sub.add_parser("block", help="mark a task blocked with a reason")
+    block_p = sub.add_parser("block", parents=[task_parent],
+                             help="mark a task blocked with a reason")
     block_p.add_argument("task_id")
     block_p.add_argument("--reason", required=True)
-    rev_p = sub.add_parser("revise", help="open an approved plan for revision")
+    rev_p = sub.add_parser("revise", parents=[task_parent],
+                           help="open an approved plan for revision")
     rev_p.add_argument("--reason", required=True)
     return parser
 
@@ -123,11 +138,6 @@ def main(argv: list[str] | None = None) -> int:
             print(cmd_record(
                 repo_root, task_dir, args.task_id, args.result, args.command,
                 args.exit_code, args.artifact, args.summary, args.check,
-            ))
-        elif args.subcommand == "check":
-            print(cmd_check(
-                repo_root, task_dir, args.task_id, args.check_id,
-                args.result, args.artifact,
             ))
         elif args.subcommand == "done":
             print(cmd_done(repo_root, task_dir, args.task_id))

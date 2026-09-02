@@ -41,23 +41,38 @@ precise verification.
 Implementation progress is driven by the Trellis execution plan, not by the
 native TodoWrite/Task tools and not by memory of past turns.
 
-- State files: `<task-path>/execution-plan.json` (current plan + state) and
-  `<task-path>/execution-events.jsonl` (append-only audit log).
+- State files: `<task-path>/execution-plan.json` (schema 3, current plan +
+  state) and `<task-path>/execution-events.jsonl` (append-only audit log).
+  Verification is two-level only: `minimal` = phase execution record,
+  `report` = final acceptance. There is no `risk`, `raw`, or
+  `required_evidence` concept anymore.
 - **Round 1 — plan generation:** if the task has no `execution-plan.json`,
   read the PRD, specs, and code, then create it
   (`python .trellis/scripts/plan.py --task "<task-path>" template` prints the
   skeleton; keep it coarse: ≤ 8 phase-level tasks with `depends_on`,
-  `scope.read`/`scope.write`, `verification.required_artifacts`). Do NOT modify business
+  `scope.read`/`scope.write`, and `verification` `{level, required_checks}`;
+  empty `required_checks` is legal only for a pure read-only phase with a
+  non-empty `no_check_reason`; end the plan with a terminal `level=report`
+  phase carrying `report_path: "final-report.md"` and transitively depending
+  on every other phase — validation permits at most one report phase, and
+  every real task should have one). Do NOT modify business
   source code before the plan is approved. Finish with
   `plan.py --task "<task-path>" validate`.
-- **Executing:** per phase: `plan.py start <id>` → work strictly inside that
-  task's `scope.write` → record each declared check with
-  `plan.py record <id> --result pass --command <command-or-id> --exit-code 0`
-  `[--check <declared-check-id>] [--artifact <task-relative-path>]`
-  (or use the compatible `plan.py check` command with `--artifact`; when no
-  checks are declared, use the fixed check id `phase-result`) → `plan.py done <id>`.
-  Raw/report verification levels require task-local artifacts; report verification uses
-  the task-local `final-report.md`. Run `plan.py status` whenever the current phase is unclear.
+- **Executing:** per phase: `plan.py start <id>` → batch read/edit/check
+  strictly inside that task's `scope.write` → record every declared check with
+  `plan.py record <id> --check <declared-check-id> --result pass|fail --command <command-id> --exit-code <number> --summary "<short text>" [--artifact <task-relative-path>]`
+  → `plan.py done <id>`. Do not write per-phase Markdown and do not reformat
+  full command output; a passing `done` requires every declared check recorded
+  `pass`. A recorded `fail` is permanent for the revision — recover via
+  block/revise. Read-only phases with `no_check_reason` need no records at all.
+- **The final `report` phase:** confirm all dependencies completed, run and
+  record every declared final check, write `<task-path>/final-report.md`
+  (changed files, phase results, check results, skipped items, known risks),
+  then `record` it with `--artifact final-report.md` before `done`. This is
+  the only phase that produces a Markdown report, and only once.
+- Run `plan.py status` whenever the current phase is unclear; after a crash
+  or restart, resume from the plan files alone (find the `in_progress` phase,
+  read its recorded checks, continue) — never from session memory or hooks.
 - **Never hand-edit** task statuses or verification results; `plan.py` is the
   only state advancer. When the plan itself is wrong:
   `plan.py block <id> --reason "..."`, then `plan.py revise --reason "..."` →

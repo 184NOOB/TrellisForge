@@ -25,18 +25,28 @@ Before implementing, read in this order:
 Progress is driven by `<task-path>/execution-plan.json` plus the append-only
 audit log `<task-path>/execution-events.jsonl`, not by memory of past turns.
 
-1. **Round 1 — plan generation:** if the task has no `execution-plan.json`,
-   read the PRD, specs, and code, then create it
+1. **Round 1 — plan generation:** if the task has no `execution-plan.json`
+   (schema 3), read the PRD, specs, and code, then create it
    (`python .trellis/scripts/plan.py --task "<task-path>" template` prints the
    skeleton; ≤ 8 phase-level tasks with `depends_on`, `scope.read`/`scope.write`,
-   `risk` and `verification` (`level`, `checks`, `required_artifacts`)). Do NOT modify business source code before
-   `plan.py validate` approves the plan.
-2. **Executing:** per phase `plan.py start <id>` → work inside that task's
-   `scope.write` → run the declared checks, save raw artifacts for `raw`/`report`,
-   then `plan.py record <id> --result pass|fail --command <id-or-command> --exit-code <number> [--check <declared-check-id>]`
-   (or compatible `plan.py check <id> <check-id> --result pass`; when no checks
-   are declared, use the fixed check id `phase-result`) → `plan.py done <id>`.
-   Re-run `plan.py status` when the phase is unclear.
+   and `verification` (`level` ∈ {`minimal`, `report`}, `required_checks`
+   [, `report_path`]). Only two verification levels exist: minimal = phase
+   execution record, report = final acceptance; there is no `risk`, `raw`, or
+   `required_evidence`. Empty `required_checks` is legal only for a pure
+   read-only phase with a non-empty `no_check_reason`; end the plan with a
+   terminal `level=report` phase carrying `report_path: "final-report.md"`
+   that transitively depends on every other phase (validation allows at most
+   one, and every real task should have one). Do NOT modify business source
+   code before `plan.py validate` approves the plan.
+2. **Executing:** per phase `plan.py start <id>` → batch read/edit/check inside
+   that task's `scope.write` →
+   `plan.py record <id> --check <declared-check-id> --result pass|fail --command <command-id> --exit-code <number> --summary "<short text>" [--artifact <task-relative-path>]`
+   for every declared check → `plan.py done <id>`. Write no phase Markdown and
+   keep no mandatory raw logs; a recorded fail is permanent for the revision
+   (recover via block/revise). The single terminal report phase additionally
+   writes `<task-path>/final-report.md` and registers it with
+   `--artifact final-report.md` before `done`. Re-run `plan.py status` when the
+   phase is unclear; after a crash resume from the task-directory files alone.
 3. **Never hand-edit** task statuses or verification results; `plan.py` is the
    only state advancer. When the plan itself is wrong:
    `plan.py block <id> --reason "..."` → `plan.py revise --reason "..."` →

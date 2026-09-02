@@ -4,7 +4,9 @@
 Optional convenience per the execution-plan design: warns the session when an
 Edit/Write/MultiEdit looks off-plan (state-file tampering, writes outside the
 in_progress task's scope.write, discovery-phase writes, edit-count overrun) and
-maintains the per-file edit counters that ``plan.py done`` cross-checks.
+maintains the per-file edit counters for these reminders only. Per the
+two-level verification PRD the counters are advisory: ``plan.py done`` never
+consults them, so a missing or broken hook cannot change task state.
 
 Hard rules NEVER live here: every rejection is enforced by plan.py so the flow
 stays correct when hooks are off or unavailable (Codex, inline, hooks disabled).
@@ -156,7 +158,8 @@ def main() -> int:
                     if isinstance(max_edits, int) and count > max_edits:
                         warnings.append(
                             f"edit #{count} on '{target_rel}' exceeds "
-                            f"max_edits_per_file={max_edits}; plan.py done will refuse. "
+                            f"max_edits_per_file={max_edits} (advisory reminder "
+                            "only; plan.py done does not consult counters). "
                             "Group related edits or revise the plan consciously."
                         )
                 except Exception:

@@ -44,11 +44,15 @@ Trellis 覆盖层，不修改 Trellis 的全局安装目录，也不包含任何
 - 用会话隔离和 fail-closed 回退防止子代理继承错误任务，用户未明确选择时停止而不猜测。
 - 要求子代理先批量读取和检索，再集中编辑，按阶段执行必要验证，满足验收条件后停止，以减少重复思考和工具轮次。
 - 让 Hook 提供可用上下文，让代理根据 diff、调用关系、验收条件和项目规则决定是否补读，避免无证据地重复阅读整个仓库。
+- 用任务目录内的 `execution-plan.json` 和追加式 `execution-events.jsonl` 管理 Phase 2：计划必须先通过 `plan.py validate`，每个阶段再以 `start`、`record`/`check`、`done` 推进；计划错误或阶段失败时通过 `block`、`revise` 留下可复核的修订轨迹。
 - 审查代理以变更为中心进行定向检查，并仅执行项目真实存在的构建、静态检查和测试；收尾时将代码提交、归档和 journal 分开审批。
+
+执行计划是实施阶段的状态门禁，不是构建或测试执行器。实现代理必须在首次编辑业务源码前，读取任务的 PRD、Spec 和代码，生成并校验计划；工作流要求计划获批后才按各阶段的 `scope.write` 修改产品源码或配置。`plan.py` 强制计划状态、验证结果和审计日志的一致性，但不会拦截任意文件编辑；`scope.write` 和编辑次数提醒属于 Claude `plan-pretool-reminder.py` 等辅助层，Codex 没有 `PreToolUse` 等价提醒。实际检查仍由代理或项目命令执行，再用 `record` 或 `check` 记录结果和任务目录内的验证产物；这些机制不能替代独立的 2.2 质量检查。审计日志损坏时必须先修复日志，不能绕过 `plan.py` 继续推进。
 
 | 原流程的问题 | 工作流解决方案 | TrellisForge 的修改位置 | 修改内容与原因 |
 | --- | --- | --- | --- |
 | 规划任务可以在需求、技术决策尚未收敛时进入实施，用户批准与 `task.py start` 的边界不够明确 | 先写完并校验规划收敛标记，再展示最终摘要；用户后续明确批准后才启动任务 | `.trellis/workflow.md`、`.trellis/scripts/common/planning_gate.py`、`.trellis/scripts/task.py`、`AGENTS.md.template` | 增加 `planning_ready`、`plan_approved` 和 `Planning Convergence` 门禁。原因是仅有“已经讨论过”不能证明 PRD、设计和实施计划已收敛。 |
+| Phase 2 只能依赖 `implement.md` 或代理记忆推进，阶段范围和验证证据不易复核 | 先生成并校验执行计划，再通过唯一 CLI 逐阶段推进、记录验证和审计修订；独立质量检查仍负责复核结果 | `.trellis/workflow.md`、`.trellis/scripts/plan.py`、`.trellis/scripts/common/execution_plan.py`、Claude/Codex implement Hook、Claude `plan-pretool-reminder.py` 与测试 | 新增 `execution-plan.json` 状态机、`execution-events.jsonl` 追加式审计日志、依赖校验、`scope.write`/编辑次数辅助提醒、`minimal`/`raw`/`report` 验证等级及漂移检测；明确 Claude 提醒和 Codex 上下文 Hook 都不替代 CLI，`plan.py` 不执行构建或测试。 |
 | Grill Me 容易被当成必须反复提问的问卷，仓库已有事实也会被重复询问 | 先检索仓库证据并分类决策所有权；仅对仍未解决的用户决策一次问一个问题，零问题也可收敛 | `.trellis/workflow.md`、`.agents/skills/__PROJECT_PREFIX__-trellis-grill-adapter/` | 分开证据、工程决策和用户决策，避免制造澄清问题，同时保留真正需要用户选择的分支。 |
 | 新会话或 Codex fallback 可能继承上一会话的活动任务，导致在错误任务上规划或修改 | 每个会话只接受精确的 `session:*` 任务来源；身份不明时停止并报告，不猜测旧任务 | `.trellis/scripts/common/active_task.py`、`.trellis/scripts/common/task_store.py`、`.trellis/scripts/tests/test_active_task_session_isolation.py` | 实现 fail-closed 会话隔离；只为明确识别的 pull-based 子代理启用 fallback，并用回归测试锁定边界。 |
 | 多任务树常把所有节点都用 `--no-start` 创建，再用 `task.py start` 绕过规划阶段选择任务 | 父任务和延后兄弟任务可延后启动，下一步唯一子任务必须绑定当前会话；`task.py start` 只用于已批准规划进入实施 | `.trellis/workflow.md`、任务创建与上下文脚本 | 将任务选择、规划批准和实施启动拆成可审计的状态转换，避免用启动命令绕过规划门禁。 |

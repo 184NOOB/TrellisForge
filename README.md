@@ -6,6 +6,7 @@ TrellisForge 是一套可复用的 Trellis 项目级工作流覆盖模板集合�
 - 规划阶段的 Grill Me 与显式审批门禁；
 - Claude Code 与 Codex 的子代理上下文注入；
 - implement/check/research 代理定义；
+- `execution-plan.json` 状态机、追加式审计日志和验证等级；
 - 子代理批量读取、合并编辑、分阶段验证、最小复验与停止条件；
 - 项目级 `light`、`standard`、`strict` 审查合同；
 - 面向嵌入式 C 的构建、硬件验证和硬件合同边界。

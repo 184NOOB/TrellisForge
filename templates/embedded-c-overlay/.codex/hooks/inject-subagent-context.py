@@ -36,6 +36,7 @@ _COMMON_SCRIPTS = Path(__file__).resolve().parents[2] / ".trellis" / "scripts" /
 if str(_COMMON_SCRIPTS) not in sys.path:
     sys.path.insert(0, str(_COMMON_SCRIPTS))
 from subagent_prompt_policy import execution_contract, normalize_implement_prompt
+from execution_plan import plan_protocol_block
 
 # IMPORTANT: Force stdout to use UTF-8 on Windows
 # This fixes UnicodeEncodeError when outputting non-ASCII characters
@@ -553,6 +554,16 @@ def get_implement_context(repo_root: str, task_dir: str) -> str:
     )
     if implement_plan_block:
         context_parts.append(implement_plan_block)
+
+    # 5. Execution-plan protocol + current plan state. The shared library
+    # builds identical text for every platform; plan.py stays the only state
+    # advancer and this block never mutates anything.
+    try:
+        plan_block = plan_protocol_block(Path(repo_root), Path(repo_root) / task_dir)
+        if plan_block:
+            context_parts.append(plan_block)
+    except Exception:
+        pass  # a plan problem must not strand the dispatch; agent files carry the protocol too
 
     return "\n\n".join(context_parts)
 

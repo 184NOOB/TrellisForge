@@ -358,6 +358,29 @@ def build_breadcrumb(
 
 
 # ---------------------------------------------------------------------------
+# Execution plan breadcrumb (display-only supplement)
+# ---------------------------------------------------------------------------
+
+def _plan_context(root: Path, input_data: dict) -> str:
+    """Compact <execution-plan> block for the active task, when one exists."""
+    try:
+        active = _resolve_active_task(root, input_data)
+        if not active.task_path or active.stale:
+            return ""
+        task_dir = Path(active.task_path)
+        if not task_dir.is_absolute():
+            task_dir = root / task_dir
+        scripts_dir = root / ".trellis" / "scripts"
+        if str(scripts_dir) not in sys.path:
+            sys.path.insert(0, str(scripts_dir))
+        from common.execution_plan import plan_breadcrumb  # type: ignore[import-not-found]
+
+        return plan_breadcrumb(root, task_dir)
+    except Exception:
+        return ""
+
+
+# ---------------------------------------------------------------------------
 # Entry
 # ---------------------------------------------------------------------------
 
@@ -435,6 +458,10 @@ def main() -> int:
         parts.append(_codex_mode_banner(config))
         parts.append(breadcrumb)
         breadcrumb = "\n\n".join(parts)
+
+    plan_ctx = _plan_context(root, data)
+    if plan_ctx:
+        breadcrumb = f"{breadcrumb}\n\n{plan_ctx}"
 
     # Kiro (CLI userPromptSubmit / IDE promptSubmit) adds a hook's stdout
     # directly to the conversation context — no JSON envelope. Emit the bare

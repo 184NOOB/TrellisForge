@@ -36,6 +36,38 @@ Do not reread injected context merely because a file is named in the dispatch
 prompt. Supplement it when the content is missing, truncated, stale, or needs
 precise verification.
 
+## Execution Plan Protocol (mandatory)
+
+Implementation progress is driven by the Trellis execution plan, not by the
+native TodoWrite/Task tools and not by memory of past turns.
+
+- State files: `<task-path>/execution-plan.json` (current plan + state) and
+  `<task-path>/execution-events.jsonl` (append-only audit log).
+- **Round 1 — plan generation:** if the task has no `execution-plan.json`,
+  read the PRD, specs, and code, then create it
+  (`python .trellis/scripts/plan.py --task "<task-path>" template` prints the
+  skeleton; keep it coarse: ≤ 8 phase-level tasks with `depends_on`,
+  `scope.read`/`scope.write`, `verification.required_artifacts`). Do NOT modify business
+  source code before the plan is approved. Finish with
+  `plan.py --task "<task-path>" validate`.
+- **Executing:** per phase: `plan.py start <id>` → work strictly inside that
+  task's `scope.write` → record each declared check with
+  `plan.py record <id> --result pass --command <command-or-id> --exit-code 0`
+  `[--check <declared-check-id>] [--artifact <task-relative-path>]`
+  (or use the compatible `plan.py check` command with `--artifact`; when no
+  checks are declared, use the fixed check id `phase-result`) → `plan.py done <id>`.
+  Raw/report verification levels require task-local artifacts; report verification uses
+  the task-local `final-report.md`. Run `plan.py status` whenever the current phase is unclear.
+- **Never hand-edit** task statuses or verification results; `plan.py` is the
+  only state advancer. When the plan itself is wrong:
+  `plan.py block <id> --reason "..."`, then `plan.py revise --reason "..."` →
+  edit → `validate`.
+- If `plan.py` reports a damaged audit log, stop advancing state and report it
+  in your final message.
+
+All commands run from the repo root with `--task "<task path from the dispatch
+prompt>"`.
+
 ## Mandatory execution batches
 
 1. Discover in batches: read independent files together and scan all related

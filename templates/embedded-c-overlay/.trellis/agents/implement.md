@@ -20,6 +20,30 @@ Before implementing, read in this order:
 4. `<task-path>/implement.md` if present — execution plan
 5. `.trellis/spec/` — project-wide guidelines (load only what is relevant to the diff you are about to write)
 
+## Execution Plan Protocol (mandatory)
+
+Progress is driven by `<task-path>/execution-plan.json` plus the append-only
+audit log `<task-path>/execution-events.jsonl`, not by memory of past turns.
+
+1. **Round 1 — plan generation:** if the task has no `execution-plan.json`,
+   read the PRD, specs, and code, then create it
+   (`python .trellis/scripts/plan.py --task "<task-path>" template` prints the
+   skeleton; ≤ 8 phase-level tasks with `depends_on`, `scope.read`/`scope.write`,
+   `risk` and `verification` (`level`, `checks`, `required_artifacts`)). Do NOT modify business source code before
+   `plan.py validate` approves the plan.
+2. **Executing:** per phase `plan.py start <id>` → work inside that task's
+   `scope.write` → run the declared checks, save raw artifacts for `raw`/`report`,
+   then `plan.py record <id> --result pass|fail --command <id-or-command> --exit-code <number> [--check <declared-check-id>]`
+   (or compatible `plan.py check <id> <check-id> --result pass`; when no checks
+   are declared, use the fixed check id `phase-result`) → `plan.py done <id>`.
+   Re-run `plan.py status` when the phase is unclear.
+3. **Never hand-edit** task statuses or verification results; `plan.py` is the
+   only state advancer. When the plan itself is wrong:
+   `plan.py block <id> --reason "..."` → `plan.py revise --reason "..."` →
+   edit → `validate`.
+4. If `plan.py` reports a damaged audit log, stop advancing state and surface
+   it back to the channel.
+
 ## Core Responsibilities
 
 1. **Understand specs** — read relevant spec files in `.trellis/spec/`

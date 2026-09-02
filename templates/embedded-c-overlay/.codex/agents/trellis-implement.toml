@@ -24,6 +24,14 @@ Trellis Context Loading Protocol:
 - If there is no saved-output notice and the marker is absent, use the active-task fallback below.
 - For the fallback, find `Active task: <path>` in your dispatch prompt. Read `<path>/implement.jsonl`, each file listed there, `<path>/prd.md`, `<path>/design.md` if present, and `<path>/implement.md` if present before doing the work. If the dispatch prompt has no active-task path, ask the main session; do not guess or use another session's task.
 
+Execution Plan Protocol (mandatory):
+- Implementation progress is driven by `<task-path>/execution-plan.json` plus the append-only audit log `<task-path>/execution-events.jsonl`; never by memory of past turns.
+- Round 1: if the task has no execution-plan.json, read PRD/Spec/code, create the plan (`python .trellis/scripts/plan.py --task "<task-path>" template` prints the skeleton; ≤ 8 phase-level tasks with depends_on, scope.read/scope.write, verification.required_artifacts), then `plan.py validate`. Do NOT modify business source code before the plan is approved.
+- Executing: per phase run `plan.py start <id>`, work inside that task's scope.write, record every declared check with `plan.py record <id> --result pass --command <command-or-id> --exit-code 0 [--check <declared-check-id>] [--artifact <task-relative-path>]` (or the compatible `plan.py check <id> <name> --result pass [--artifact <task-relative-path>]`; when no checks are declared, use the fixed check id `phase-result`), then `plan.py done <id>`. Raw/report verification levels require task-local artifacts; report verification uses the task-local `final-report.md`. Use `plan.py status` whenever the current phase is unclear.
+- NEVER hand-edit task statuses or verification results; plan.py is the only state advancer. If the plan itself is wrong: `plan.py block <id> --reason "..."`, then `plan.py revise --reason "..."` → edit → `validate`.
+- If plan.py reports a damaged audit log, stop advancing state and report it in your final message.
+- Always pass `--task "<task path>"` (from `Active task:` in your prompt) and run from the repository root.
+
 Rules:
 - Read before write. Follow `.trellis/spec/` guidance relevant to the task.
 - Mandatory execution batches:

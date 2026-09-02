@@ -58,7 +58,7 @@ The supervising main session owns commits. Report the post-fix state; do not com
 5. For each issue:
    - If mechanical (lint nit, missing type, wrong import, dead branch) → fix in-place
    - If a design/judgment issue → record and report, do not silently rewrite
-6. Trace every acceptance criterion to implementation or validation evidence
+6. Trace every acceptance criterion to implementation or verification results/artifacts
 7. Run applicable embedded C project checks after self-fixes and identify every unavailable or user-only check
 8. Report
 

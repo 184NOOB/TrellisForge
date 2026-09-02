@@ -233,6 +233,7 @@ Tools: `trellis-implement` / `trellis-research` are sub-agent types only (Task/A
 Flow: `trellis-implement` -> `PROJECT_PREFIX-trellis-review` -> light main-session review OR standard/strict `trellis-check` Agent -> `trellis-update-spec` -> commit (Phase 3.4) -> `/trellis:finish-work`.
 Main-session default: dispatch the implement sub-agent. Review dispatch follows the persisted profile: light stays in the main session and does not load the bundled generic `trellis-check` Skill; standard/strict dispatch the independent `trellis-check` Agent when supported. Sub-agent self-exemption: if already running as `trellis-implement`, do NOT spawn another `trellis-implement` or `trellis-check`; if already running as `trellis-check`, do NOT spawn another `trellis-check` or `trellis-implement`. Dispatch is main session only.
 Dispatch prompt starts with `Active task: <task path from task.py current>`. Read context: jsonl entries -> `prd.md` -> `design.md if present` -> `implement.md if present`.
+Execution plan: the implement sub-agent creates/approves `<task>/execution-plan.json` via `plan.py` before any source edit and advances only through `plan.py start/record/check/done/block/revise`; between rounds run `python .trellis/scripts/plan.py --task "<task-path>" status` to decide re-dispatch vs 2.2. The `<execution-plan>` breadcrumb is display-only.
 
 ### Sub-agent dispatch efficiency contract
 
@@ -260,6 +261,7 @@ does not repeat an unaffected scan or build merely to confirm it again.
 Flow: `trellis-before-dev` -> edit -> `PROJECT_PREFIX-trellis-review` + profiled review -> validation -> `trellis-update-spec` -> commit (Phase 3.4) -> `/trellis:finish-work`.
 Inline mode keeps implementation in the main session. For review, `light` is a main-session changed-scope review; `standard` dispatches one independent affected-scope `trellis-check` agent when supported; `strict` dispatches independent full-scope reviews when supported and repeats until blocking findings are resolved.
 Read context: `prd.md` -> `design.md if present` -> `implement.md if present`, plus relevant spec/research loaded by skills.
+Execution plan (same gate, main session as executor): write `<task>/execution-plan.json` first, `plan.py validate` before touching business source, then advance exclusively via `plan.py start/record/check/done/block/revise` per phase.
 [/workflow-state:in_progress-inline]
 
 ### Phase 3: Finish
@@ -322,6 +324,7 @@ When a user request matches one of these intents inside an active task, route fi
 - Planning must be persisted to task artifacts; checks must run before reporting completion.
 - Every Trellis task in `planning` or `planning-inline` must complete the upstream `grill-me` protocol with `PROJECT_PREFIX-trellis-grill-adapter`; task size and risk do not create an exemption.
 - Every task `prd.md` must include `## Workflow Settings` with `Review level: light|standard|strict`; missing or invalid values default to `standard`.
+- Phase 2 source edits require an approved `<task>/execution-plan.json`; task state advances only through `plan.py` with its audit log intact — hand-edited statuses, verification result maps, revisions, or guarded plan content are rejected against the audit replay, and no hook is load-bearing for that enforcement.
 
 ### Loading Step Detail
 
@@ -557,6 +560,18 @@ If `task.py start` errors with a session-identity message (no context key from h
 
 Goal: turn reviewed planning artifacts into code that passes quality checks.
 
+**Execution plan gate (applies to every Phase 2 mode: sub-agent dispatch and inline)**
+
+Implementation progress is driven by the execution plan in the active task directory, advanced through `.trellis/scripts/plan.py`:
+
+- `<task-path>/execution-plan.json` holds the model-authored plan and current state; `<task-path>/execution-events.jsonl` is the append-only audit log. Both files live inside the task directory.
+- Round 1: the implementer reads PRD/Spec/code and writes the plan first (`python .trellis/scripts/plan.py --task "<task-path>" template` prints the skeleton; ≤ 8 phase-level tasks with `depends_on`, `scope.read`/`scope.write`, `risk`, and `verification`). Business source code stays untouched until `plan.py validate` approves the plan.
+- State advances only through `plan.py` (`start` / `record` / `check` / `done` / `block` / `revise`). Hand-edited task statuses, revisions, verification result maps, guarded task content, and completed-task history are rejected — statuses and managed maps are cross-checked against the audit replay. Consistent forgery of the plan JSON and the audit log together is outside this mechanism's defense envelope; the independent 2.2 review remains the real verification.
+- `plan.py record <id> --result pass|fail --command <id-or-command> --exit-code <number> [--check <declared-check-id>]` is the implementer's attestation of a check it actually ran (plan.py never executes builds or tests). When checks are declared, an actual command must be associated through `--check`; when checks are empty, the result uses the fixed id `phase-result`; artifacts are task-directory-local. `plan.py check <id> <name> --result pass` remains a compatibility shorthand. Independent verification belongs to the 2.2 quality-check review, which must rerun or otherwise confirm the declared checks. A failed phase is audited through `plan.py block <id> --reason "..."` — there is no separate `task_failed` event; `blocked` + reason + `plan_revised` history carry failure semantics.
+- Hooks are display-only aids: the UserPromptSubmit hook shows an `<execution-plan>` breadcrumb and the sub-agent injection hooks carry the protocol + current state. The CLI flow must work completely with every hook disabled or unavailable (Codex `SubagentStart` has no PreToolUse equivalent).
+- Between implement rounds the main session runs `plan.py --task "<task-path>" status`: runnable tasks → re-dispatch (or continue inline); all completed → 2.2 quality check; `blocked` or `plan_revised` history → review the reason before proceeding.
+- When a damaged `execution-events.jsonl` is reported, fix the audit log before any further state change; never bypass `plan.py`.
+
 #### 2.1 Implement `[required · repeatable]`
 
 [Claude Code, codex-sub-agent]
@@ -571,6 +586,7 @@ The platform hook/plugin auto-handles:
 - Reads `implement.jsonl` and injects referenced spec/research files into the agent prompt
 - Injects `prd.md`, `design.md` if present, and `implement.md` if present
 - For Codex, `SubagentStart` supplies native context injection; the agent profile keeps child-side loading as the fallback
+- Injects the execution-plan protocol block and the current plan state (round-1 plan creation or the live task loop from the plan gate above)
 
 [/Claude Code, codex-sub-agent]
 

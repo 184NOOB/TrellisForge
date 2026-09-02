@@ -20,8 +20,9 @@
   相关状态机和对应 `.trellis/spec/` 合同。
 - 新增函数注释必须说明参数单位/范围、返回值、前置条件、阻塞性、是否可在
   中断中调用、可重入性/线程安全性及寄存器/全局状态副作用。
-- 构建、静态检查、测试与硬件验证分别报告；未执行的项标为 `not run` 或
-  `not applicable` 并说明原因，禁止捏造通用 lint/typecheck 命令。
+- 构建、静态检查、测试与硬件验证分别报告；未执行的项在最终报告或最终消息中标为
+  `not run` 或 `not applicable` 并说明原因，不得把它们作为 `plan.py record` 的通过结果；
+  声明检查不可执行时使用 `block`/`revise`，禁止捏造通用 lint/typecheck 命令。
 
 ## Git
 
@@ -41,4 +42,3 @@ Skills 位于 `.agents/skills/`；Codex/Claude 子代理定义位于 `.codex/age
 `<PROJECT_PREFIX>-trellis-grill-adapter`；实施前必须完成收敛并获得后续用户批准。
 
 <!-- TRELLIS:END -->
-

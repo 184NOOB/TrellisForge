@@ -1,0 +1,3 @@
+# Python bytecode caches produced by hook scripts
+__pycache__/
+*.pyc

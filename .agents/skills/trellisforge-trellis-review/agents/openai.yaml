@@ -1,0 +1,4 @@
+interface:
+  display_name: "Project Trellis Review Profiles"
+  short_description: "Apply light, standard, or strict Trellis review"
+  default_prompt: "Use $trellisforge-trellis-review to review the current task at its selected review level."

@@ -1,5 +1,9 @@
 # TrellisForge
 
+> 当前模板基于 Trellis `0.6.10`
+>
+> TrellisForge 当前版本：`1.0`
+
 TrellisForge 是一套可复用的 Trellis 项目级工作流覆盖模板集合，以嵌入式 C
 项目作为完整范例。它不替代 `trellis init`，而是在初始化后的仓库中补齐以下能力：
 

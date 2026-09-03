@@ -1,0 +1,30 @@
+{
+  "id": "00-bootstrap-guidelines",
+  "name": "00-bootstrap-guidelines",
+  "title": "建立工具仓库开发规范",
+  "description": "为 TrellisForge 的工具、模板和文档建立与实际仓库结构一致的项目规范",
+  "status": "completed",
+  "dev_type": "docs",
+  "scope": "main/tooling",
+  "package": "main",
+  "priority": "P1",
+  "creator": "Noob184",
+  "assignee": "Noob184",
+  "createdAt": "2026-09-03",
+  "completedAt": "2026-09-03",
+  "branch": null,
+  "base_branch": null,
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    ".trellis/spec/main/tooling/",
+    "README.md",
+    "docs/接入指南.md"
+  ],
+  "notes": "首次初始化任务：将不适用的前后端占位规范替换为工具仓库规范",
+  "meta": {}
+}

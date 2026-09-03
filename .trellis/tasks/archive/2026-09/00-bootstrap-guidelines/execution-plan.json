@@ -1,0 +1,160 @@
+{
+  "schema": 3,
+  "task": ".trellis/tasks/00-bootstrap-guidelines",
+  "revision": 1,
+  "status": "approved",
+  "audit": {
+    "required": true,
+    "file": "execution-events.jsonl"
+  },
+  "created_by": "trellis-implement",
+  "goal": "建立与 TrellisForge 工具、模板和文档实际结构一致的项目 Spec",
+  "constraints": {
+    "forbidden_git_operations": [
+      "commit",
+      "push",
+      "tag",
+      "reset",
+      "restore-modified-source"
+    ],
+    "max_tasks": 8,
+    "max_edits_per_file": 5,
+    "allow_parallel_tasks": false
+  },
+  "tasks": [
+    {
+      "id": "write-tooling-spec",
+      "title": "编写工具仓库 Spec",
+      "status": "completed",
+      "objective": "删除不适用的 backend/frontend 占位层，建立 main/tooling 索引及 Python、PowerShell、模板文档规范",
+      "depends_on": [],
+      "scope": {
+        "read": [
+          "README.md",
+          "docs/接入指南.md",
+          "AGENTS.md",
+          ".trellis/spec/shared/**",
+          ".trellis/scripts/**",
+          "tools/**",
+          "templates/**"
+        ],
+        "write": [
+          ".trellis/spec/backend/**",
+          ".trellis/spec/frontend/**",
+          ".trellis/spec/main/tooling/**",
+          ".trellis/tasks/00-bootstrap-guidelines/prd.md",
+          ".trellis/tasks/00-bootstrap-guidelines/task.json"
+        ]
+      },
+      "verification": {
+        "level": "minimal",
+        "required_checks": [
+          "spec-placeholders"
+        ]
+      },
+      "verification_results": {
+        "spec-placeholders": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-03T06:36:04Z",
+          "command": "spec-placeholder-scan",
+          "summary": "规范目录无初始化占位文本"
+        }
+      }
+    },
+    {
+      "id": "run-project-checks",
+      "title": "运行项目检查",
+      "status": "completed",
+      "objective": "验证任务上下文、Python 单测与语法、文档差异和规范链接",
+      "depends_on": [
+        "write-tooling-spec"
+      ],
+      "scope": {
+        "read": [
+          ".trellis/spec/**",
+          ".trellis/tasks/00-bootstrap-guidelines/**",
+          ".trellis/scripts/tests/**",
+          ".claude/hooks/**",
+          ".codex/hooks/**"
+        ],
+        "write": []
+      },
+      "verification": {
+        "level": "minimal",
+        "required_checks": [
+          "task-context",
+          "python-tests",
+          "python-syntax",
+          "diff-check"
+        ]
+      },
+      "verification_results": {
+        "task-context": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-03T06:36:59Z",
+          "command": "task-validate",
+          "summary": "任务上下文校验通过"
+        },
+        "python-tests": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-03T06:36:59Z",
+          "command": "unittest-discover",
+          "summary": "89 个 Python 单测通过"
+        },
+        "python-syntax": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-03T06:36:59Z",
+          "command": "py-compile-hooks-scripts",
+          "summary": "脚本与 Hook Python 语法检查通过"
+        },
+        "diff-check": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-03T06:36:59Z",
+          "command": "git-diff-check",
+          "summary": "git diff --check 通过"
+        }
+      }
+    },
+    {
+      "id": "final-report",
+      "title": "记录最终验收报告",
+      "status": "completed",
+      "objective": "记录变更范围、检查结果以及构建和硬件验证不适用的原因",
+      "depends_on": [
+        "run-project-checks"
+      ],
+      "scope": {
+        "read": [
+          ".trellis/tasks/00-bootstrap-guidelines/**",
+          ".trellis/spec/main/tooling/**"
+        ],
+        "write": [
+          "final-report.md"
+        ]
+      },
+      "verification": {
+        "level": "report",
+        "required_checks": [
+          "final-report"
+        ],
+        "report_path": "final-report.md"
+      },
+      "verification_results": {
+        "final-report": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-03T06:37:29Z",
+          "command": "final-report-review",
+          "summary": "最终报告已记录变更范围、验证证据和不适用类别",
+          "artifact": ".trellis/tasks/00-bootstrap-guidelines/final-report.md"
+        }
+      }
+    }
+  ],
+  "approved_fingerprint": "e3211305a88140f173480f41e409915f4dc879fda5c1208e26bf452be20e9bdd"
+}

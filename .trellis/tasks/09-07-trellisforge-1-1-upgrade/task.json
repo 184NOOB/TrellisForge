@@ -3,7 +3,7 @@
   "name": "trellisforge-1-1-upgrade",
   "title": "升级 TrellisForge 到 1.1 并提供 1.0 升级方案",
   "description": "",
-  "status": "planning",
+  "status": "in_progress",
   "dev_type": null,
   "scope": null,
   "package": "main",
@@ -23,7 +23,7 @@
   "relatedFiles": [],
   "notes": "子任务1交接：模板 command-reference.md 与根源差 1 空行（有意截除，勿误判漂移），详见本任务 prd.md 'Handoff Notes From Child Task 1'。",
   "meta": {
-    "planning_ready": false,
-    "plan_approved": false
+    "planning_ready": "true",
+    "plan_approved": "true"
   }
 }

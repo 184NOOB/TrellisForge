@@ -1,1 +1,8 @@
-{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/spec/main/tooling/powershell.md", "reason": "审查安装器/升级器路径安全、冲突零写入、备份与回滚"}
+{"file": ".trellis/spec/main/tooling/python.md", "reason": "审查 tests/test_overlay_tools.py 测试覆盖与断言"}
+{"file": ".trellis/spec/main/tooling/templates-and-docs.md", "reason": "审查 README/接入指南/TEMPLATE-CONTENTS 与最终 CLI 一致"}
+{"file": ".trellis/spec/shared/repository-layout.md", "reason": "审查 VERSION、migrations/、tools/lib 目录归属"}
+{"file": ".trellis/spec/shared/validation.md", "reason": "核对验证命令结果与验收项证据"}
+{"file": ".trellis/spec/shared/trellis-maintenance.md", "reason": "确认未篡改上游 .version/.template-hashes"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "审查共享模块抽取是否无重复实现"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "审查版本事实跨层一致性与三方合并数据流"}

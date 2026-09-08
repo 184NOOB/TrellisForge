@@ -1,0 +1,29 @@
+{
+  "id": "trellisforge-1-1-upgrade",
+  "name": "trellisforge-1-1-upgrade",
+  "title": "升级 TrellisForge 到 1.1 并提供 1.0 升级方案",
+  "description": "",
+  "status": "planning",
+  "dev_type": null,
+  "scope": null,
+  "package": "main",
+  "priority": "P2",
+  "creator": "Noob184",
+  "assignee": "Noob184",
+  "createdAt": "2026-09-07",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "master",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": "09-07-trellis-channel-dispatch-wait-and-upgrade",
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "planning_ready": false,
+    "plan_approved": false
+  }
+}

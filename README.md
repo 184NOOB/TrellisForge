@@ -16,7 +16,7 @@ Flash 布局或硬件协议。下游必须已经运行 `trellis init`，TrellisF
 
 | 组件 | 版本 | 说明 |
 | --- | --- | --- |
-| TrellisForge | `1.1` | 本仓库当前交付版本，安装收据、迁移清单与工具输出均以 `VERSION` 为事实源 |
+| TrellisForge | `1.1` | 本仓库当前交付版本，安装收据、版本 manifest 与工具输出均以 `VERSION` 为事实源 |
 | Trellis 基线 | `0.6.10` | 模板针对的上游 Trellis 版本；`trellis init` 需先于 Forge 覆盖层运行 |
 | 首次接入 | 安装器 `tools/install-embedded-c-overlay.ps1` | 面向新项目，含 1.1 完整覆盖层 |
 | 1.0 → 1.1 | 升级器 `tools/update-embedded-c-overlay.ps1` | 面向已接入 1.0 的项目，默认预检、显式 `-Apply` 应用 |
@@ -53,9 +53,11 @@ trellis init
   -Apply
 ```
 
-`1.0` 没有安装收据。无收据且省略 `-FromVersion` 时默认按 `1.0` 迁移候选
+`1.0` 没有安装收据。无收据且省略 `-FromVersion` 时默认按 `1.0` 入场候选
 预检；`ProjectPrefix` 和 `ProjectName` 仍然必填，升级器不猜测这两个项目参数。
-已有的 1.1 收据会被如实识别，二次升级直接报告 `already-current` 并安全退出。
+升级使用电梯模型：历史版本正文从 Forge 侧 canonical 内容库取得（而不是逐对
+`new/` 快照），1.1 模板是唯一升级目标。已有的 1.1 收据会被如实识别，二次
+升级直接报告 `already-current` 并安全退出。
 
 详细的接入、升级、冲突处理和验证步骤见 [docs/接入指南.md](docs/接入指南.md)。
 
@@ -88,9 +90,13 @@ README.md                                本入口
 docs/接入指南.md                          首次接入、1.0→1.1 升级与上游 Trellis 更新
 tools/
   install-embedded-c-overlay.ps1         首次接入安装器（1.1）
-  update-embedded-c-overlay.ps1          1.0→1.1 版本化升级器（默认预检、-Apply 应用）
+  update-embedded-c-overlay.ps1          1.0→1.1 电梯模型升级器（默认预检、-Apply 应用）
   lib/TrellisForgeOverlay.psm1           安装器与升级器共享的安全/事务模块
-migrations/embedded-c-overlay/1.0-to-1.1/ 版本化迁移清单、1.0 旧基线 + 1.1 目标快照（自包含）
+history/embedded-c-overlay/
+  objects/<sha256>                       canonical 对象库（按 SHA-256 去重的版本正文）
+  versions/1.0/manifest.json             1.0 版本清单（受管 + adoption-baseline）
+  versions/1.1/manifest.json             1.1 版本清单（当前唯一升级目标）
+migrations/embedded-c-overlay/structural/1.0-to-1.1.json  线性结构迁移链
 templates/embedded-c-overlay/            1.1 覆盖层模板（含完整 trellis-channel Skill）
 templates/language-adaptation/           迁移到其他语言时替换 C 特化规则
 tests/test_overlay_tools.py              临时 Git 仓库安装/升级自动化测试
@@ -100,19 +106,24 @@ tests/test_overlay_tools.py              临时 Git 仓库安装/升级自动化
 
 - 新项目安装器保留 Git 根目录校验、`trellis init` 前置检查、模板缓存拒绝、
   路径安全、无 `-Force` 冲突预览、`-Force` 覆盖前 Git 元数据备份与异常回滚；
-  安装成功后写入 `.trellis/trellisforge.json` 1.1 收据。
-- 升级器只处理 1.0 与 1.1 间真实变化的 16 个模板文件，不做全量覆盖，也不
-  删除目标仓库文件；对用户定制的文件执行“1.0 基线 + 当前文件 + 1.1 模板”
-  三方文本合并，非重叠定制保留。
+  安装前验证 live 模板与 1.1 manifest 一致，成功后写 `.trellis/trellisforge.json`
+  schema 1 收据，每个受管文件记录 `canonical_sha256`（渲染前对象）、
+  `baseline_sha256`(渲染后基线)与 `installed_sha256`（实际结果）。
+- 升级器不复制逐对目标快照：它加载来源/目标两个版本 manifest，canonical 对象
+  相同的受管路径保持工作树不变，对象变化的路径以 canonical old 做“1.0 基线 +
+  当前文件 + 1.1 模板”三方文本合并，adoption-baseline 路径执行接管合并，1.1
+  新增文件按缺失/一致/冲突分类；非重叠用户定制保留，不做全量覆盖，不删除
+  目标文件。
 - 任一冲突或 `unsupported` 都会阻止整次工作树写入和 1.1 收据更新，并在
   `.git/trellisforge-upgrade/<时间戳>-<GUID>/` 生成 `report.json`、
   `report.txt` 与 `candidates/` 候选合并文件，供手工解决后重新预检。
 - 安装器和升级器都不修改上游 Trellis 的 `.trellis/.version` 与
   `.trellis/.template-hashes.json`，也不自动合并根 `AGENTS.md`（只生成
   `AGENTS.md.trellisforge-template` 供人工合并）。
-- 自动化测试见 `tests/test_overlay_tools.py`；覆盖首次安装、干净 1.0 升级、
-  用户定制合并、冲突零写入、新增文件冲突、幂等、错误版本、LF/CRLF、路径
-  拒绝和写入失败回滚。
+- 自动化测试见 `tests/test_overlay_tools.py`；覆盖首次安装、live 模板/manifest
+  一致性、1.0 无收据入场、用户定制合并、冲突零写入、新增文件冲突、幂等、
+  相同 canonical 零写入、错误版本、LF/CRLF、路径拒绝、结构链校验和写入失败
+  回滚。
 - 本仓库没有构建、部署或硬件目标，相关验证一律报告 `not applicable`。
 
 ## 非目标

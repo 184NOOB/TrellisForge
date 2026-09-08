@@ -110,10 +110,10 @@ README 同步改写为当前工程入口，清楚区分 TrellisForge 版本、�
 
 ## Planning Convergence
 
-- Status: pending
+- Status: ready
 - Blocking user decisions: 0
 - Blocking technical decisions: 0
-- Final summary ready: no
+- Final summary ready: yes
 
 ## Handoff Notes From Child Task 1（子任务 1 交接）
 

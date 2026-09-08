@@ -8,7 +8,7 @@
     "file": "execution-events.jsonl"
   },
   "created_by": "trellis-implement",
-  "goal": "发布 TrellisForge 1.1：建立 VERSION 版本事实、版本化 1.0→1.1 迁移资产、共享安装/升级 PowerShell 模块与收据、把首次安装器升级到 1.1、实现 -Apply 升级器、增加临时 Git 仓库自动化测试、重构 README/接入指南/模板清单并完成全量验证",
+  "goal": "按 implement.md 步骤 1-7 把已提交的方案 A 1.0→1.1 逐对迁移重构为电梯模型：建立 history 对象库+版本 manifest+结构迁移链、重构共享模块加载版本 manifest/对象库、升级首次安装器到 1.1 并写三类哈希收据、实现支持 1.0 无收据入场的升级器、重构自动化测试、更新 README/接入指南/模板清单，删除方案 A 遗留资产，完成全量验证（独立审查步骤 8 由主会话派发 trellis-check）",
   "constraints": {
     "forbidden_git_operations": [
       "commit",
@@ -24,9 +24,9 @@
   "tasks": [
     {
       "id": "discover-baseline",
-      "title": "调研 1.0 基线、PRD/design/spec 与 1.0→1.1 模板差异",
+      "title": "调研电梯模型基线与方案 A 遗留范围",
       "status": "completed",
-      "objective": "固定 1.0 基线提交 e40a942，核对 README 1.0/Trellis 0.6.10 标记与模板内容；运行 trellis update --dry-run 记录上游管理文件状态；盘点 1.0→1.1 的 16 个模板差异（3 merge、12 adopt、1 add）并确认 command-reference.md 交接差异（6 行规则 + 尾空行）；确认 PowerShell 5.1、git、trellis CLI 可用。",
+      "objective": "固定 1.0 基线提交 e40a942 并核对 README 1.0/Trellis 0.6.10 标记；盘点 1.0→1.1 模板差异（75→88 受管文件，13 新增=12 trellis-channel+1 契约测试，3 merge 变化，0 删除）；确认 command-reference.md 交接差异（1.0 保留历史尾部空行 e40a942 源、1.1 含子任务1规则且无多余尾部空行）；确认方案 A 遗留资产清单（migrations/embedded-c-overlay/1.0-to-1.1/{migration.json,baseline/,new/}、get_OverlayMigrationManifest、两类哈希收据）；运行 trellis update --dry-run 记录上游管理文件状态。",
       "depends_on": [],
       "scope": {
         "read": [
@@ -36,8 +36,10 @@
           "templates/embedded-c-overlay/**",
           ".agents/skills/trellis-channel/**",
           ".claude/skills/trellis-channel/**",
+          "migrations/**",
           "README.md",
-          "docs/接入指南.md"
+          "docs/接入指南.md",
+          "tests/**"
         ],
         "write": []
       },
@@ -45,13 +47,13 @@
         "level": "minimal",
         "required_checks": []
       },
-      "no_check_reason": "纯只读调研阶段：核对基线提交、模板差异和工具可用性，不修改任何仓库文件"
+      "no_check_reason": "纯只读调研阶段：核对 e40a942 基线、模板差异、交接差异与方案 A 遗留范围，不修改任何仓库文件"
     },
     {
-      "id": "version-migration-assets",
-      "title": "建立 VERSION 与版本化 1.0→1.1 迁移资产",
+      "id": "elevator-assets",
+      "title": "建立电梯模型资产与结构迁移链，替换方案 A 资产生成工具",
       "status": "completed",
-      "objective": "新增 VERSION=1.1；在清理当前根目录参考文件前，从 e40a942 提取 3 个 merge 旧基线（.trellis/workflow.md、.trellis/agents/check.md、.trellis/agents/implement.md）和 12 个 adopt 旧基线（两套 trellis-channel Skill，command-reference.md 保留历史尾部空行）到 migrations/embedded-c-overlay/1.0-to-1.1/baseline/；编制 migration.json（schema、from/to 版本、overlay、Trellis 基线、16 个路径动作、old/new 相对路径与 LF 规范化内容 SHA-256，1.1 add 文件仅含 new）；随后独立清理当前根目录两套 command-reference.md 的多余尾部空行（先提取后清理，禁止回写并覆盖历史 old）。",
+      "objective": "保持 VERSION=1.1；直接以 git 验证对象字节（git show e40a942:path 与 git show HEAD:path）创建 history/embedded-c-overlay/{objects/<sha256>,versions/1.0/manifest.json,versions/1.1/manifest.json}，对象按 SHA-256 去重保存 UTF-8 无 BOM、LF 的 canonical 正文；1.0 manifest 记录 75 个 managed 路径 + 12 个 adoption-baseline（trellis-channel skill，canonical 从 e40a942 根目录提取并忠实保留 command-reference 历史尾部空行）；1.1 manifest 记录 88 个 managed 路径（canonical 从当前模板 HEAD 提取，含子任务1规则且无多余尾部空行）；创建 migrations/embedded-c-overlay/structural/1.0-to-1.1.json（schema 1、from=1.0、to=1.1、receipt_transition=bootstrap-schema-1、actions 为空）；替换任务目录 gen_migration.py 与 verify_assets.py 为电梯模型资产生成/校验工具；删除方案 A 遗留 migrations/embedded-c-overlay/1.0-to-1.1/{migration.json,baseline/,new/}，确保工作树只剩一套升级资产源。",
       "depends_on": [
         "discover-baseline"
       ],
@@ -59,74 +61,85 @@
         "read": [
           "templates/embedded-c-overlay/**",
           ".agents/skills/trellis-channel/**",
-          ".claude/skills/trellis-channel/**"
+          ".claude/skills/trellis-channel/**",
+          "migrations/**"
         ],
         "write": [
           "VERSION",
+          "history/**",
           "migrations/**",
-          ".agents/skills/trellis-channel/references/command-reference.md",
-          ".claude/skills/trellis-channel/references/command-reference.md"
+          ".trellis/tasks/09-07-trellisforge-1-1-upgrade/gen_migration.py",
+          ".trellis/tasks/09-07-trellisforge-1-1-upgrade/verify_assets.py"
         ]
       },
       "verification": {
         "level": "minimal",
         "required_checks": [
-          "migration-json-valid",
-          "baseline-fidelity",
-          "hash-consistency",
-          "root-whitespace-trimmed",
+          "objects-library-consistent",
+          "v10-manifest-fidelity",
+          "v11-manifest-live",
+          "structural-chain-valid",
+          "plan-a-assets-removed",
           "git-diff-check"
         ]
       },
       "verification_results": {
-        "migration-json-valid": {
+        "objects-library-consistent": {
           "result": "pass",
           "exit_code": 0,
-          "time": "2026-09-08T11:03:50Z",
+          "time": "2026-09-08T15:47:28Z",
           "command": "python verify_assets.py",
-          "summary": "migration.json schema/from/to/VERSION/action-counts 校验通过（merge=3, adopt=12, add=1）"
+          "summary": "90 个去重 canonical 对象自洽，无孤儿对象"
         },
-        "baseline-fidelity": {
+        "v10-manifest-fidelity": {
           "result": "pass",
           "exit_code": 0,
-          "time": "2026-09-08T11:03:50Z",
+          "time": "2026-09-08T15:47:28Z",
           "command": "python verify_assets.py",
-          "summary": "15 个 baseline 文件与 e40a942 逐字节一致，command-reference.md 历史尾部空行保留"
+          "summary": "75 managed 与 12 adoption-baseline 与 e40a942 逐字节一致，command-reference 尾部空行保留"
         },
-        "hash-consistency": {
+        "v11-manifest-live": {
           "result": "pass",
           "exit_code": 0,
-          "time": "2026-09-08T11:03:50Z",
+          "time": "2026-09-08T15:47:28Z",
           "command": "python verify_assets.py",
-          "summary": "16 路径 old/new LF 规范化内容 SHA-256 与 migration.json 全部一致"
+          "summary": "88 managed 与 live 模板/HEAD 一致，含子任务1规则且无多余尾部空行"
         },
-        "root-whitespace-trimmed": {
+        "structural-chain-valid": {
           "result": "pass",
           "exit_code": 0,
-          "time": "2026-09-08T11:03:51Z",
+          "time": "2026-09-08T15:47:28Z",
           "command": "python verify_assets.py",
-          "summary": "根 .agents/.claude command-reference.md 尾空行已裁剪，模板 1.1 含新增规则且无多余空行"
+          "summary": "结构链 schema 1/from 1.0/to 1.1/bootstrap-schema-1/空 actions"
+        },
+        "plan-a-assets-removed": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-08T15:47:28Z",
+          "command": "git rm -r migrations/embedded-c-overlay/1.0-to-1.1",
+          "summary": "方案A migration.json/baseline/new 已删除，工作树仅一套升级资产源"
         },
         "git-diff-check": {
           "result": "pass",
           "exit_code": 0,
-          "time": "2026-09-08T11:03:51Z",
-          "command": "git diff --check -- VERSION migrations 两个 command-reference.md",
-          "summary": "本次改动文件无空白错误；task.json 尾部空白为 Trellis 运行时状态既有内容，不属于本任务交付"
+          "time": "2026-09-08T15:47:29Z",
+          "command": "git diff --check -- history migrations",
+          "summary": "history 与新 migrations 无空白错误"
         }
       }
     },
     {
       "id": "shared-module",
-      "title": "抽取共享安全模块 tools/lib/TrellisForgeOverlay.psm1",
+      "title": "重构共享模块到电梯模型（版本 manifest/对象库加载、三类哈希收据、结构链预演）",
       "status": "completed",
-      "objective": "实现安装器与升级器共用的 TrellisForgeOverlay.psm1：目标/Git 元数据路径验证、项目参数与路径安全拒绝、占位符渲染（路径 __PROJECT_PREFIX__ 与正文 PROJECT_PREFIX/PROJECT_NAME）、LF/CRLF 识别与统一规范化、SHA-256、Git 元数据备份与清单、原子写入与失败回滚、1.1 安装收据读写/校验/回滚、版本化迁移清单加载与哈希校验、git merge-file --stdout 三方文本合并；保持 Windows PowerShell 5.1 语法（-LiteralPath、UTF-8 无 BOM），显式检查外部命令退出码。",
+      "objective": "重构 tools/lib/TrellisForgeOverlay.psm1：用 New-OverlayVersionManifest/对象库加载替换 Get-OverlayMigrationManifest 及逐对 baseline/new 数据结构；新增结构迁移链加载与预演（白名单 actions、链连续性、收据 bootstrap 校验）；安装器/升级器共用同一套版本清单解析、canonical 对象解析、渲染后 baseline 哈希与 installed 哈希（三类哈希 canonical_sha256/baseline_sha256/installed_sha256）写入收据；保留目标/Git 元数据路径验证、占位符渲染、LF/CRLF 规范化、SHA-256、备份清单、原子事务回滚、安全相对路径拒绝与 Git 外部命令退出码检查；清理仅服务方案 A 的导出接口；保持 Windows PowerShell 5.1 语法与 UTF-8 无 BOM 文本处理，模块不修改 .trellis/.version 与 .trellis/.template-hashes.json。",
       "depends_on": [
-        "version-migration-assets"
+        "elevator-assets"
       ],
       "scope": {
         "read": [
           "tools/install-embedded-c-overlay.ps1",
+          "history/**",
           "migrations/**",
           "templates/embedded-c-overlay/**"
         ],
@@ -138,37 +151,46 @@
         "level": "minimal",
         "required_checks": [
           "module-parses",
-          "module-exports-list"
+          "module-exports-clean",
+          "module-manifest-load-smoke"
         ]
       },
       "verification_results": {
         "module-parses": {
           "result": "pass",
           "exit_code": 0,
-          "time": "2026-09-08T11:15:19Z",
+          "time": "2026-09-08T15:50:08Z",
           "command": "powershell Parser::ParseFile TrellisForgeOverlay.psm1",
-          "summary": "模块 UTF-8 带 BOM，Windows PowerShell 5.1 Parser::ParseFile 零错误"
+          "summary": "模块 UTF-8 带 BOM，Windows PowerShell 5.1 解析零错误"
         },
-        "module-exports-list": {
+        "module-exports-clean": {
           "result": "pass",
           "exit_code": 0,
-          "time": "2026-09-08T11:15:20Z",
+          "time": "2026-09-08T15:50:09Z",
           "command": "powershell import + Get-Command -Module",
-          "summary": "导出 20 个契约函数，无缺失；核心功能（三方合并/哈希规范化/迁移清单加载/事务回滚/路径逃逸拒绝）冒烟通过"
+          "summary": "导出 27 个契约函数，Get-OverlayMigrationManifest 已移除，新增 Get-OverlayVersionManifest/Get-OverlayCanonicalText/Get-OverlayStructuralChain/Assert-OverlayLiveTemplateMatchesManifest"
+        },
+        "module-manifest-load-smoke": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-08T15:50:09Z",
+          "command": "powershell test-module.ps1",
+          "summary": "1.0/1.1 版本清单加载、结构链、canonical 对象哈希匹配、命令参考尾空行与哈希全部通过"
         }
       }
     },
     {
       "id": "installer-11",
-      "title": "将首次安装器升级到 1.1 并写入收据",
+      "title": "升级首次安装器到 1.1（live 模板/manifest 一致性 + 三类哈希收据）",
       "status": "completed",
-      "objective": "重构 tools/install-embedded-c-overlay.ps1 使用共享模块：保持 -TargetRoot/-ProjectPrefix/-ProjectName/-Force 参数兼容，保留 Git 根、trellis init、模板缓存、冲突预览、路径安全、-Force 备份、占位符替换和异常回滚语义；成功后写 .trellis/trellisforge.json 1.1 收据并纳入备份/回滚事务；不删除目标文件，不修改 .trellis/.version 与 .trellis/.template-hashes.json，不复制 AGENTS.md.template/TEMPLATE-CONTENTS.md/运行时状态。",
+      "objective": "重构 tools/install-embedded-c-overlay.ps1 使用电梯模型共享模块：保持 -TargetRoot/-ProjectPrefix/-ProjectName/-Force 与既有安全语义（Git 根、trellis init、缓存拒绝、冲突预览、路径安全、-Force 备份、占位符替换、回滚、不删除目标文件）；安装前验证 live 模板与 1.1 manifest/canonical 对象一致（任意一只文件漂移 fail closed）；安装当前完整 1.1 模板与 AGENTS.md.trellisforge-template，成功后写 .trellis/trellisforge.json schema 1 收据，每个受管文件记录 canonical_sha256（渲染前对象）与 baseline_sha256（按项目参数渲染后 canonical）与 installed_sha256（实际安装结果）；收据纳入备份/回滚事务，失败不留下虚假 1.1 状态；不写 .trellis/.version 与 .trellis/.template-hashes.json。",
       "depends_on": [
         "shared-module"
       ],
       "scope": {
         "read": [
           "tools/lib/TrellisForgeOverlay.psm1",
+          "history/**",
           "templates/embedded-c-overlay/**"
         ],
         "write": [
@@ -179,7 +201,9 @@
         "level": "minimal",
         "required_checks": [
           "installer-parses",
-          "migration-placeholder-clean",
+          "installer-live-manifest-consistent",
+          "installer-receipt-triple-hash",
+          "installer-placeholder-clean",
           "git-diff-check"
         ]
       },
@@ -187,21 +211,35 @@
         "installer-parses": {
           "result": "pass",
           "exit_code": 0,
-          "time": "2026-09-08T11:17:09Z",
+          "time": "2026-09-08T15:52:28Z",
           "command": "powershell Parser::ParseFile install-embedded-c-overlay.ps1",
           "summary": "安装器 UTF-8 带 BOM，PS 5.1 解析零错误，参数兼容 -TargetRoot/-ProjectPrefix/-ProjectName/-Force"
         },
-        "migration-placeholder-clean": {
+        "installer-live-manifest-consistent": {
           "result": "pass",
           "exit_code": 0,
-          "time": "2026-09-08T11:17:09Z",
-          "command": "临时仓库安装后扫描残留占位符",
-          "summary": "安装 89 个受管文件后无 __PROJECT_PREFIX__/PROJECT_PREFIX/PROJECT_NAME 残留；收据 trellisforge_version=1.1、overlay=embedded-c"
+          "time": "2026-09-08T15:52:28Z",
+          "command": "Assert-OverlayLiveTemplateMatchesManifest",
+          "summary": "安装前 live 模板与 1.1 manifest/canonical 对象哈希全部一致，无同版本漂移"
+        },
+        "installer-receipt-triple-hash": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-08T15:52:28Z",
+          "command": "smoke-install2.ps1",
+          "summary": "安装 89 文件，收据三类哈希齐全；workflow 样例 canonical=87ff.. baseline=installed=3f7a..（干净安装 baseline==installed）"
+        },
+        "installer-placeholder-clean": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-08T15:52:28Z",
+          "command": "smoke-install.ps1 placeholder scan",
+          "summary": "安装后无 __PROJECT_PREFIX__/PROJECT_PREFIX/PROJECT_NAME 残留；.version/.template-hashes/业务文件未被修改"
         },
         "git-diff-check": {
           "result": "pass",
           "exit_code": 0,
-          "time": "2026-09-08T11:17:09Z",
+          "time": "2026-09-08T15:52:28Z",
           "command": "git diff --check -- tools",
           "summary": "tools 目录本次改动无空白错误"
         }
@@ -209,15 +247,16 @@
     },
     {
       "id": "updater-11",
-      "title": "实现 1.0→1.1 版本化升级器",
+      "title": "实现电梯模型升级器与 1.0 入场适配",
       "status": "completed",
-      "objective": "新增 tools/update-embedded-c-overlay.ps1：默认只预检、显式 -Apply 才写入；无收据且省略 -FromVersion 时默认 1.0 迁移候选（仍必填 -ProjectPrefix/-ProjectName）；已有收据校验一致性、1.1 幂等退出；对 16 个迁移路径做 add/update/user-merged/already-current/conflict/unsupported 分类，冲突整次 fail closed 并只在 .git/trellisforge-upgrade/<时间戳>-<GUID>/ 写 report 与 candidates；全部通过后备份既有文件+旧收据、原子写入、写 1.1 收据、失败回滚；不修改 .trellis/.version 与 .trellis/.template-hashes.json。",
+      "objective": "重构 tools/update-embedded-c-overlay.ps1：默认只预检、显式 -Apply 才写入；无收据且省略 -FromVersion 时默认按 1.0 入场适配，仍必须显式传入 ProjectPrefix/ProjectName，并依 1.0 manifest、canonical 对象、结构迁移链与三方合并预检验证兼容性，无法验证以 unsupported 停止；有收据时来源版本/项目参数/canonical baseline 从收据读取且传参冲突 fail closed，已是 1.1 幂等退出；比较来源/目标完整 manifest 导出受影响集合（canonical 相同的 managed 路径保持工作树不变仅进新收据、对象变化的路径按 canonical old 做三方合并、adoption-baseline 接管合并、add 文件缺失新增/一致已满足/不同冲突）；来源有目标无且缺显式结构动作以 unsupported 停止；同一版本 live 模板与目标 manifest 漂移 fail closed；任一冲突整次 fail closed，只在 .git/trellisforge-upgrade/<时间戳>-<GUID>/ 写 report 与 candidates，工作树零写入；全部通过后执行完整备份、原子写入、写 1.1 三类哈希收据与失败回滚；不修改 .trellis/.version 与 .trellis/.template-hashes.json。",
       "depends_on": [
         "shared-module"
       ],
       "scope": {
         "read": [
           "tools/lib/TrellisForgeOverlay.psm1",
+          "history/**",
           "migrations/**",
           "templates/embedded-c-overlay/**"
         ],
@@ -229,7 +268,9 @@
         "level": "minimal",
         "required_checks": [
           "updater-parses",
-          "migration-manifest-validates",
+          "updater-10-admission-preflight",
+          "updater-apply-idempotent",
+          "updater-conflict-zero-write",
           "updater-placeholder-clean",
           "git-diff-check"
         ]
@@ -238,38 +279,52 @@
         "updater-parses": {
           "result": "pass",
           "exit_code": 0,
-          "time": "2026-09-08T11:22:42Z",
+          "time": "2026-09-08T15:58:39Z",
           "command": "powershell Parser::ParseFile update-embedded-c-overlay.ps1",
           "summary": "升级器 UTF-8 带 BOM，PS 5.1 解析零错误"
         },
-        "migration-manifest-validates": {
+        "updater-10-admission-preflight": {
           "result": "pass",
           "exit_code": 0,
-          "time": "2026-09-08T11:22:42Z",
-          "command": "Get-OverlayMigrationManifest + 预检应用冒烟",
-          "summary": "迁移清单 schema/版本/路径唯一/资产哈希全部通过；干净 1.0 预检为 update/add，应用后收据 16 条目；二次运行 already-current"
+          "time": "2026-09-08T15:58:39Z",
+          "command": "update-embedded-c-overlay.ps1 预检",
+          "summary": "无收据默认 1.0 入场预检通过：canonical old 三方合并分类正确，预检零写入"
+        },
+        "updater-apply-idempotent": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-08T15:58:39Z",
+          "command": "update -Apply + 二次运行",
+          "summary": "-Apply 成功写 1.1 三类哈希收据(89条目)；二次运行识别 already-current 安全退出；command-reference 尾部 **.\\n 无多余空行"
+        },
+        "updater-conflict-zero-write": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-08T15:58:39Z",
+          "command": "update 冲突预检",
+          "summary": "重叠修改触发 [CONFLICT] exit 1，工作树零写入，.git/trellisforge-upgrade/<ts>-<GUID>/ 生成 report.json/report.txt"
         },
         "updater-placeholder-clean": {
           "result": "pass",
           "exit_code": 0,
-          "time": "2026-09-08T11:22:42Z",
-          "command": "升级应用后扫描受管路径",
-          "summary": "升级后 16 个受管文件无 __PROJECT_PREFIX__/PROJECT_PREFIX/PROJECT_NAME 残留；不生成 .trellis/.version 与 .template-hashes.json"
+          "time": "2026-09-08T15:58:39Z",
+          "command": "升级后 placeholder 扫描",
+          "summary": "升级后 16 个差异化路径与 AGENTS 无占位符残留；.version/.template-hashes 未修改"
         },
         "git-diff-check": {
           "result": "pass",
           "exit_code": 0,
-          "time": "2026-09-08T11:22:42Z",
-          "command": "git diff --check -- tools migrations",
-          "summary": "tools/updater 与 migrations 本次改动无空白错误"
+          "time": "2026-09-08T15:58:40Z",
+          "command": "git diff --check -- tools",
+          "summary": "tools 目录无空白错误"
         }
       }
     },
     {
       "id": "overlay-tests",
-      "title": "新增 tests/test_overlay_tools.py 临时 Git 仓库自动化测试",
+      "title": "重构工具级自动化测试到电梯模型",
       "status": "completed",
-      "objective": "基于 1.0 migration baseline 与 1.1 template 构建隔离临时 Git 仓库并调用 Windows PowerShell 5.1：首次安装预览/-Force 备份/占位符/完整 1.1 文件/收据；干净 1.0 升级与二次幂等；非重叠用户定制三方合并；command-reference.md 历史尾部空行+新增规则迁移与真实用户修改区分；同行冲突零写入与 report/candidate；新增文件冲突；错误来源版本/参数/收据冲突；LF/CRLF；路径逃逸与目录冲突；注入式写入失败的回滚与收据恢复；断言 .version/.template-hashes/无关脏文件不被修改。",
+      "objective": "重构 tests/test_overlay_tools.py 与夹具，移除对方案 A migrations/embedded-c-overlay/1.0-to-1.1/{baseline,new,migration.json} 的依赖；基于 history 对象库、1.0/1.1 manifest、结构迁移链与当前模板构建隔离临时 Git 仓库并调用 Windows PowerShell 5.1，覆盖 PRD R7 场景：首次安装 1.1、live 模板/manifest 一致性、无 -Force 冲突预览、覆盖前备份、占位符替换、三类哈希收据、1.0 无收据入场、非重叠用户定制三方合并、相同 canonical 路径零写入、新增文件冲突、已有 1.1 幂等、历史对象/来源版本错误、结构链验证、预检零写入、写入失败回滚与路径逃逸拒绝；增加两套 command-reference.md 镜像专项回归（历史尾部空行 1.0 对象升级为含规则且无多余空行的 1.1 内容不产生虚假冲突，真实用户修改仍被合并/报冲突）；同时覆盖 LF 与 CRLF 目标；断言 .trellis/.version 与 .trellis/.template-hashes.json 与无关脏文件不被修改。",
       "depends_on": [
         "installer-11",
         "updater-11"
@@ -277,6 +332,7 @@
       "scope": {
         "read": [
           "tools/**",
+          "history/**",
           "migrations/**",
           "templates/embedded-c-overlay/**"
         ],
@@ -288,6 +344,7 @@
         "level": "minimal",
         "required_checks": [
           "overlay-unittest",
+          "overlay-commandref-regression",
           "overlay-lf-crlf-covered",
           "git-diff-check"
         ]
@@ -296,21 +353,28 @@
         "overlay-unittest": {
           "result": "pass",
           "exit_code": 0,
-          "time": "2026-09-08T11:33:05Z",
+          "time": "2026-09-08T16:04:26Z",
           "command": "python -B -m unittest discover -s tests -p test_*.py",
-          "summary": "22/22 通过：安装、升级、收据、冲突零写入、report/candidate、幂等、命令参考回归、参数/版本/收据一致性、回滚、缓存与路径拒绝"
+          "summary": "29/29 通过：安装/升级/收据三类哈希/冲突零写入/report/幂等/参数收据一致性/回滚/缓存与路径拒绝"
+        },
+        "overlay-commandref-regression": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-08T16:04:26Z",
+          "command": "test_clean_10_command_reference_gets_rules_and_drops_blank + test_user_edit_*",
+          "summary": "含历史尾空行的 1.0 canonical 升级为含规则且无多余空行零冲突；真实用户修改仍被合并或报冲突"
         },
         "overlay-lf-crlf-covered": {
           "result": "pass",
           "exit_code": 0,
-          "time": "2026-09-08T11:33:05Z",
+          "time": "2026-09-08T16:04:27Z",
           "command": "test_lf_target_clean + test_crlf_target_clean",
-          "summary": "LF/CRLF 目标均无虚假冲突，CRLF 换行风格被保留，尾部空行正确移除"
+          "summary": "LF/CRLF 目标均无虚假冲突，CRLF 换行风格保留，尾部空行正确移除"
         },
         "git-diff-check": {
           "result": "pass",
           "exit_code": 0,
-          "time": "2026-09-08T11:33:05Z",
+          "time": "2026-09-08T16:04:27Z",
           "command": "git diff --check -- tests",
           "summary": "tests 目录无空白错误"
         }
@@ -318,17 +382,17 @@
     },
     {
       "id": "docs-11",
-      "title": "重构 README、接入指南与模板清单到 1.1",
+      "title": "重构 README、接入指南与模板清单到电梯模型",
       "status": "completed",
-      "objective": "重构 README 为当前工程入口（定位与边界、Forge 1.1/Trellis 0.6.10 兼容、首次接入与 1.0→1.1 最短命令、当前能力含 Channel 唯一等待、目录与交付物、安全/验证边界、指南链接，压缩历史修复叙述）；docs/接入指南.md 分三节（首次接入 1.1、Forge 1.0→1.1、上游 Trellis 更新）给出 PowerShell 可直接执行的命令、预检/应用/冲突/备份恢复/升级后验证；更新 TEMPLATE-CONTENTS.md 精确列出完整 Channel Skill 与脚本生成收据的边界。",
+      "objective": "重构 README 为当前工程入口：项目定位与非目标、Forge 1.1 与 Trellis 0.6.10 版本兼容、首次接入快速命令、1.0→1.1 升级快速命令、当前能力含 Channel 唯一等待规则、仓库目录与交付物（history 对象库/版本 manifest/结构迁移链/三类哈希收据）、验证/安全边界与指南链接，删除方案 A 逐对迁移叙述；docs/接入指南.md 分三节（首次接入 1.1、Forge 1.0→1.1、上游 Trellis 更新）给出 Windows PowerShell 可解释命令、预检/应用/冲突/备份恢复/升级后验证；更新 templates/embedded-c-overlay/TEMPLATE-CONTENTS.md 移除 baseline/new 描述，列出完整 trellis-channel Skill、脚本生成收据边界与版本化升级交付物归属；不把 .trellis/tasks/、.trellis/workspace/、.trellis/.runtime/、.trellis/.template-hashes.json 加入发布模板说明。",
       "depends_on": [
-        "version-migration-assets",
         "installer-11",
         "updater-11"
       ],
       "scope": {
         "read": [
           "tools/**",
+          "history/**",
           "migrations/**",
           "templates/embedded-c-overlay/TEMPLATE-CONTENTS.md"
         ],
@@ -343,6 +407,7 @@
         "required_checks": [
           "version-facts-consistent",
           "docs-commands-match",
+          "template-contents-accurate",
           "git-diff-check"
         ]
       },
@@ -350,21 +415,28 @@
         "version-facts-consistent": {
           "result": "pass",
           "exit_code": 0,
-          "time": "2026-09-08T11:35:16Z",
-          "command": "python docs_check.py + grep",
+          "time": "2026-09-08T16:11:20Z",
+          "command": "python docs-check.py",
           "summary": "VERSION=1.1；README 标记 Forge 1.1 与 Trellis 0.6.10；快速入口命令与目录/交付物齐全"
         },
         "docs-commands-match": {
           "result": "pass",
           "exit_code": 0,
-          "time": "2026-09-08T11:35:16Z",
+          "time": "2026-09-08T16:11:20Z",
           "command": "grep 指南中的安装/升级/Apply/FromVersion 命令",
-          "summary": "接入指南三类流程（首次接入/1.0→1.1/上游 Trellis）命令与最终 CLI 参数一致，冲突/备份/收据/幂等均有说明"
+          "summary": "接入指南三类流程命令与最终 CLI 参数一致，冲突/备份/三类哈希收据/幂等均有说明"
+        },
+        "template-contents-accurate": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-08T16:11:20Z",
+          "command": "grep TEMPLATE-CONTENTS",
+          "summary": "TEMPLATE-CONTENTS 列出完整 Channel Skill、三类哈希脚本生成收据边界与 history/structural 交付物归属，无 baseline/new 描述"
         },
         "git-diff-check": {
           "result": "pass",
           "exit_code": 0,
-          "time": "2026-09-08T11:35:17Z",
+          "time": "2026-09-08T16:11:21Z",
           "command": "git diff --check -- README 指南 TEMPLATE-CONTENTS",
           "summary": "三个文档本次改动无空白错误"
         }
@@ -374,9 +446,9 @@
       "id": "verify-final",
       "title": "全量验证并撰写最终报告",
       "status": "completed",
-      "objective": "运行 implement.md 第 7 步全部验证：三套 Python unittest（.trellis/scripts/tests、templates 内测试、tests/）；py_compile 并清理缓存扫描；PowerShell 5.1 解析模块与两个入口；临时 Git 仓库安装/升级冒烟；migration/receipt JSON schema 与版本一致性；未替换占位符/缓存扫描；git diff --check；构建/部署/硬件验证为 not applicable。汇总变更文件、阶段结果、检查结果、跳过项与已知风险，写 final-report.md 并用 record --artifact 登记。",
+      "objective": "运行 implement.md 第 7 步全部验证：三套 Python unittest（.trellis/scripts/tests、templates 内测试、tests/）；py_compile（.trellis/scripts、.claude/hooks、.codex/hooks、模板 .trellis/scripts 与 tests）并清理缓存扫描；Windows PowerShell 5.1 解析模块与两个入口；临时 Git 仓库首次安装与 1.0 升级冒烟；history manifest/object、structural migration 与 receipt JSON schema、版本一致性、未替换占位符扫描与 git diff --check；构建/部署/硬件验证为 not applicable，记录下游需自行执行的验证。汇总变更文件、阶段结果、检查结果、跳过项与已知风险写 final-report.md，并用 record --artifact 登记后 done。",
       "depends_on": [
-        "version-migration-assets",
+        "elevator-assets",
         "shared-module",
         "installer-11",
         "updater-11",
@@ -386,6 +458,7 @@
       "scope": {
         "read": [
           "VERSION",
+          "history/**",
           "tools/**",
           "migrations/**",
           "tests/**",
@@ -409,7 +482,7 @@
           "installer-smoke",
           "updater-smoke",
           "cache-residue-scan",
-          "migration-version-consistent",
+          "asset-version-consistent",
           "git-diff-check"
         ],
         "report_path": "final-report.md"
@@ -418,76 +491,76 @@
         "dot-trellis-unittest": {
           "result": "pass",
           "exit_code": 0,
-          "time": "2026-09-08T11:40:48Z",
+          "time": "2026-09-08T16:17:21Z",
           "command": "python -B -m unittest discover -s .trellis/scripts/tests -p test_*.py",
           "summary": "89 tests OK"
         },
         "template-unittest": {
           "result": "pass",
           "exit_code": 0,
-          "time": "2026-09-08T11:40:48Z",
+          "time": "2026-09-08T16:17:21Z",
           "command": "python -B -m unittest discover -s templates/embedded-c-overlay/.trellis/scripts/tests -p test_*.py",
           "summary": "99 tests OK（含 trellis_channel_contract）"
         },
         "overlay-unittest": {
           "result": "pass",
           "exit_code": 0,
-          "time": "2026-09-08T11:40:48Z",
+          "time": "2026-09-08T16:17:21Z",
           "command": "python -B -m unittest discover -s tests -p test_*.py",
-          "summary": "22 tests OK"
+          "summary": "29 tests OK"
         },
         "py-compile": {
           "result": "pass",
           "exit_code": 0,
-          "time": "2026-09-08T11:40:48Z",
+          "time": "2026-09-08T16:17:21Z",
           "command": "python -m py_compile",
           "summary": "仓库/模板/测试全部 Python 编译通过"
         },
         "ps-parse-all": {
           "result": "pass",
           "exit_code": 0,
-          "time": "2026-09-08T11:40:48Z",
+          "time": "2026-09-08T16:18:10Z",
           "command": "powershell Parser::ParseFile 模块/安装器/升级器",
-          "summary": "PS 5.1 解析三个 PowerShell 文件零错误"
+          "summary": "三个 PowerShell 文件 PS 5.1 Parser::ParseFile 零错误"
         },
         "installer-smoke": {
           "result": "pass",
           "exit_code": 0,
-          "time": "2026-09-08T11:40:48Z",
+          "time": "2026-09-08T16:18:10Z",
           "command": "临时仓库 install-embedded-c-overlay.ps1 -Force",
-          "summary": "安装 1.1 成功，收据 version=1.1 overlay=embedded-c"
+          "summary": "安装 1.1 成功，收据 version=1.1 overlay=embedded-c 三类哈希齐全"
         },
         "updater-smoke": {
           "result": "pass",
           "exit_code": 0,
-          "time": "2026-09-08T11:40:48Z",
+          "time": "2026-09-08T16:18:10Z",
           "command": "临时 1.0 布局 update-embedded-c-overlay.ps1 预检+Apply",
-          "summary": "升级成功、收据 1.1、command-reference 含规则"
+          "summary": "升级成功、收据 1.1 files=89、command-reference 含规则且尾部无多余空行"
         },
         "cache-residue-scan": {
           "result": "pass",
           "exit_code": 0,
-          "time": "2026-09-08T11:40:49Z",
+          "time": "2026-09-08T16:18:10Z",
           "command": "find __pycache__/pyc/pyo 扫描",
-          "summary": "清理后零缓存残留（原先 81 个清零）"
+          "summary": "清理后零缓存残留"
         },
-        "migration-version-consistent": {
+        "asset-version-consistent": {
           "result": "pass",
           "exit_code": 0,
-          "time": "2026-09-08T11:40:49Z",
-          "command": "VERSION/migration.json/README 一致性脚本",
-          "summary": "VERSION=1.1 与迁移 from=1.0/to=1.1 一致，无禁止路径"
+          "time": "2026-09-08T16:18:10Z",
+          "command": "python asset-check.py",
+          "summary": "VERSION=1.1 与两个版本 manifest/结构链/对象哈希一致；无 Plan-A 遗留；模板无禁止运行时路径"
         },
         "git-diff-check": {
           "result": "pass",
           "exit_code": 0,
-          "time": "2026-09-08T11:40:49Z",
+          "time": "2026-09-08T16:19:10Z",
           "command": "git diff --check",
-          "summary": "本次交付文件无空白错误",
+          "summary": "本次交付文件无空白错误（task.json 尾随空白为主会话 Trellis 状态内容，非本任务交付）",
           "artifact": ".trellis/tasks/09-07-trellisforge-1-1-upgrade/final-report.md"
         }
       }
     }
   ],
-  "approved_fingerprint": "1ec5921ac61fb03de440dccb8c41dae42bf71523f160e223e431a5ec3d44213a"
+  "approved_fingerprint": "60ef9da51283737ea39e12985e5711235c37f8e94bf5639b3aa51c0c414f23e1"
 }

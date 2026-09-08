@@ -12,9 +12,9 @@
 | `.trellis/spec/shared/` | 覆盖同名前备份，随后填写 | 嵌入式 C 的仓库、验证和硬件合同骨架 |
 | `.trellis/spec/shared/trellis-maintenance.md` | 覆盖前备份 | 上游更新、受保护定制和升级后验证合同 |
 | `.agents/skills/` | `-Force` 覆盖同名前备份 | Grill Me、规划 adapter、审查 profile、定制 `trellis-finish-work` 与完整 `trellis-channel` Skill |
-| `.agents/skills/trellis-channel/` | 三方合并（1.0→1.1 `adopt`） | `SKILL.md` 与 `references/`（command-reference、forum、progress-debugging、workers、workflows）五个公共参考；1.1 新增“Standard dispatch use…”公共规则并移除历史多余尾部空行 |
+| `.agents/skills/trellis-channel/` | 接管合并（1.0 adoption-baseline → 1.1 managed） | `SKILL.md` 与 `references/`（command-reference、forum、progress-debugging、workers、workflows）五个公共参考；1.1 新增“Standard dispatch use…”公共规则并移除历史多余尾部空行 |
 | `.claude/` | `-Force` 覆盖前备份 | Claude Code Hook、执行计划提醒、代理与设置 |
-| `.claude/skills/trellis-channel/` | 三方合并（1.0→1.1 `adopt`） | 与 `.agents/` 镜像一致的 Channel Skill 公共文件 |
+| `.claude/skills/trellis-channel/` | 接管合并（1.0 adoption-baseline → 1.1 managed） | 与 `.agents/` 镜像一致的 Channel Skill 公共文件 |
 | `.claude/commands/trellis/` | `-Force` 覆盖前备份 | Claude `/trellis:finish-work` 与 `/trellis:continue` 路由命令 |
 | `.codex/` | `-Force` 覆盖前备份 | Codex Hook、代理与设置 |
 | `AGENTS.md.template` | 人工合并 | 目标项目事实与硬约束，不自动覆盖根 AGENTS.md |
@@ -23,14 +23,17 @@
 
 - 首次安装成功后会写入目标仓库的 `.trellis/trellisforge.json` 安装收据，
   记录 schema 版本、TrellisForge 版本（`1.1`）、覆盖层类型、项目名称/前缀和
-  受管文件摘要。收据由安装器脚本在事务最后一步生成，不是本目录的静态模板；
-  本目录不复制该文件。
-- 覆盖层的版本化 1.0→1.1 升级交付物位于仓库级
-  `migrations/embedded-c-overlay/1.0-to-1.1/`（迁移清单 + 1.0 旧基线 + 1.1 目标快照）与
-  `tests/test_overlay_tools.py`（临时 Git 仓库自动化测试），不属于发布模板
-  本身，不会安装到目标仓库。
-- 升级成功后同样写入 `.trellis/trellisforge.json` 1.1 收据；已有 1.1 收据时，
-  重复升级识别为 `already-current` 并安全退出。
+  受管文件摘要；每个文件记录三类哈希：`canonical_sha256`（渲染前 canonical
+  对象哈希）、`baseline_sha256`（按项目参数渲染后的基线）和
+  `installed_sha256`（实际安装结果）。收据由安装器脚本在事务最后一步生成，
+  不是本目录的静态模板；本目录不复制该文件。
+- 覆盖层的电梯模型升级交付物位于仓库级 `history/embedded-c-overlay/`
+  （canonical 对象库 + `versions/1.0`、`versions/1.1` 版本 manifest）与
+  `migrations/embedded-c-overlay/structural/1.0-to-1.1.json`（线性结构迁移链），
+  配合 `tests/test_overlay_tools.py`（临时 Git 仓库自动化测试）；这些都不属于
+  发布模板本身，不会安装到目标仓库。
+- 升级成功后同样写入 `.trellis/trellisforge.json` 1.1 三类哈希收据；已有
+  1.1 收据时，重复升级识别为 `already-current` 并安全退出。
 
 ## 边界与安全检查
 

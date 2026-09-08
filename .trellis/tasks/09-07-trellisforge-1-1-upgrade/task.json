@@ -3,7 +3,7 @@
   "name": "trellisforge-1-1-upgrade",
   "title": "升级 TrellisForge 到 1.1 并提供 1.0 升级方案",
   "description": "",
-  "status": "planning",
+  "status": "in_progress",
   "dev_type": null,
   "scope": null,
   "package": "main",
@@ -23,7 +23,7 @@
   "relatedFiles": [],
   "notes": "架构已返回规划：旧 execution-plan.json、execution-events.jsonl 与 final-report.md 记录方案 A 的已执行历史，已被电梯模型规划取代，不得作为后续实施输入。子任务1交接的 command-reference.md 尾部空行差异仍按 prd.md 处理。",
   "meta": {
-    "planning_ready": false,
-    "plan_approved": false
+    "planning_ready": "true",
+    "plan_approved": "true"
   }
 }

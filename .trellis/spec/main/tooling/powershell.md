@@ -2,7 +2,10 @@
 
 ## 适用范围
 
-唯一发布安装器是 `tools/install-embedded-c-overlay.ps1`。它把 `templates/embedded-c-overlay/` 的清单文件安装到已运行 `trellis init` 的下游 Git 仓库。
+发布工具为 `tools/install-embedded-c-overlay.ps1`（首次安装）与
+`tools/update-embedded-c-overlay.ps1`（升级），共享 `tools/lib/TrellisForgeOverlay.psm1`。
+安装器把 `templates/embedded-c-overlay/` 的清单文件安装到已运行 `trellis init`
+的下游 Git 仓库；升级器见 [覆盖层升级架构](overlay-upgrade.md)。
 
 ## 安全契约
 
@@ -11,6 +14,7 @@
 - 只覆盖模板清单中的文件，不删除目标仓库其他文件；根 `AGENTS.md` 通过 `AGENTS.md.trellisforge-template` 供人工合并。
 - 写入失败时恢复本次已覆盖文件，并清理本次新写入且未备份的文件。
 - 拒绝模板中的 Python 缓存文件，避免把运行时产物发布到下游。
+- 安装前验证 live 模板与目标 manifest 一致；成功后事务内写 `.trellis/trellisforge.json`（schema 1）收据，每个受管文件记录 `canonical_sha256`/`baseline_sha256`/`installed_sha256` 三类哈希。
 
 ## 占位符与兼容性
 

@@ -1,7 +1,9 @@
 # 仓库布局
 
 - `docs/`：README 之外的接入与维护文档。
-- `tools/`：安装器等 PowerShell 工具。
+- `tools/`：安装器、升级器等 PowerShell 工具与共享模块 `lib/TrellisForgeOverlay.psm1`。
+- `history/embedded-c-overlay/`：版本 manifest 与按 SHA-256 去重的 canonical 对象库（升级交付物）。
+- `migrations/embedded-c-overlay/structural/`：线性结构迁移链（升级交付物）。
 - `templates/embedded-c-overlay/`：发布到下游嵌入式 C 项目的覆盖层模板。
 - `templates/language-adaptation/`：迁移到其他语言时的替换指导。
 - `.trellis/`、`.agents/`、`.claude/`、`.codex/`：当前仓库自身的 Trellis 工作流和运行配置。

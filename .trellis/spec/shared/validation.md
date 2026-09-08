@@ -5,7 +5,9 @@
 - Python 单元测试：`python -B -m unittest discover -s .trellis/scripts/tests -p "test_*.py"`
 - Python 语法检查：`python -m py_compile` 作用于 `.trellis/scripts/`、`.claude/hooks/`、`.codex/hooks/` 下的 Python 文件。
 - 模板/文档检查：`git diff --check`，并扫描安装结果中的 `<...>` 占位符。
-- PowerShell 安装器验证：在临时 Git 仓库中执行一次无 `-Force` 冲突预览和一次带备份的安装冒烟。
+- 升级资产校验：`python -B .trellis/tasks/<task>/verify_assets.py`（对象/清单/结构链引用完整性与无旧资产残留）。
+- 安装/升级工具测试：`python -B -m unittest discover -s tests -p "test_*.py"`。
+- PowerShell 安装/升级验证：在临时 Git 仓库执行一次无 `-Force` 冲突预览和一次带备份的安装冒烟，以及一次升级预检 + `-Apply` 冒烟。
 - 构建与硬件验证：`not applicable`；本仓库不包含固件目标或硬件设备。
 
 ## 报告

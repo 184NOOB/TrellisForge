@@ -6,6 +6,8 @@
 - `templates/language-adaptation/` 描述迁移到其他语言时必须替换的 C 特化规则。
 - `.trellis/tasks/`、`.trellis/workspace/`、`.trellis/.runtime/` 和 `.trellis/.template-hashes.json` 是运行状态，禁止加入发布模板。
 - `.git/trellisforge-backup/` 是安装器的 Git 元数据备份，不属于工作树或模板。
+- `history/embedded-c-overlay/`（对象库 + 版本 manifest）与
+  `migrations/embedded-c-overlay/structural/` 是升级交付物，不属于发布模板本身。
 
 ## 文档契约
 

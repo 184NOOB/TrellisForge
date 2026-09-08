@@ -1,8 +1,8 @@
 {"file": ".trellis/spec/main/tooling/powershell.md", "reason": "安装器与升级器均为 Windows PowerShell，遵循路径安全/冲突/备份/回滚规范"}
 {"file": ".trellis/spec/main/tooling/python.md", "reason": "新增 tests/test_overlay_tools.py 自动化测试，遵循 Python 工作流脚本与测试规范"}
 {"file": ".trellis/spec/main/tooling/templates-and-docs.md", "reason": "更新 README、接入指南、TEMPLATE-CONTENTS，遵循模板与文档契约"}
-{"file": ".trellis/spec/shared/repository-layout.md", "reason": "新增 VERSION、migrations/、tools/lib 交付物，遵循仓库目录规范"}
+{"file": ".trellis/spec/shared/repository-layout.md", "reason": "调整 history manifest/object、structural migrations 与 tools/lib 交付物，遵循仓库目录规范"}
 {"file": ".trellis/spec/shared/validation.md", "reason": "执行完整验证命令，遵循共享验证规范"}
 {"file": ".trellis/spec/shared/trellis-maintenance.md", "reason": "不得修改 .version/.template-hashes，先运行 trellis update --dry-run"}
 {"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "抽取共享模块 TrellisForgeOverlay.psm1，遵循复用与 DRY 原则"}
-{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "VERSION/迁移清单/收据跨层一致性与数据流"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "VERSION、版本 manifest、canonical 对象、live 模板与三类哈希收据的跨层一致性和数据流"}

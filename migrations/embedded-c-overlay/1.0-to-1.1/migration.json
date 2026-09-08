@@ -1,0 +1,138 @@
+{
+  "schema_version": 1,
+  "from_version": "1.0",
+  "to_version": "1.1",
+  "overlay": "embedded-c",
+  "trellis_baseline": "0.6.10",
+  "version_source": "VERSION",
+  "description": "TrellisForge 1.0 -> 1.1 embedded-c overlay migration. merge: files Forge 1.0 managed that changed in 1.1; adopt: trellis-channel skills upstream Trellis 0.6.10 generated on the downstream project that Forge 1.1 now publishes into the overlay; add: files new in 1.1 with no 1.0/upstream counterpart.",
+  "hash_normalization": "LF (CRLF->LF only); trailing whitespace and trailing blank lines are preserved for hashing and merging.",
+  "paths": [
+    {
+      "path": ".trellis/workflow.md",
+      "action": "merge",
+      "old": "baseline/.trellis/workflow.md",
+      "old_sha256": "7e736364930068904ae07f3b17c1f964d82a1d56a6726fe34fd57b6534b3c78a",
+      "new": "new/.trellis/workflow.md",
+      "new_sha256": "87ffbadb380d6ee3f26eaad792664d381f473a3330621ca9bbda444ea59bdce4"
+    },
+    {
+      "path": ".trellis/agents/check.md",
+      "action": "merge",
+      "old": "baseline/.trellis/agents/check.md",
+      "old_sha256": "c7becfa3c28f7c7baa0e4c430890dd9450976fad6a15cf4dabdd3510d3fc7a91",
+      "new": "new/.trellis/agents/check.md",
+      "new_sha256": "f32d5ca043812fb3f4bad656649ca642f754a84b88667b2136ba5934060ecf1f"
+    },
+    {
+      "path": ".trellis/agents/implement.md",
+      "action": "merge",
+      "old": "baseline/.trellis/agents/implement.md",
+      "old_sha256": "338797ae895e9675b2d93ae05feaaa5cfeafdadd07cf7b069c819b053a503fe8",
+      "new": "new/.trellis/agents/implement.md",
+      "new_sha256": "c6f469b57bd53cd3e2657f29527017fbdbda52f1dc78dad86b9b1e9312bc0708"
+    },
+    {
+      "path": ".agents/skills/trellis-channel/SKILL.md",
+      "action": "adopt",
+      "old": "baseline/.agents/skills/trellis-channel/SKILL.md",
+      "old_sha256": "ff84801c511a736da018b4b1149348ebc9a16b7fc18d905ec10cfa7acbf269a3",
+      "new": "new/.agents/skills/trellis-channel/SKILL.md",
+      "new_sha256": "d80175517f8b2e9fbf2751f7b9eab311a7cb594003320c6c74eea7fba82409cf"
+    },
+    {
+      "path": ".agents/skills/trellis-channel/references/command-reference.md",
+      "action": "adopt",
+      "old": "baseline/.agents/skills/trellis-channel/references/command-reference.md",
+      "old_sha256": "c4df3d940d89814310bfdaded20e84dd1d6b96786f6772688de7a123338d3c8e",
+      "new": "new/.agents/skills/trellis-channel/references/command-reference.md",
+      "new_sha256": "75fda1a49dc7521fd561e4c400bdf956cd3ca7cd7bb5157939a4029b470175af"
+    },
+    {
+      "path": ".agents/skills/trellis-channel/references/forum.md",
+      "action": "adopt",
+      "old": "baseline/.agents/skills/trellis-channel/references/forum.md",
+      "old_sha256": "407db39e8ebde47cea8637e3069bdb3d76ba42b43ed1d08ba97a56f26dbcfcb4",
+      "new": "new/.agents/skills/trellis-channel/references/forum.md",
+      "new_sha256": "407db39e8ebde47cea8637e3069bdb3d76ba42b43ed1d08ba97a56f26dbcfcb4"
+    },
+    {
+      "path": ".agents/skills/trellis-channel/references/progress-debugging.md",
+      "action": "adopt",
+      "old": "baseline/.agents/skills/trellis-channel/references/progress-debugging.md",
+      "old_sha256": "fe59afd4c0a558cbefc49cc5ef8a7e0e3916d6718cb3255dc6da1b698c850ff7",
+      "new": "new/.agents/skills/trellis-channel/references/progress-debugging.md",
+      "new_sha256": "09095bd55e035856dfa8ee2ef5aa2c2fd0621c064eba302b8abe89abbe493d08"
+    },
+    {
+      "path": ".agents/skills/trellis-channel/references/workers.md",
+      "action": "adopt",
+      "old": "baseline/.agents/skills/trellis-channel/references/workers.md",
+      "old_sha256": "d4481b2858bca82050cb8d131916da8a2ccc3857f199cdb9ced8bb41d592e2a7",
+      "new": "new/.agents/skills/trellis-channel/references/workers.md",
+      "new_sha256": "772de7a6dcc98250d8ab1bafe1e158d4c810569152638b7e7ffac185194c5943"
+    },
+    {
+      "path": ".agents/skills/trellis-channel/references/workflows.md",
+      "action": "adopt",
+      "old": "baseline/.agents/skills/trellis-channel/references/workflows.md",
+      "old_sha256": "0782d602efde6e94a7d7d7950fd605eedc9a1f5a523908284e76b628fd618fd4",
+      "new": "new/.agents/skills/trellis-channel/references/workflows.md",
+      "new_sha256": "20aa876275dd6373d9a61e592f826d95ea1b4d36ab479756e07c1bef131398b7"
+    },
+    {
+      "path": ".claude/skills/trellis-channel/SKILL.md",
+      "action": "adopt",
+      "old": "baseline/.claude/skills/trellis-channel/SKILL.md",
+      "old_sha256": "ff84801c511a736da018b4b1149348ebc9a16b7fc18d905ec10cfa7acbf269a3",
+      "new": "new/.claude/skills/trellis-channel/SKILL.md",
+      "new_sha256": "d80175517f8b2e9fbf2751f7b9eab311a7cb594003320c6c74eea7fba82409cf"
+    },
+    {
+      "path": ".claude/skills/trellis-channel/references/command-reference.md",
+      "action": "adopt",
+      "old": "baseline/.claude/skills/trellis-channel/references/command-reference.md",
+      "old_sha256": "c4df3d940d89814310bfdaded20e84dd1d6b96786f6772688de7a123338d3c8e",
+      "new": "new/.claude/skills/trellis-channel/references/command-reference.md",
+      "new_sha256": "75fda1a49dc7521fd561e4c400bdf956cd3ca7cd7bb5157939a4029b470175af"
+    },
+    {
+      "path": ".claude/skills/trellis-channel/references/forum.md",
+      "action": "adopt",
+      "old": "baseline/.claude/skills/trellis-channel/references/forum.md",
+      "old_sha256": "407db39e8ebde47cea8637e3069bdb3d76ba42b43ed1d08ba97a56f26dbcfcb4",
+      "new": "new/.claude/skills/trellis-channel/references/forum.md",
+      "new_sha256": "407db39e8ebde47cea8637e3069bdb3d76ba42b43ed1d08ba97a56f26dbcfcb4"
+    },
+    {
+      "path": ".claude/skills/trellis-channel/references/progress-debugging.md",
+      "action": "adopt",
+      "old": "baseline/.claude/skills/trellis-channel/references/progress-debugging.md",
+      "old_sha256": "fe59afd4c0a558cbefc49cc5ef8a7e0e3916d6718cb3255dc6da1b698c850ff7",
+      "new": "new/.claude/skills/trellis-channel/references/progress-debugging.md",
+      "new_sha256": "09095bd55e035856dfa8ee2ef5aa2c2fd0621c064eba302b8abe89abbe493d08"
+    },
+    {
+      "path": ".claude/skills/trellis-channel/references/workers.md",
+      "action": "adopt",
+      "old": "baseline/.claude/skills/trellis-channel/references/workers.md",
+      "old_sha256": "d4481b2858bca82050cb8d131916da8a2ccc3857f199cdb9ced8bb41d592e2a7",
+      "new": "new/.claude/skills/trellis-channel/references/workers.md",
+      "new_sha256": "772de7a6dcc98250d8ab1bafe1e158d4c810569152638b7e7ffac185194c5943"
+    },
+    {
+      "path": ".claude/skills/trellis-channel/references/workflows.md",
+      "action": "adopt",
+      "old": "baseline/.claude/skills/trellis-channel/references/workflows.md",
+      "old_sha256": "0782d602efde6e94a7d7d7950fd605eedc9a1f5a523908284e76b628fd618fd4",
+      "new": "new/.claude/skills/trellis-channel/references/workflows.md",
+      "new_sha256": "20aa876275dd6373d9a61e592f826d95ea1b4d36ab479756e07c1bef131398b7"
+    },
+    {
+      "path": ".trellis/scripts/tests/test_trellis_channel_contract.py",
+      "action": "add",
+      "new": "new/.trellis/scripts/tests/test_trellis_channel_contract.py",
+      "new_sha256": "10a897a1bfa964aa2fcb8f3f60143b0b118378bb42e733f14c03773fdc531648"
+    }
+  ]
+}

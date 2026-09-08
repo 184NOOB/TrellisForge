@@ -1,7 +1,7 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [ValidatePattern('^[a-z0-9]+(?:-[a-z0-9]+)*$')]
+    [ValidatePattern('^[a-z0-9]+(?:-[a-z0-9]+)*$', Options = 'None')]
     [string]$ProjectPrefix,
 
     [Parameter(Mandatory = $true)]
@@ -16,34 +16,23 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-$sourceRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\templates\embedded-c-overlay'))
-$targetRootFull = [System.IO.Path]::GetFullPath($TargetRoot)
+$modulePath = Join-Path $PSScriptRoot 'lib\TrellisForgeOverlay.psm1'
+if (-not (Test-Path -LiteralPath $modulePath -PathType Leaf)) {
+    throw "共享模块缺失: $modulePath"
+}
+Import-Module $modulePath -Force -ErrorAction Stop
 
+Assert-OverlayProjectParams -ProjectPrefix $ProjectPrefix -ProjectName $ProjectName | Out-Null
+
+$sourceRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\templates\embedded-c-overlay'))
 if (-not (Test-Path -LiteralPath $sourceRoot -PathType Container)) {
     throw "模板目录不存在: $sourceRoot"
 }
 
-if (-not (Test-Path -LiteralPath $targetRootFull -PathType Container)) {
-    throw "目标目录不存在: $targetRootFull"
-}
+$targetRoot = Assert-OverlayTargetRoot -TargetRoot $TargetRoot
 
- $gitPath = Join-Path $targetRootFull '.git'
-if (-not (Test-Path -LiteralPath $gitPath -PathType Container) -and
-    -not (Test-Path -LiteralPath $gitPath -PathType Leaf)) {
-    throw "目标不是 Git 仓库根目录: $targetRootFull"
-}
-
-$resolvedRoot = (& git -C $targetRootFull rev-parse --show-toplevel 2>$null)
-if ($LASTEXITCODE -ne 0 -or [System.IO.Path]::GetFullPath($resolvedRoot.Trim()) -ne $targetRootFull.TrimEnd('\')) {
-    throw "目标目录不是 Git 工作树根目录: $targetRootFull"
-}
-
-if (-not (Test-Path -LiteralPath (Join-Path $targetRootFull '.trellis') -PathType Container)) {
-    throw "请先在目标仓库运行 trellis init: $targetRootFull"
-}
-
-$cacheFiles = @(Get-ChildItem -LiteralPath $sourceRoot -Recurse -File |
-    Where-Object { $_.FullName -match '[\\/]__pycache__[\\/]' -or $_.Extension -in '.pyc', '.pyo' })
+# 模板含 Python 缓存时拒绝继续
+$cacheFiles = @(Get-OverlayTemplateCacheFiles -SourceRoot $sourceRoot)
 if ($cacheFiles.Count -gt 0) {
     throw "模板目录包含 Python 缓存，拒绝安装。请先清理: $($cacheFiles[0].FullName)"
 }
@@ -54,50 +43,80 @@ $sourceFiles = @(Get-ChildItem -LiteralPath $sourceRoot -Recurse -File |
         $_.Extension -notin '.pyc', '.pyo' -and
         $_.Name -notin 'AGENTS.md.template', 'TEMPLATE-CONTENTS.md'
     })
-$conflicts = @()
+
+# 构造写入计划与收据文件条目（全部写操作在同一事务内完成）
+$writes = @()
+$receiptEntries = @()
 foreach ($sourceFile in $sourceFiles) {
     $relative = $sourceFile.FullName.Substring($sourceRoot.Length).TrimStart('\', '/')
-    if ($relative -eq 'AGENTS.md.template') {
-        continue
+    $renderedRelative = Get-OverlayRenderRelative -Relative $relative -ProjectPrefix $ProjectPrefix
+    $content = Get-OverlayRenderContent `
+        -Content (Get-OverlayContentText -Path $sourceFile.FullName) `
+        -ProjectPrefix $ProjectPrefix `
+        -ProjectName $ProjectName
+    $writes += [pscustomobject]@{
+        Relative = $renderedRelative
+        Content  = $content
+        Action   = 'overwrite'
     }
-    $relative = $relative.Replace('__PROJECT_PREFIX__', $ProjectPrefix)
-    $destination = Join-Path $targetRootFull $relative
-    if (Test-Path -LiteralPath $destination) {
-        $conflicts += $destination
+    $renderedHash = Get-OverlayTextHash -Text $content -NormalizeLineEndings
+    $receiptEntries += [pscustomobject]@{
+        Path             = $renderedRelative
+        TemplateSha256   = $renderedHash
+        InstalledSha256  = $renderedHash
     }
 }
 
-$agentsDestination = Join-Path $targetRootFull 'AGENTS.md.trellisforge-template'
-if (Test-Path -LiteralPath $agentsDestination) {
-    $conflicts += $agentsDestination
+# AGENTS.md.trellisforge-template：人工合并模板，也纳入同一事务
+$agentsRelative = 'AGENTS.md.trellisforge-template'
+$agentsContent = Get-OverlayRenderContent `
+    -Content (Get-OverlayContentText -Path (Join-Path $sourceRoot 'AGENTS.md.template')) `
+    -ProjectPrefix $ProjectPrefix `
+    -ProjectName $ProjectName
+$agentsHash = Get-OverlayTextHash -Text $agentsContent -NormalizeLineEndings
+$writes += [pscustomobject]@{
+    Relative = $agentsRelative
+    Content  = $agentsContent
+    Action   = 'overwrite'
+}
+$receiptEntries += [pscustomobject]@{
+    Path            = $agentsRelative
+    TemplateSha256  = $agentsHash
+    InstalledSha256 = $agentsHash
 }
 
-foreach ($sourceFile in $sourceFiles) {
-    $relative = $sourceFile.FullName.Substring($sourceRoot.Length).TrimStart('\', '/').Replace('__PROJECT_PREFIX__', $ProjectPrefix)
-    $destination = Join-Path $targetRootFull $relative
+# 冲突与目录占用预检（不修改工作树）
+$conflicts = @()
+foreach ($item in $writes) {
+    $destination = Assert-OverlaySafeRelative -Relative $item.Relative -TargetRoot $targetRoot
     if (Test-Path -LiteralPath $destination -PathType Container) {
         throw "目标路径是目录，无法覆盖模板文件: $destination"
     }
-}
-if (Test-Path -LiteralPath $agentsDestination -PathType Container) {
-    throw "AGENTS.md.trellisforge-template 目标路径是目录，无法覆盖: $agentsDestination"
-}
-foreach ($sourceFile in $sourceFiles) {
-    $relative = $sourceFile.FullName.Substring($sourceRoot.Length).TrimStart('\', '/').Replace('__PROJECT_PREFIX__', $ProjectPrefix)
-    $parent = Split-Path -Parent (Join-Path $targetRootFull $relative)
+    if (Test-Path -LiteralPath $destination -PathType Leaf) {
+        $conflicts += $destination
+    }
+    # 父路径链上出现文件时无法创建模板文件
+    $parent = Split-Path -Parent $destination
     while ($parent) {
-        if (Test-Path -LiteralPath $parent) {
-            if (-not (Test-Path -LiteralPath $parent -PathType Container)) {
-                throw "目标父路径不是目录，无法创建模板文件: $parent"
-            }
-            break
+        if ($parent -eq $targetRoot) { break }
+        if (Test-Path -LiteralPath $parent -PathType Leaf) {
+            throw "目标父路径不是目录，无法创建模板文件: $parent"
         }
+        if (Test-Path -LiteralPath $parent -PathType Container) { break }
         $nextParent = Split-Path -Parent $parent
-        if ($nextParent -eq $parent) {
-            break
-        }
+        if ($nextParent -eq $parent) { break }
         $parent = $nextParent
     }
+}
+
+# 已有收据兼容性（避免把首次安装伪装成升级）
+$existingReceipt = Read-OverlayReceipt -TargetRoot $targetRoot
+if ($null -ne $existingReceipt) {
+    if ([string]$existingReceipt.overlay -ne 'embedded-c' -or
+        [string]$existingReceipt.project_prefix -ne $ProjectPrefix) {
+        throw "目标仓库已有不兼容的 Forge 收据（overlay=$($existingReceipt.overlay), prefix=$($existingReceipt.project_prefix)）。如为 1.0 项目请使用 tools/update-embedded-c-overlay.ps1 升级，不要用首次安装器覆盖。"
+    }
+    Write-Host '检测到已有的 TrellisForge 收据，将执行覆盖安装（不修改升级后的 .trellis/.version 或 .template-hashes.json）。'
 }
 
 if ($conflicts.Count -gt 0 -and -not $Force) {
@@ -105,107 +124,28 @@ if ($conflicts.Count -gt 0 -and -not $Force) {
     throw ("发现 $($conflicts.Count) 个将被覆盖的文件。请先审查差异；确认后使用 -Force。`n" + ($preview -join "`n"))
 }
 
-$backupRoot = $null
-$overwrittenFiles = @()
-if ($Force) {
-    $overwrittenFiles = @($sourceFiles | ForEach-Object {
-        $relative = $_.FullName.Substring($sourceRoot.Length).TrimStart('\', '/')
-        if ($relative -eq 'AGENTS.md.template') {
-            return
-        }
-        $relative = $relative.Replace('__PROJECT_PREFIX__', $ProjectPrefix)
-        $destination = Join-Path $targetRootFull $relative
-        if (Test-Path -LiteralPath $destination -PathType Leaf) {
-            [PSCustomObject]@{ Source = $destination; Relative = $relative }
-        }
-    })
-    if (Test-Path -LiteralPath $agentsDestination -PathType Leaf) {
-        $overwrittenFiles += [PSCustomObject]@{
-            Source = $agentsDestination
-            Relative = 'AGENTS.md.trellisforge-template'
-        }
+$forgeVersion = Get-OverlayForgeVersion
+$receiptJson = New-OverlayReceiptPayload `
+    -Overlay 'embedded-c' `
+    -ProjectPrefix $ProjectPrefix `
+    -ProjectName $ProjectName `
+    -FileEntries $receiptEntries
+
+$applyResult = Invoke-OverlayApply `
+    -TargetRoot $targetRoot `
+    -Writes $writes `
+    -NewReceiptContent $receiptJson `
+    -ManifestExtra @{
+        from_version = $null
+        to_version   = $forgeVersion
+        overlay      = 'embedded-c'
     }
 
-    if ($overwrittenFiles.Count -gt 0) {
-        $backupBase = (& git -C $targetRootFull rev-parse --path-format=absolute --git-path trellisforge-backup 2>$null)
-        if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($backupBase)) {
-            throw "无法解析 Git 元数据备份目录: $targetRootFull"
-        }
-        $backupBase = $backupBase.Trim()
-        $backupRoot = Join-Path $backupBase ((Get-Date -Format 'yyyyMMdd-HHmmss') + '-' + [Guid]::NewGuid().ToString('N'))
-        New-Item -ItemType Directory -Path $backupRoot -ErrorAction Stop | Out-Null
-        $backupEntries = @()
-        foreach ($file in $overwrittenFiles) {
-            $backup = Join-Path $backupRoot $file.Relative
-            New-Item -ItemType Directory -Path (Split-Path -Parent $backup) -Force | Out-Null
-            Copy-Item -LiteralPath $file.Source -Destination $backup
-            $backupEntries += [ordered]@{
-                path = $file.Relative.Replace('\', '/')
-                sha256 = (Get-FileHash -LiteralPath $file.Source -Algorithm SHA256).Hash.ToLowerInvariant()
-            }
-        }
-        $backupManifest = [ordered]@{
-            schema_version = 1
-            created_at = (Get-Date).ToString('o')
-            files = $backupEntries
-        }
-        $manifestPath = Join-Path $backupRoot 'backup-manifest.json'
-        [System.IO.File]::WriteAllText(
-            $manifestPath,
-            ($backupManifest | ConvertTo-Json -Depth 3),
-            [System.Text.UTF8Encoding]::new($false)
-        )
-    }
+Write-Host "TrellisForge $forgeVersion 覆盖层已安装。"
+if ($applyResult.BackupRoot) {
+    Write-Host "所有将被模板覆盖的既有文件已备份到: $($applyResult.BackupRoot)"
+    Write-Host "备份清单: $($applyResult.BackupManifestPath)"
 }
-
-$writtenDestinations = @()
-try {
-    foreach ($sourceFile in $sourceFiles) {
-        $relative = $sourceFile.FullName.Substring($sourceRoot.Length).TrimStart('\', '/')
-        if ($relative -eq 'AGENTS.md.template') {
-            continue
-        }
-        $relative = $relative.Replace('__PROJECT_PREFIX__', $ProjectPrefix)
-        $destination = Join-Path $targetRootFull $relative
-        $destinationParent = Split-Path -Parent $destination
-        New-Item -ItemType Directory -Path $destinationParent -Force -ErrorAction Stop | Out-Null
-
-        $content = [System.IO.File]::ReadAllText($sourceFile.FullName, [System.Text.UTF8Encoding]::new($false))
-        $content = $content.Replace('PROJECT_PREFIX', $ProjectPrefix)
-        $content = $content.Replace('PROJECT_NAME', $ProjectName)
-        $writtenDestinations += $destination
-        [System.IO.File]::WriteAllText($destination, $content, [System.Text.UTF8Encoding]::new($false))
-    }
-
-    $agentsTemplate = Join-Path $sourceRoot 'AGENTS.md.template'
-    $agentsContent = [System.IO.File]::ReadAllText($agentsTemplate, [System.Text.UTF8Encoding]::new($false))
-    $agentsContent = $agentsContent.Replace('PROJECT_PREFIX', $ProjectPrefix).Replace('PROJECT_NAME', $ProjectName)
-    $writtenDestinations += $agentsDestination
-    [System.IO.File]::WriteAllText($agentsDestination, $agentsContent, [System.Text.UTF8Encoding]::new($false))
-}
-catch {
-    foreach ($destination in $writtenDestinations) {
-        $relative = $destination.Substring($targetRootFull.Length).TrimStart('\', '/')
-        $wasBackedUp = @($overwrittenFiles | Where-Object { $_.Relative -eq $relative }).Count -gt 0
-        if (-not $wasBackedUp -and (Test-Path -LiteralPath $destination -PathType Leaf)) {
-            Remove-Item -LiteralPath $destination -Force -ErrorAction SilentlyContinue
-        }
-    }
-    if ($backupRoot) {
-        foreach ($file in $overwrittenFiles) {
-            $backup = Join-Path $backupRoot $file.Relative
-            if (Test-Path -LiteralPath $backup -PathType Leaf) {
-                Copy-Item -LiteralPath $backup -Destination $file.Source -Force -ErrorAction SilentlyContinue
-            }
-        }
-    }
-    throw
-}
-
-Write-Host 'TrellisForge 覆盖层已安装。'
-if ($backupRoot) {
-    Write-Host "所有将被模板覆盖的既有文件已备份到: $backupRoot"
-    Write-Host "备份清单: $(Join-Path $backupRoot 'backup-manifest.json')"
-}
-Write-Host "请将 $agentsDestination 的项目规则合并到 AGENTS.md，并填写所有 <...> 占位符。"
+Write-Host "安装收据: .trellis/trellisforge.json"
+Write-Host "请将 AGENTS.md.trellisforge-template 的项目规则合并到 AGENTS.md，并填写所有 <...> 占位符。"
 Write-Host '然后运行 docs/接入指南.md 中的脚本与 Hook 验证命令。'

@@ -1,0 +1,339 @@
+{
+  "schema": 3,
+  "task": ".trellis/tasks/09-07-trellis-channel-dispatch-wait",
+  "revision": 1,
+  "status": "approved",
+  "audit": {
+    "required": true,
+    "file": "execution-events.jsonl"
+  },
+  "created_by": "trellis-implement",
+  "goal": "在 templates/embedded-c-overlay 发布模板中补齐完整 trellis-channel Skill 覆盖层、公共派发/唯一等待规则、Codex 主会话终端编排、worker 终止事件契约及配套契约测试",
+  "constraints": {
+    "forbidden_git_operations": [
+      "commit",
+      "push",
+      "tag",
+      "reset",
+      "restore-modified-source"
+    ],
+    "max_tasks": 8,
+    "max_edits_per_file": 5,
+    "allow_parallel_tasks": false
+  },
+  "tasks": [
+    {
+      "id": "discover-baseline",
+      "title": "确认模板与 Skill 基线",
+      "status": "completed",
+      "objective": "确认根目录两套 trellis-channel Skill 内容一致、模板尚无该 Skill，记录模板新增文件集合与允许修改边界",
+      "depends_on": [],
+      "scope": {
+        "read": [
+          ".agents/skills/trellis-channel/**",
+          ".claude/skills/trellis-channel/**",
+          "templates/embedded-c-overlay/.trellis/**",
+          "templates/embedded-c-overlay/.agents/**",
+          "templates/embedded-c-overlay/.claude/**",
+          ".trellis/tasks/09-07-trellis-channel-dispatch-wait/**"
+        ],
+        "write": []
+      },
+      "verification": {
+        "level": "minimal",
+        "required_checks": []
+      },
+      "no_check_reason": "纯读取与基线核对阶段，不修改任何产品文件"
+    },
+    {
+      "id": "import-skill-overlay",
+      "title": "导入完整 Skill 覆盖层",
+      "status": "completed",
+      "objective": "把完整的 trellis-channel Skill 文件树加入模板 .agents 与 .claude 目录，保留 SKILL.md 及全部 references",
+      "depends_on": [
+        "discover-baseline"
+      ],
+      "scope": {
+        "read": [
+          ".agents/skills/trellis-channel/**",
+          ".claude/skills/trellis-channel/**"
+        ],
+        "write": [
+          "templates/embedded-c-overlay/.agents/skills/trellis-channel/**",
+          "templates/embedded-c-overlay/.claude/skills/trellis-channel/**"
+        ]
+      },
+      "verification": {
+        "level": "minimal",
+        "required_checks": [
+          "skill-overlay-files"
+        ]
+      },
+      "verification_results": {
+        "skill-overlay-files": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-08T09:04:37Z",
+          "command": "skill-tree-verify",
+          "summary": "模板已含 .agents 与 .claude 两套 trellis-channel 完整文件树（SKILL.md + 5 references），无缺失或额外文件"
+        }
+      }
+    },
+    {
+      "id": "update-public-rules",
+      "title": "更新公共 Channel 派发与等待规则",
+      "status": "completed",
+      "objective": "在两套 Skill 公共文件中同步一次 spawn、一次 wait、done/error 终止事件、可调整 timeout 与 progress 诊断边界，并给出实施/审查标准示例",
+      "depends_on": [
+        "import-skill-overlay"
+      ],
+      "scope": {
+        "read": [
+          "templates/embedded-c-overlay/.agents/skills/trellis-channel/**"
+        ],
+        "write": [
+          "templates/embedded-c-overlay/.agents/skills/trellis-channel/**",
+          "templates/embedded-c-overlay/.claude/skills/trellis-channel/**"
+        ]
+      },
+      "verification": {
+        "level": "minimal",
+        "required_checks": [
+          "mirror-byte-identical",
+          "no-codex-terms-in-skills",
+          "standard-dispatch-examples"
+        ]
+      },
+      "verification_results": {
+        "mirror-byte-identical": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-08T09:06:28Z",
+          "command": "skill-mirror-diff",
+          "summary": ".agents 与 .claude 两套 Skill 公共文件逐字节一致（diff -r 为空）"
+        },
+        "no-codex-terms-in-skills": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-08T09:06:28Z",
+          "command": "skill-codex-term-scan",
+          "summary": "公共 Skill 层不含 exec_command/write_stdin/yield_time_ms/session_id"
+        },
+        "standard-dispatch-examples": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-08T09:06:28Z",
+          "command": "dispatch-example-verify",
+          "summary": "实施/审查标准示例各为一次 spawn + 一次 wait（--kind done,error），无轮询命令"
+        }
+      }
+    },
+    {
+      "id": "update-codex-workflow",
+      "title": "增加 Codex 主会话唯一 wait 编排",
+      "status": "completed",
+      "objective": "在模板 .trellis/workflow.md 的 Codex 范围写入 exec_command/write_stdin/yield_time_ms/session_id 复用、等待期安静与异常处理规则",
+      "depends_on": [
+        "update-public-rules"
+      ],
+      "scope": {
+        "read": [
+          "templates/embedded-c-overlay/.trellis/workflow.md"
+        ],
+        "write": [
+          "templates/embedded-c-overlay/.trellis/workflow.md"
+        ]
+      },
+      "verification": {
+        "level": "minimal",
+        "required_checks": [
+          "codex-scope-terms"
+        ]
+      },
+      "verification_results": {
+        "codex-scope-terms": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-08T09:07:12Z",
+          "command": "codex-scope-verify",
+          "summary": "exec_command/write_stdin/yield_time_ms/session_id 仅出现在 workflow.md 的 [Codex] 范围，未泄漏到 Claude 块或公共 Skill"
+        }
+      }
+    },
+    {
+      "id": "update-worker-contracts",
+      "title": "核对 worker 终止事件契约",
+      "status": "completed",
+      "objective": "在不引入 dispatcher 终端管理的前提下，为模板 implement/check 角色卡补充完成/失败事件契约",
+      "depends_on": [
+        "update-codex-workflow"
+      ],
+      "scope": {
+        "read": [
+          "templates/embedded-c-overlay/.trellis/agents/**"
+        ],
+        "write": [
+          "templates/embedded-c-overlay/.trellis/agents/**"
+        ]
+      },
+      "verification": {
+        "level": "minimal",
+        "required_checks": [
+          "worker-termination-contract"
+        ]
+      },
+      "verification_results": {
+        "worker-termination-contract": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-08T09:07:50Z",
+          "command": "worker-contract-verify",
+          "summary": "两个角色卡均含 Channel Termination Contract，标明正常完成发布 done、失败记录 error，且不包含 dispatcher 终端编排"
+        }
+      }
+    },
+    {
+      "id": "extend-contract-tests",
+      "title": "扩展模板契约测试",
+      "status": "completed",
+      "objective": "新增 test_trellis_channel_contract.py，覆盖 Skill 完整文件树、镜像逐字节一致、Codex 术语作用域、唯一 wait 与禁止轮询反例",
+      "depends_on": [
+        "update-worker-contracts"
+      ],
+      "scope": {
+        "read": [
+          "templates/embedded-c-overlay/.trellis/scripts/tests/**",
+          "templates/embedded-c-overlay/.trellis/workflow.md",
+          "templates/embedded-c-overlay/.trellis/agents/**",
+          "templates/embedded-c-overlay/.agents/skills/trellis-channel/**",
+          "templates/embedded-c-overlay/.claude/skills/trellis-channel/**"
+        ],
+        "write": [
+          "templates/embedded-c-overlay/.trellis/scripts/tests/test_trellis_channel_contract.py"
+        ]
+      },
+      "verification": {
+        "level": "minimal",
+        "required_checks": [
+          "new-contract-test-runs"
+        ]
+      },
+      "verification_results": {
+        "new-contract-test-runs": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-08T09:08:55Z",
+          "command": "unittest-contract-file",
+          "summary": "test_trellis_channel_contract.py 10 个用例全部通过（文件树、镜像一致、Codex 作用域、唯一 wait、禁止轮询、worker 契约）"
+        }
+      }
+    },
+    {
+      "id": "run-verification",
+      "title": "执行项目验证",
+      "status": "completed",
+      "objective": "运行根目录与模板的 Python 单测、相关 Python 语法检查、git diff --check，并确认模板不含 __pycache__/pyc/pyo",
+      "depends_on": [
+        "extend-contract-tests"
+      ],
+      "scope": {
+        "read": [
+          ".trellis/scripts/**",
+          "templates/embedded-c-overlay/.trellis/scripts/**",
+          "templates/embedded-c-overlay/.agents/skills/trellis-channel/**",
+          "templates/embedded-c-overlay/.claude/skills/trellis-channel/**",
+          ".claude/hooks/**",
+          ".codex/hooks/**"
+        ],
+        "write": []
+      },
+      "verification": {
+        "level": "minimal",
+        "required_checks": [
+          "root-python-tests",
+          "template-python-tests",
+          "python-syntax",
+          "diff-check",
+          "template-cache-clean"
+        ]
+      },
+      "verification_results": {
+        "root-python-tests": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-08T09:14:40Z",
+          "command": "unittest-discover-root",
+          "summary": "根目录 89 个 Python 单测全部通过"
+        },
+        "template-python-tests": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-08T09:14:41Z",
+          "command": "unittest-discover-template",
+          "summary": "模板 99 个 Python 单测全部通过（含新增 10 个契约测试）"
+        },
+        "python-syntax": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-08T09:14:41Z",
+          "command": "py-compile-scripts-hooks",
+          "summary": "根目录与模板 .trellis/scripts、.claude/hooks、.codex/hooks Python 文件 py_compile 通过"
+        },
+        "diff-check": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-08T09:14:41Z",
+          "command": "git-diff-check",
+          "summary": "git diff --check 通过（已清理既有任务元数据尾部 CR）"
+        },
+        "template-cache-clean": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-08T09:14:41Z",
+          "command": "template-cache-scan",
+          "summary": "模板不含 __pycache__/pyc/pyo"
+        }
+      }
+    },
+    {
+      "id": "final-report",
+      "title": "记录最终验收报告",
+      "status": "completed",
+      "objective": "记录变更范围、各阶段结果、检查结果以及构建/硬件验证不适用原因",
+      "depends_on": [
+        "run-verification"
+      ],
+      "scope": {
+        "read": [
+          ".trellis/tasks/09-07-trellis-channel-dispatch-wait/execution-plan.json",
+          "templates/embedded-c-overlay/.agents/skills/trellis-channel/**",
+          "templates/embedded-c-overlay/.claude/skills/trellis-channel/**",
+          "templates/embedded-c-overlay/.trellis/workflow.md",
+          "templates/embedded-c-overlay/.trellis/agents/**",
+          "templates/embedded-c-overlay/.trellis/scripts/tests/test_trellis_channel_contract.py"
+        ],
+        "write": [
+          "final-report.md"
+        ]
+      },
+      "verification": {
+        "level": "report",
+        "required_checks": [
+          "final-report"
+        ],
+        "report_path": "final-report.md"
+      },
+      "verification_results": {
+        "final-report": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-08T09:15:30Z",
+          "command": "final-report-review",
+          "summary": "最终报告已记录变更范围、阶段结果、验收对照、验证证据与不适用类别",
+          "artifact": ".trellis/tasks/09-07-trellis-channel-dispatch-wait/final-report.md"
+        }
+      }
+    }
+  ],
+  "approved_fingerprint": "c8f0a617f0bf3e756c1f207ab72f4a3c1dedb02d4c7672859c81caac68368e97"
+}

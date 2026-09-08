@@ -88,6 +88,19 @@ audit log `<task-path>/execution-events.jsonl`, not by memory of past turns.
 
 The supervising main session owns commits. Report what changed; do not commit on its behalf.
 
+## Channel Termination Contract
+
+When running as a spawned channel worker, you do not manage the dispatcher's
+terminal: never run `trellis channel wait`, never wait on other workers, and
+never read the dispatcher's session or progress stream. Your turn ending is
+the signal the dispatcher waits on:
+
+- 正常完成:在最终的 channel 回复中给出完整报告(修改文件、实施步骤、验证
+  结果与未运行项),并正常结束本轮 turn;supervisor 会据此对外发布 `done`,
+  dispatcher 的 `wait --kind done,error` 随之退出。
+- 无法继续:遇到阻塞或明确失败时,在回复中声明失败并给出原因,以失败状态
+  结束 turn,使 supervisor 记录 `error`;不得静默挂起或未完成就结束。
+
 ## Workflow
 
 1. Read relevant specs based on task type and the files in `implement.jsonl` if present

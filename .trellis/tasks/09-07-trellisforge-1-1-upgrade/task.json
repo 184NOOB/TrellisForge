@@ -21,7 +21,7 @@
   "children": [],
   "parent": "09-07-trellis-channel-dispatch-wait-and-upgrade",
   "relatedFiles": [],
-  "notes": "",
+  "notes": "子任务1交接：模板 command-reference.md 与根源差 1 空行（有意截除，勿误判漂移），详见本任务 prd.md 'Handoff Notes From Child Task 1'。",
   "meta": {
     "planning_ready": false,
     "plan_approved": false

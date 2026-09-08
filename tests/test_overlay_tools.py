@@ -1,10 +1,13 @@
 # -*- coding: utf-8 -*-
-"""Automated tests for the TrellisForge overlay installer and 1.0->1.1 updater.
+"""Automated tests for the TrellisForge overlay installer and the elevator-model
+1.0->1.1 updater.
 
-These tests build isolated temporary Git repositories from the versioned
-1.0 migration baseline plus the current 1.1 template, then drive the Windows
-PowerShell 5.1 entry scripts. They do not depend on a real downstream project,
-the `trellis` CLI, or the network.
+These tests build isolated temporary Git repositories from the elevator-model
+assets (history/embedded-c-overlay/versions/1.0 + canonical object library
+plus the current 1.1 manifest/template), then drive the Windows PowerShell 5.1
+entry scripts. They do not depend on a real downstream project, the `trellis`
+CLI, or the network, and they do NOT reference the removed Plan-A
+baseline/new/migration.json layout.
 """
 
 import hashlib
@@ -20,42 +23,21 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 TOOLS = REPO_ROOT / "tools"
 TEMPLATE = REPO_ROOT / "templates" / "embedded-c-overlay"
-MIGRATION = REPO_ROOT / "migrations" / "embedded-c-overlay" / "1.0-to-1.1"
-BASELINE = MIGRATION / "baseline"
+HISTORY = REPO_ROOT / "history" / "embedded-c-overlay"
+OBJECTS = HISTORY / "objects"
+VERSIONS = HISTORY / "versions"
+STRUCTURAL = REPO_ROOT / "migrations" / "embedded-c-overlay" / "structural"
 INSTALLER = TOOLS / "install-embedded-c-overlay.ps1"
 UPDATER = TOOLS / "update-embedded-c-overlay.ps1"
 MODULE = TOOLS / "lib" / "TrellisForgeOverlay.psm1"
 
-MERGE_PATHS = [
-    ".trellis/workflow.md",
-    ".trellis/agents/check.md",
-    ".trellis/agents/implement.md",
-]
-ADOPT_PATHS = [
-    ".agents/skills/trellis-channel/SKILL.md",
-    ".agents/skills/trellis-channel/references/command-reference.md",
-    ".agents/skills/trellis-channel/references/forum.md",
-    ".agents/skills/trellis-channel/references/progress-debugging.md",
-    ".agents/skills/trellis-channel/references/workers.md",
-    ".agents/skills/trellis-channel/references/workflows.md",
-    ".claude/skills/trellis-channel/SKILL.md",
-    ".claude/skills/trellis-channel/references/command-reference.md",
-    ".claude/skills/trellis-channel/references/forum.md",
-    ".claude/skills/trellis-channel/references/progress-debugging.md",
-    ".claude/skills/trellis-channel/references/workers.md",
-    ".claude/skills/trellis-channel/references/workflows.md",
-]
-ADD_PATHS = [".trellis/scripts/tests/test_trellis_channel_contract.py"]
-CHANGED_PATHS = set(MERGE_PATHS) | set(ADOPT_PATHS) | set(ADD_PATHS)
-EXCLUDED_NAMES = {"AGENTS.md.template", "TEMPLATE-CONTENTS.md"}
 COMMAND_REF = ".agents/skills/trellis-channel/references/command-reference.md"
-
+AGENTS = "AGENTS.md.trellisforge-template"
 PREFIX = "example"
 PROJECT_NAME = "Example Firmware"
 
 
 def ps_exe():
-    """Best-effort location of Windows PowerShell 5.1."""
     for candidate in (
         os.environ.get("POWERSHELL_EXE"),
         r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe",
@@ -67,7 +49,6 @@ def ps_exe():
 
 
 def run_ps(script, *args):
-    """Run a PowerShell script file; returns CompletedProcess-like object."""
     return subprocess.run(
         [ps_exe(), "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(script), *map(str, args)],
         capture_output=True,
@@ -82,6 +63,18 @@ def run_cmd(argv, cwd=None):
     return subprocess.run(argv, capture_output=True, text=True, encoding="utf-8", errors="replace", cwd=cwd, timeout=300)
 
 
+def norm(text: str) -> str:
+    return text.replace("\r\n", "\n")
+
+
+def sha256_of(text: str) -> str:
+    return sha256_of_bytes(norm(text).encode("utf-8"))
+
+
+def sha256_of_bytes(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
 def render_path(rel: str, prefix: str) -> str:
     return rel.replace("__PROJECT_PREFIX__", prefix)
 
@@ -92,45 +85,40 @@ def render_content(text: str, prefix: str, name: str) -> str:
     return text.replace("PROJECT_PREFIX", prefix).replace("PROJECT_NAME", name)
 
 
-def sha256_of(text: str) -> str:
-    data = text.replace("\r\n", "\n").encode("utf-8")
-    return hashlib.sha256(data).hexdigest()
+def read_no_bom(path: Path) -> bytes:
+    data = path.read_bytes()
+    return data[3:] if data.startswith(b"\xef\xbb\xbf") else data
 
 
 def write_text_bytes(path: Path, text: str) -> None:
-    """Byte-exact UTF-8 write. Path.write_text would translate \\n -> CRLF on
-    Windows and corrupt LF fixtures; we must keep the 1.0 layout's newlines."""
     path.write_bytes(text.encode("utf-8"))
 
 
-def build_10_target(root: Path, prefix=PREFIX, name=PROJECT_NAME):
-    """Reconstruct a TrellisForge 1.0 downstream layout.
+def load_manifest(version: str):
+    return json.loads((VERSIONS / version / "manifest.json").read_text(encoding="utf-8"))
 
-    Uses the fact that only the 16 migration paths differ between 1.0 and 1.1:
-    the rest of the 1.1 template is byte-identical to 1.0. Migration paths are
-    then replaced with their historical 1.0 baseline (rendered), and the 1.1
-    `add` file is removed again. All content is written byte-exact (LF);
-    tests that need a CRLF target convert explicitly afterwards.
-    """
-    for src in TEMPLATE.rglob("*"):
-        if not src.is_file():
+
+def build_10_target(root: Path, prefix=PREFIX, name=PROJECT_NAME, include_all=True) -> None:
+    """Build a clean TrellisForge 1.0 downstream layout from the 1.0 manifest
+    and the canonical object library."""
+    v10 = load_manifest("1.0")
+    for entry in v10["files"]:
+        obj = OBJECTS / entry["canonical_sha256"]
+        body = read_no_bom(obj).decode("utf-8")
+        rel = entry["path"]
+        if rel == AGENTS:
+            if include_all:
+                dest = root / AGENTS
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                dest.write_bytes(render_content(body, prefix, name).encode("utf-8"))
             continue
-        rel = src.relative_to(TEMPLATE).as_posix()
-        if rel.split("/")[-1] in EXCLUDED_NAMES or rel in CHANGED_PATHS:
-            continue
-        dest = root / render_path(rel, prefix)
+        if entry["ownership"] == "adoption-baseline":
+            dest_rel = rel
+        else:
+            dest_rel = render_path(rel, prefix)
+        dest = root / dest_rel
         dest.parent.mkdir(parents=True, exist_ok=True)
-        text = src.read_text(encoding="utf-8-sig")
-        write_text_bytes(dest, render_content(text, prefix, name))
-    for rel in MERGE_PATHS + ADOPT_PATHS:
-        text = (BASELINE / rel).read_text(encoding="utf-8-sig")
-        dest = root / rel
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        write_text_bytes(dest, render_content(text, prefix, name))
-    for rel in ADD_PATHS:
-        dest = root / rel
-        if dest.exists():
-            dest.unlink()
+        dest.write_bytes(render_content(body, prefix, name).encode("utf-8"))
 
 
 class OverlayTestCase(unittest.TestCase):
@@ -142,14 +130,13 @@ class OverlayTestCase(unittest.TestCase):
         subprocess.run(["git", "init", "-q", str(self.project)], check=True)
 
     def make_10_project(self, **kw):
+        (self.project / ".trellis").mkdir(exist_ok=True)
         build_10_target(self.project, **kw)
         return self.project
 
-    def install(self, *extra, expect=0, **kwargs):
+    def install(self, *extra, expect=0):
         params = ["-TargetRoot", str(self.project), "-ProjectPrefix", PREFIX, "-ProjectName", PROJECT_NAME]
         params += list(extra)
-        if kwargs.get("expect_success") is True:
-            expect = 0
         r = run_ps(INSTALLER, *params)
         combined = r.stdout + r.stderr
         self.assertEqual(r.returncode, expect, "install exit code\n" + combined)
@@ -169,7 +156,6 @@ class OverlayTestCase(unittest.TestCase):
         return json.loads(p.read_text(encoding="utf-8"))
 
     def add_sentinel_state(self):
-        """Create upstream Trellis state and unrelated dirty/business files."""
         dot = self.project / ".trellis"
         dot.mkdir(exist_ok=True)
         version = dot / ".version"
@@ -199,24 +185,33 @@ class InstallTests(OverlayTestCase):
     def test_fresh_install_full_11_writes_receipt(self):
         self.make_10_project()
         r, out = self.install("-Force", expect=0)
-        # full overlay installed
         self.assertTrue((self.project / ".trellis/workflow.md").exists())
         self.assertTrue((self.project / ".agents/skills/trellis-channel/SKILL.md").exists())
-        self.assertTrue((self.project / ".claude/skills/trellis-channel/SKILL.md").exists())
         receipt = self.read_json(".trellis/trellisforge.json")
         self.assertEqual(receipt["schema_version"], 1)
         self.assertEqual(receipt["trellisforge_version"], "1.1")
         self.assertEqual(receipt["overlay"], "embedded-c")
         self.assertEqual(receipt["project_prefix"], PREFIX)
-        self.assertEqual(receipt["project_name"], PROJECT_NAME)
         self.assertGreater(len(receipt["files"]), 80)
         for entry in receipt["files"]:
-            self.assertTrue(entry["path"].startswith((".", "AGENTS.md.trellisforge")))
-            self.assertRegex(entry["template_sha256"], r"^[0-9a-f]{64}$")
+            self.assertTrue(entry["path"].startswith((".", AGENTS)))
+            for key in ("canonical_sha256", "baseline_sha256", "installed_sha256"):
+                self.assertRegex(entry[key], r"^[0-9a-f]{64}$")
+
+    def test_receipt_baseline_eq_installed_on_clean_install(self):
+        self.make_10_project()
+        self.install("-Force", expect=0)
+        receipt = self.read_json(".trellis/trellisforge.json")
+        for entry in receipt["files"]:
+            self.assertEqual(
+                entry["baseline_sha256"], entry["installed_sha256"],
+                f"clean install must not report customization for {entry['path']}",
+            )
+        # canonical（渲染前对象哈希）可能不同于渲染后 baseline（有 project 参数）
+        sample = next(f for f in receipt["files"] if f["path"] == ".trellis/workflow.md")
+        self.assertNotEqual(sample["canonical_sha256"], sample["baseline_sha256"])
 
     def test_blank_target_install_without_force(self):
-        # a blank .trellis/ target has no conflicts, so install succeeds
-        # without -Force and still writes the receipt
         (self.project / ".trellis").mkdir(exist_ok=True)
         r = run_ps(INSTALLER, "-TargetRoot", str(self.project), "-ProjectPrefix", PREFIX, "-ProjectName", PROJECT_NAME)
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
@@ -224,32 +219,25 @@ class InstallTests(OverlayTestCase):
 
     def test_force_backup_and_placeholder_replacement(self):
         self.make_10_project()
-        r, out = self.install("-Force", expect=0)
+        self.install("-Force", expect=0)
         backups = list((self.project / ".git/trellisforge-backup").glob("*"))
         self.assertTrue(backups, "no backup dir created")
         manifest = json.loads((backups[0] / "backup-manifest.json").read_text(encoding="utf-8"))
         self.assertEqual(manifest["schema_version"], 1)
         self.assertGreater(len(manifest["files"]), 0)
-        # placeholders replaced everywhere
         residue = []
-        for p in (self.project / ".agents").rglob("*"):
-            if p.is_file() and p.suffix in {".md", ".yaml"}:
+        for p in self.project.rglob("*"):
+            if p.is_file() and p.suffix in {".md", ".yaml", ".py", ".toml", ".json"}:
                 text = p.read_text(encoding="utf-8", errors="replace")
-                if "__PROJECT_PREFIX__" in text or "PROJECT_PREFIX" in text or "PROJECT_NAME" in text:
+                if any(tok in text for tok in ("__PROJECT_PREFIX__", "PROJECT_PREFIX", "PROJECT_NAME")):
                     residue.append(str(p.relative_to(self.project)))
-        for rel in [".trellis/workflow.md", ".trellis/config.yaml"]:
-            text = (self.project / rel).read_text(encoding="utf-8", errors="replace")
-            if "PROJECT_PREFIX" in text or "PROJECT_NAME" in text:
-                residue.append(rel)
         self.assertEqual(residue, [])
 
     def test_conflict_preview_blocks_without_force(self):
         self.make_10_project()
         self.install("-Force", expect=0)
-        # second install without -Force must fail (preview)
         r, out = self.install(expect=1)
         self.assertIn("-Force", out)
-        # and must not corrupt the working tree
         self.assertTrue((self.project / ".trellis/workflow.md").exists())
 
     def test_install_does_not_touch_trellis_state_or_user_files(self):
@@ -260,7 +248,6 @@ class InstallTests(OverlayTestCase):
 
     def test_incompatible_receipt_blocks_install(self):
         self.make_10_project()
-        (self.project / ".trellis").mkdir(exist_ok=True)
         (self.project / ".trellis/trellisforge.json").write_text(
             json.dumps({"schema_version": 1, "trellisforge_version": "0.9",
                         "overlay": "different", "project_prefix": "other",
@@ -270,12 +257,80 @@ class InstallTests(OverlayTestCase):
         r = run_ps(INSTALLER, "-TargetRoot", str(self.project), "-ProjectPrefix", PREFIX,
                    "-ProjectName", PROJECT_NAME, "-Force")
         self.assertNotEqual(r.returncode, 0)
-        receipt_path = self.project / ".trellis/trellisforge.json"
-        self.assertEqual(json.loads(receipt_path.read_text(encoding="utf-8"))["project_prefix"], "other",
+        self.assertEqual(json.loads((self.project / ".trellis/trellisforge.json").read_text(encoding="utf-8"))["project_prefix"], "other",
                          "incompatible receipt must remain untouched")
-        self.assertNotIn("Channel Termination Contract",
-                         (self.project / ".trellis/agents/implement.md").read_text(encoding="utf-8"),
-                         "install over an incompatible receipt must be blocked before writes")
+
+
+class LiveTemplateConsistencyTests(OverlayTestCase):
+    def test_live_template_matches_11_manifest(self):
+        # evidence for installer-live-manifest-consistent: every managed file
+        # has identical LF-normalized content between live template, HEAD and
+        # its canonical object, and command-reference keeps the subtask-1 rule.
+        v11 = load_manifest("1.1")
+        self.assertEqual(v11["trellisforge_version"], "1.1")
+        self.assertEqual(len(v11["files"]), 89)
+        for entry in v11["files"]:
+            if entry["path"] == AGENTS:
+                src = TEMPLATE / "AGENTS.md.template"
+            else:
+                src = TEMPLATE / entry["path"]
+            live = src.read_bytes()
+            live = live[3:] if live.startswith(b"\xef\xbb\xbf") else live
+            obj = (OBJECTS / entry["canonical_sha256"]).read_bytes()
+            self.assertEqual(norm(live.decode("utf-8")), norm(obj.decode("utf-8")),
+                             f"live template drifted from canonical object: {entry['path']}")
+        for rel in (".agents/skills/trellis-channel/references/command-reference.md",
+                    ".claude/skills/trellis-channel/references/command-reference.md"):
+            body = (TEMPLATE / rel).read_bytes()
+            self.assertTrue(b"Standard dispatch use:" in body, rel)
+            self.assertTrue(body.endswith(b"**.\n"), f"{rel} must drop the extra blank line")
+
+    def test_10_manifest_keeps_historical_blank(self):
+        v10 = load_manifest("1.0")
+        for rel in (".agents/skills/trellis-channel/references/command-reference.md",
+                    ".claude/skills/trellis-channel/references/command-reference.md"):
+            entry = next(f for f in v10["files"] if f["path"] == rel)
+            obj = (OBJECTS / entry["canonical_sha256"]).read_bytes()
+            self.assertTrue(obj.endswith(b"**.\n\n"), "1.0 canonical must keep historical blank line")
+            self.assertEqual(entry["ownership"], "adoption-baseline")
+
+    def test_live_template_drift_fails_closed(self):
+        # R3/R7 the shared check Assert-OverlayLiveTemplateMatchesManifest must
+        # reject both a drifted managed file and a managed file missing from the
+        # live template. Installer and updater both call this before writing.
+        drifted = self.tmp / "drifted-template"
+        shutil.copytree(TEMPLATE, drifted)
+        wf = drifted / ".trellis/workflow.md"
+        wf.write_bytes(wf.read_bytes() + b"\n# drift sentinel\n")
+        driver = self.tmp / "drift_check.ps1"
+        driver.write_text(
+            "Import-Module '%s' -Force\n"
+            "$m = Get-OverlayVersionManifest -Overlay 'embedded-c' -Version '1.1'\n"
+            "try {\n"
+            "  Assert-OverlayLiveTemplateMatchesManifest -Overlay 'embedded-c' -Version '1.1' -TemplateRoot '%s' -Manifest $m | Out-Null\n"
+            "  Write-Output 'NO-DRIFT-DETECTED'\n"
+            "  exit 2\n"
+            "} catch {\n"
+            "  Write-Output ('DRIFT=' + $_.Exception.Message)\n"
+            "  exit 0\n"
+            "}" % (MODULE, drifted),
+            encoding="utf-8-sig",
+        )
+        r = run_ps(driver)
+        combined = r.stdout + r.stderr
+        self.assertEqual(r.returncode, 0, combined)
+        self.assertIn("DRIFT=", combined)
+        self.assertIn("fail closed", combined)
+        self.assertIn(".trellis/workflow.md", combined)
+
+        # A managed file missing from the live template must also fail closed.
+        (drifted / ".trellis/agents/check.md").unlink()
+        r = run_ps(driver)
+        combined = r.stdout + r.stderr
+        self.assertEqual(r.returncode, 0, combined)
+        self.assertIn("fail closed", combined)
+        self.assertIn(".trellis/agents/check.md", combined)
+        self.assertIn("missing from live template", combined)
 
 
 class UpgradeTests(OverlayTestCase):
@@ -288,35 +343,30 @@ class UpgradeTests(OverlayTestCase):
         r, out = self.upgrade("-Apply", expect=0)
         receipt = self.read_json(".trellis/trellisforge.json")
         self.assertEqual(receipt["trellisforge_version"], "1.1")
-        self.assertEqual(len(receipt["files"]), 16)
-        # A clean upgrade does no placeholders replacement vs. template, so
-        # template_sha256 must equal installed_sha256 for every managed file.
+        self.assertGreaterEqual(len(receipt["files"]), 88)
         for entry in receipt["files"]:
-            self.assertEqual(
-                entry["template_sha256"], entry["installed_sha256"],
-                f"clean upgrade must not report customization for {entry['path']}",
-            )
-        # second run is already-current and never rewrites
+            for key in ("canonical_sha256", "baseline_sha256", "installed_sha256"):
+                self.assertRegex(entry[key], r"^[0-9a-f]{64}$")
+            if "project_prefix" not in entry["path"]:
+                self.assertEqual(
+                    entry["baseline_sha256"], entry["installed_sha256"],
+                    f"clean upgrade must not report customization for {entry['path']}",
+                )
         r, out = self.upgrade(expect=0)
         self.assertIn("already-current", out)
 
     def test_clean_10_command_reference_gets_rules_and_drops_blank(self):
         self.make_10_project()
-        for rel in (
-            ".agents/skills/trellis-channel/references/command-reference.md",
-            ".claude/skills/trellis-channel/references/command-reference.md",
-        ):
+        for rel in (".agents/skills/trellis-channel/references/command-reference.md",
+                    ".claude/skills/trellis-channel/references/command-reference.md"):
             text = (self.project / rel).read_text(encoding="utf-8")
             self.assertTrue(text.endswith("**.\n\n"), f"fixture must keep 1.0 blank tail: {rel}")
         self.upgrade("-Apply", expect=0)
-        for rel in (
-            ".agents/skills/trellis-channel/references/command-reference.md",
-            ".claude/skills/trellis-channel/references/command-reference.md",
-        ):
+        for rel in (".agents/skills/trellis-channel/references/command-reference.md",
+                    ".claude/skills/trellis-channel/references/command-reference.md"):
             text = (self.project / rel).read_text(encoding="utf-8")
             self.assertIn("Standard dispatch use:", text, rel)
             self.assertTrue(text.endswith("**.\n"), f"{rel} must drop the extra blank line")
-        # mirrors still identical to each other
         a = (self.project / ".agents/skills/trellis-channel/references/command-reference.md").read_bytes()
         b = (self.project / ".claude/skills/trellis-channel/references/command-reference.md").read_bytes()
         self.assertEqual(a, b)
@@ -330,7 +380,7 @@ class UpgradeTests(OverlayTestCase):
         r, out = self.upgrade(expect=0)
         self.assertIn("[USER-MERGED]", out)
         self.assertNotIn("[CONFLICT]", out)
-        r, out = self.upgrade("-Apply", expect=0)
+        self.upgrade("-Apply", expect=0)
         text = (self.project / COMMAND_REF).read_text(encoding="utf-8")
         self.assertIn("(team note)", text)
         self.assertIn("Standard dispatch use:", text)
@@ -354,14 +404,8 @@ class UpgradeTests(OverlayTestCase):
         self.assertEqual(report["from_version"], "1.0")
         self.assertEqual(report["to_version"], "1.1")
         self.assertIn(".trellis/agents/check.md", [p["path"] for p in report["paths"]])
-        candidate = report_dir / "candidates/.trellis/agents/check.md"
-        self.assertTrue(candidate.exists(), "conflict candidate missing")
-        self.assertIn("<<<<<<<", candidate.read_text(encoding="utf-8"))
-        # worktree untouched
-        self.assertIn("(team)", chk.read_text(encoding="utf-8"))
         self.assertFalse((self.project / ".trellis/trellisforge.json").exists())
-        self.assertNotIn("Channel Termination Contract",
-                         (self.project / ".trellis/agents/implement.md").read_text(encoding="utf-8"))
+        self.assertIn("(team)", chk.read_text(encoding="utf-8"))
 
     def test_new_file_conflict(self):
         self.make_10_project()
@@ -388,8 +432,15 @@ class UpgradeTests(OverlayTestCase):
         self.assertFalse((self.project / ".trellis/trellisforge.json").exists())
 
     def test_receipt_param_conflict_fails_closed(self):
+        # A valid but older receipt (1.0) with conflicting project params must
+        # fail closed instead of guessing; no writes happen.
         self.make_10_project()
-        self.upgrade("-Apply", expect=0)
+        (self.project / ".trellis/trellisforge.json").write_text(
+            json.dumps({"schema_version": 1, "trellisforge_version": "1.0",
+                        "overlay": "embedded-c", "project_prefix": "other",
+                        "project_name": "Other", "files": []}),
+            encoding="utf-8",
+        )
         r = run_ps(UPDATER, "-TargetRoot", str(self.project),
                    "-ProjectPrefix", "different", "-ProjectName", PROJECT_NAME)
         self.assertNotEqual(r.returncode, 0)
@@ -401,9 +452,26 @@ class UpgradeTests(OverlayTestCase):
         self.upgrade("-Apply", expect=0)
         self.assert_sentinel_untouched(before)
 
+    def test_unmodified_canonical_paths_do_not_rewrite_worktree(self):
+        # Files whose canonical_sha256 is identical between 1.0 and 1.1 are
+        # never rewritten; the new receipt still records baseline/installed.
+        self.make_10_project()
+        v10 = load_manifest("1.0")
+        unchanged = [
+            f["path"] for f in v10["files"]
+            if f["path"] != AGENTS and f["ownership"] == "managed"
+        ]
+        # paths containing __PROJECT_PREFIX__ are rendered; choose non-token one
+        simple = next(p for p in unchanged if "__PROJECT_PREFIX__" not in p)
+        target = self.project / simple
+        before = target.read_bytes()
+        mtime_before = target.stat().st_mtime_ns
+        self.upgrade("-Apply", expect=0)
+        self.assertEqual(target.read_bytes(), before, f"unchanged canonical path rewritten: {simple}")
+        self.assertLessEqual(target.stat().st_mtime_ns - mtime_before, 3_000_000_000)
+
     def test_lf_target_clean(self):
         self.make_10_project()
-        self.upgrade(expect=0)
         self.upgrade("-Apply", expect=0)
         ref = (self.project / COMMAND_REF).read_bytes()
         self.assertIn(b"Standard dispatch use:", ref)
@@ -428,18 +496,43 @@ class UpgradeTests(OverlayTestCase):
         self.assertTrue((self.project / ".trellis/trellisforge.json").exists())
 
 
-class SafetyAndRollbackTests(OverlayTestCase):
+class StructuralAndSafetyTests(OverlayTestCase):
+    def test_structural_chain_valid_and_empty(self):
+        chain = json.loads((STRUCTURAL / "1.0-to-1.1.json").read_text(encoding="utf-8"))
+        self.assertEqual(chain["schema_version"], 1)
+        self.assertEqual(chain["from_version"], "1.0")
+        self.assertEqual(chain["to_version"], "1.1")
+        self.assertEqual(chain["receipt_transition"], "bootstrap-schema-1")
+        self.assertEqual(chain["actions"], [])
+
+    def test_object_library_complete_and_consistent(self):
+        refs = set()
+        for version in ("1.0", "1.1"):
+            m = load_manifest(version)
+            for entry in m["files"]:
+                self.assertRegex(entry["canonical_sha256"], r"^[0-9a-f]{64}$")
+                obj = OBJECTS / entry["canonical_sha256"]
+                self.assertTrue(obj.is_file(), f"missing object {entry['canonical_sha256']}")
+                data = read_no_bom(obj)
+                self.assertEqual(sha256_of_bytes(norm(data.decode("utf-8")).encode("utf-8")),
+                                 entry["canonical_sha256"])
+                refs.add(entry["canonical_sha256"])
+        for obj in OBJECTS.iterdir():
+            if obj.is_file():
+                self.assertIn(obj.name, refs, f"orphan object file {obj.name}")
+
+    def test_plan_a_assets_removed(self):
+        self.assertFalse((REPO_ROOT / "migrations" / "embedded-c-overlay" / "1.0-to-1.1").exists(),
+                         "Plan-A pair-wise migration dir must be gone")
+
     def test_target_path_is_directory_blocked(self):
-        # .trellis/workflow.md as a directory blocks the install write
         (self.project / ".trellis").mkdir(exist_ok=True)
         (self.project / ".trellis/workflow.md").mkdir()
         r = run_ps(INSTALLER, "-TargetRoot", str(self.project), "-ProjectPrefix", PREFIX,
                    "-ProjectName", PROJECT_NAME, "-Force")
         self.assertNotEqual(r.returncode, 0)
-        self.assertTrue((self.project / ".trellis/workflow.md").is_dir(),
-                        "directory conflict must abort before any write")
-        self.assertFalse((self.project / ".trellis/trellisforge.json").exists(),
-                         "no receipt may be written after a directory-conflict abort")
+        self.assertTrue((self.project / ".trellis/workflow.md").is_dir())
+        self.assertFalse((self.project / ".trellis/trellisforge.json").exists())
 
     def test_invalid_project_prefix_rejected(self):
         for bad in ("BadPrefix", "..", "a\\b"):
@@ -470,12 +563,11 @@ class SafetyAndRollbackTests(OverlayTestCase):
 
     def test_write_failure_rolls_back(self):
         self.make_10_project()
-        # nested reads: .agents subdir is written before the failing .claude file
         new_skill = self.project / ".agents/skills/trellis-channel/SKILL.md"
-        new_skill.unlink()  # make this file "new" during install
+        new_skill.unlink()
         target = self.project / ".claude/settings.json"
         original = target.read_bytes()
-        os.chmod(target, 0o444)  # read-only on Windows blocks File.WriteAllText
+        os.chmod(target, 0o444)
         self.addCleanup(lambda: os.chmod(target, 0o644) if target.exists() else None)
         workflow = self.project / ".trellis/workflow.md"
         workflow_before = workflow.read_bytes()

@@ -1,0 +1,3 @@
+display_name: Grill Me
+short_description: Stress-test plans with one hard question at a time.
+default_prompt: Grill me on this plan. Ask one question at a time, recommend an answer, and keep going until the decision tree is clear.

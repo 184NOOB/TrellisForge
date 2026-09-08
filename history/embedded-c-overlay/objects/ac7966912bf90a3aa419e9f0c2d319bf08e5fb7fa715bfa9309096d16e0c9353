@@ -1,0 +1,4 @@
+interface:
+  display_name: "PROJECT_NAME Trellis Grill Adapter"
+  short_description: "Connect Brainstorm and Grill Me to Trellis planning"
+  default_prompt: "Use $trellis-brainstorm, $grill-me, and $PROJECT_PREFIX-trellis-grill-adapter during Trellis planning."

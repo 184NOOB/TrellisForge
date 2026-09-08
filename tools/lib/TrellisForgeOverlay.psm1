@@ -1,6 +1,6 @@
 ﻿# TrellisForgeOverlay.psm1
 # Shared safety/mechanism layer used by BOTH first-time installation
-# (install-embedded-c-overlay.ps1) and 1.0->1.1 upgrades
+# (install-embedded-c-overlay.ps1) and 1.0->1.1 elevator-model upgrades
 # (update-embedded-c-overlay.ps1).
 #
 # Contract (tools spec `tooling/powershell.md`):
@@ -16,7 +16,15 @@
 #     (.trellis/trellisforge.json) is part of that transaction.
 #   - Never touch .trellis/.version or .trellis/.template-hashes.json.
 #
-# The module keeps a deliberately narrow export surface. Entry scripts own
+# Elevator model: versioned manifests under history/embedded-c-overlay/versions/
+# plus a SHA-256-keyed canonical object library under
+# history/embedded-c-overlay/objects/. A manifest entry references its canonical
+# body by `canonical_sha256`; the object file path is derived as
+# objects/<canonical_sha256>. Two manifests (1.0, 1.1) plus the 1.0->1.1
+# structural chain drive the upgrade; installers load the 1.1 manifest to prove
+# the live template equals the published target before writing.
+#
+# The module keeps a deliberately narrow export surface; entry scripts own
 # parameter parsing and user-facing output.
 
 Set-StrictMode -Version Latest
@@ -89,35 +97,6 @@ function Assert-OverlaySafeRelative {
     return $full
 }
 
-function Resolve-OverlayAssetPath {
-    # Resolves a manifest-relative asset path (old/new) against a base
-    # directory. Both baseline/ and new/ are frozen snapshot trees that live
-    # inside the migration dir, so the manifest refs stay relative to it (the
-    # `new` field points at new/, NOT at the live template root). Parent
-    # traversal remains allowed only for robustness; we reject absolute paths,
-    # glob characters and control characters. The target-write boundary is
-    # enforced separately against the real TargetRoot.
-    param(
-        [Parameter(Mandatory = $true)][AllowNull()][string]$Relative,
-        [Parameter(Mandatory = $true)][string]$BaseDir
-    )
-    if ([string]::IsNullOrEmpty($Relative)) {
-        throw "空相对路径"
-    }
-    if ([System.IO.Path]::IsPathRooted(($Relative.Replace('/', [System.IO.Path]::DirectorySeparatorChar)))) {
-        throw "资产路径不允许为绝对路径: $Relative"
-    }
-    if ($Relative.IndexOfAny([char[]]@("`r", "`n", "`0", "`t")) -ge 0) {
-        throw "资产路径包含换行/空字符: $Relative"
-    }
-    if ($Relative.IndexOfAny([char[]]@('*', '?', '[')) -ge 0) {
-        throw "资产路径包含通配符: $Relative"
-    }
-    $baseFull = [System.IO.Path]::GetFullPath($BaseDir)
-    $full = [System.IO.Path]::GetFullPath((Join-Path $baseFull ($Relative.Replace('/', [System.IO.Path]::DirectorySeparatorChar))))
-    return $full
-}
-
 function Get-OverlayUtf8NoBom {
     return [System.Text.UTF8Encoding]::new($false)
 }
@@ -154,13 +133,23 @@ function Write-OverlayContentText {
     [System.IO.File]::WriteAllText($Path, $Content, (Get-OverlayUtf8NoBom))
 }
 
+# ---------------------------------------------------------------- release root
+
+function Get-OverlayReleaseRoot {
+    # The release root holds VERSION, history/ and migrations/. The module
+    # lives at <release-root>\tools\lib\TrellisForgeOverlay.psm1.
+    $releaseRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+    if (-not (Test-Path -LiteralPath $releaseRoot -PathType Container)) {
+        throw "无法定位 TrellisForge 发布根目录: $releaseRoot"
+    }
+    return $releaseRoot
+}
+
 # ------------------------------------------------------------- public API
 
 function Get-OverlayForgeVersion {
     # TrellisForge version fact source: repo-root VERSION file.
-    # module lives at <repo>\tools\lib\TrellisForgeOverlay.psm1, so the
-    # release root (with VERSION) is two levels up.
-    $releaseRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+    $releaseRoot = Get-OverlayReleaseRoot
     $versionPath = Join-Path $releaseRoot 'VERSION'
     if (-not (Test-Path -LiteralPath $versionPath -PathType Leaf)) {
         throw "版本事实文件缺失: $versionPath"
@@ -170,6 +159,31 @@ function Get-OverlayForgeVersion {
         throw "版本事实文件内容无效: '$version'"
     }
     return $version
+}
+
+function Get-OverlayHistoryRoot {
+    # The asset library lives at history/<overlay>-overlay (e.g.
+    # history/embedded-c-overlay). The overlay identifier in manifests and
+    # receipts is the short form ("embedded-c").
+    param([Parameter(Mandatory = $true)][string]$Overlay)
+    $releaseRoot = Get-OverlayReleaseRoot
+    $dirName = "$Overlay-overlay"
+    $root = [System.IO.Path]::GetFullPath((Join-Path $releaseRoot "history\$dirName"))
+    if (-not (Test-Path -LiteralPath $root -PathType Container)) {
+        throw "历史内容库缺失: $root"
+    }
+    return $root
+}
+
+function Get-OverlayStructuralDir {
+    param([Parameter(Mandatory = $true)][string]$Overlay)
+    $releaseRoot = Get-OverlayReleaseRoot
+    $dirName = "$Overlay-overlay"
+    $dir = [System.IO.Path]::GetFullPath((Join-Path $releaseRoot "migrations\$dirName\structural"))
+    if (-not (Test-Path -LiteralPath $dir -PathType Container)) {
+        throw "结构迁移目录缺失: $dir"
+    }
+    return $dir
 }
 
 function Assert-OverlayTargetRoot {
@@ -329,6 +343,185 @@ function New-OverlayUniqueDir {
     return $dir
 }
 
+# ------------------------------------------------- elevator asset loading
+
+function Read-OverlayJsonFile {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string]$What
+    )
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+        throw "$What 缺失: $Path"
+    }
+    try {
+        $obj = Get-Content -LiteralPath $Path -Raw -Encoding UTF8 | ConvertFrom-Json -ErrorAction Stop
+        if ($null -eq $obj) {
+            throw 'JSON 内容为空'
+        }
+        return $obj
+    }
+    catch {
+        throw "$What 解析失败（fail closed）: $Path`n$($_.Exception.Message)"
+    }
+}
+
+function Get-OverlayVersionManifest {
+    # Loads and validates a version manifest from
+    # history/<overlay>/versions/<version>/manifest.json plus its canonical
+    # object library. Returns the raw manifest object; callers use
+    # Get-OverlayCanonicalText to resolve entry bodies.
+    # Any inconsistency throws -> caller reports `unsupported`.
+    param(
+        [Parameter(Mandatory = $true)][string]$Overlay,
+        [Parameter(Mandatory = $true)][string]$Version
+    )
+    if ($Version -notmatch '^\d+\.\d+(?:\.\d+)?$') {
+        throw "版本号无效: '$Version'"
+    }
+    $historyRoot = Get-OverlayHistoryRoot -Overlay $Overlay
+    $manifestPath = Join-Path $historyRoot "versions\$Version\manifest.json"
+    $manifest = Read-OverlayJsonFile -Path $manifestPath -What "版本清单 ($Overlay $Version)"
+
+    if ([int]$manifest.schema_version -ne 1) {
+        throw "版本清单 schema 不受支持: schema_version=$($manifest.schema_version)"
+    }
+    if ([string]::IsNullOrWhiteSpace([string]$manifest.overlay) -or
+        [string]$manifest.overlay -ne $Overlay) {
+        throw "版本清单 overlay 不匹配: $($manifest.overlay)"
+    }
+    if ([string]$manifest.trellisforge_version -ne $Version) {
+        throw "版本清单 trellisforge_version=$($manifest.trellisforge_version) != $Version"
+    }
+    $objectsRoot = Join-Path $historyRoot 'objects'
+    if (-not (Test-Path -LiteralPath $objectsRoot -PathType Container)) {
+        throw "canonical 对象库缺失: $objectsRoot"
+    }
+
+    $seen = @{}
+    $files = @()
+    foreach ($entry in $manifest.files) {
+        $relative = [string]$entry.path
+        if ([string]::IsNullOrWhiteSpace($relative)) {
+            throw "版本清单包含空路径"
+        }
+        if ($seen.ContainsKey($relative)) {
+            throw "版本清单路径重复: $relative"
+        }
+        $seen[$relative] = $true
+        $ownership = [string]$entry.ownership
+        if ($ownership -notin @('managed', 'adoption-baseline')) {
+            throw "版本清单所有权不受支持: ownership=$ownership path=$relative"
+        }
+        $canon = [string]$entry.canonical_sha256
+        if ($canon -notmatch '^[0-9a-f]{64}$') {
+            throw "版本清单 canonical_sha256 无效: path=$relative"
+        }
+        $files += [pscustomobject]@{
+            Path             = $relative
+            Ownership        = $ownership
+            CanonicalSha256  = $canon
+        }
+    }
+
+    return [pscustomobject]@{
+        Overlay     = $Overlay
+        Version     = $Version
+        Files       = $files
+        ManifestRaw = $manifest
+    }
+}
+
+function Get-OverlayCanonicalText {
+    # Resolves a manifest entry's canonical object bytes to text.
+    # The object path is objects/<canonical_sha256>. Returns UTF-8 text
+    # (no BOM) whose LF-normalized hash equals the stored canonical hash.
+    param(
+        [Parameter(Mandatory = $true)][string]$Overlay,
+        [Parameter(Mandatory = $true)][string]$CanonicalSha256
+    )
+    if ($CanonicalSha256 -notmatch '^[0-9a-f]{64}$') {
+        throw "canonical_sha256 无效: $CanonicalSha256"
+    }
+    $historyRoot = Get-OverlayHistoryRoot -Overlay $Overlay
+    $objPath = Join-Path $historyRoot "objects\$CanonicalSha256"
+    if (-not (Test-Path -LiteralPath $objPath -PathType Leaf)) {
+        throw "canonical 对象缺失: $objPath"
+    }
+    return Get-OverlayContentText -Path $objPath
+}
+
+function Get-OverlayStructuralChain {
+    # Loads and validates the linear structural chain step for
+    # from_version -> to_version. The 1.0->1.1 chain is the first and only
+    # entry: empty actions + receipt bootstrap. Rejects unknown actions and a
+    # non-contiguous chain.
+    param(
+        [Parameter(Mandatory = $true)][string]$Overlay,
+        [Parameter(Mandatory = $true)][string]$FromVersion,
+        [Parameter(Mandatory = $true)][string]$ToVersion
+    )
+    $structuralDir = Get-OverlayStructuralDir -Overlay $Overlay
+    $stepPath = Join-Path $structuralDir "$FromVersion-to-$ToVersion.json"
+    $chain = Read-OverlayJsonFile -Path $stepPath -What "结构迁移链 ($FromVersion->$ToVersion)"
+    if ([int]$chain.schema_version -ne 1) {
+        throw "结构迁移链 schema 不受支持: schema_version=$($chain.schema_version)"
+    }
+    if ([string]$chain.from_version -ne $FromVersion -or
+        [string]$chain.to_version -ne $ToVersion) {
+        throw "结构迁移链版本不匹配: from=$($chain.from_version) to=$($chain.to_version)"
+    }
+    $allowedActions = @('rename', 'remove', 'receipt')
+    foreach ($action in $chain.actions) {
+        $kind = [string]$action.action
+        if ($kind -notin $allowedActions) {
+            throw "结构迁移动作不受支持: action=$kind（白名单: $($allowedActions -join ', ')）"
+        }
+    }
+    if ([string]::IsNullOrWhiteSpace([string]$chain.receipt_transition)) {
+        throw "结构迁移链缺少 receipt_transition"
+    }
+    return $chain
+}
+
+function Assert-OverlayLiveTemplateMatchesManifest {
+    # Ensures the live template equals the published target manifest. Each
+    # managed entry's canonical object must LF-normalize to the exact live
+    # template byte content; any drift fails closed.
+    param(
+        [Parameter(Mandatory = $true)][string]$Overlay,
+        [Parameter(Mandatory = $true)][string]$Version,
+        [Parameter(Mandatory = $true)][string]$TemplateRoot,
+        [Parameter(Mandatory = $true)][object]$Manifest
+    )
+    $mismatches = @()
+    foreach ($entry in $Manifest.Files) {
+        if ($entry.Ownership -ne 'managed') { continue }
+        $relative = $entry.Path
+        if ($relative -eq 'AGENTS.md.trellisforge-template') {
+            # AGENTS.md.trellisforge-template is produced at install time from
+            # AGENTS.md.template, not a template source file. Its canonical
+            # object is still validated by the object-library consistency check.
+            continue
+        }
+        $liveText = Get-OverlayContentText -Path (Join-Path $TemplateRoot $relative) -AllowMissing
+        if ($null -eq $liveText) {
+            $mismatches += "$relative (missing from live template)"
+            continue
+        }
+        $canonical = Get-OverlayCanonicalText -Overlay $Overlay -CanonicalSha256 $entry.CanonicalSha256
+        if ((Get-OverlayTextHash -Text $liveText -NormalizeLineEndings) -ne
+            (Get-OverlayTextHash -Text $canonical -NormalizeLineEndings)) {
+            $mismatches += $relative
+        }
+    }
+    if ($mismatches.Count -gt 0) {
+        throw "同一版本 live 模板与 manifest 漂移（fail closed）: $($mismatches -join ', ')"
+    }
+    return $true
+}
+
+# ---------------------------------------------------------------- receipts
+
 function Read-OverlayReceipt {
     # Reads .trellis/trellisforge.json. Returns $null when the file is absent,
     # or an object when valid. Throws on malformed or schema-invalid receipts
@@ -370,8 +563,11 @@ function Read-OverlayReceipt {
 }
 
 function New-OverlayReceiptPayload {
-    # Builds the receipt payload for the given overlay installation.
-    # $FileEntries: array of @{ Path; TemplateSha256; InstalledSha256 }
+    # Builds the schema-1 receipt for the given overlay installation.
+    # $FileEntries: array of @{ Path; CanonicalSha256; BaselineSha256; InstalledSha256 }
+    #   CanonicalSha256 = hash of the pre-render canonical object
+    #   BaselineSha256  = hash of the canonical body rendered with project params
+    #   InstalledSha256 = hash of the actual content written / read from target
     param(
         [Parameter(Mandatory = $true)][string]$Overlay,
         [Parameter(Mandatory = $true)][string]$ProjectPrefix,
@@ -383,7 +579,8 @@ function New-OverlayReceiptPayload {
     foreach ($entry in $FileEntries) {
         $files += [ordered]@{
             path             = $entry.Path.Replace('\', '/')
-            template_sha256  = $entry.TemplateSha256
+            canonical_sha256 = $entry.CanonicalSha256
+            baseline_sha256  = $entry.BaselineSha256
             installed_sha256 = $entry.InstalledSha256
         }
     }
@@ -426,7 +623,7 @@ function Invoke-OverlayThreeWayMerge {
         # without text-mode re-encoding (which corrupts UTF-8), so we let git
         # write the raw result into the temp current file instead of capturing
         # stdout; stderr stays a text-only diagnostic channel.
-        & git merge-file -L target -L 'trellisforge-base(1.0)' -L 'trellisforge-new(1.1)' $currentFile $oldFile $newFile 2>$errFile
+        & git merge-file -L target -L 'trellisforge-base' -L 'trellisforge-new' $currentFile $oldFile $newFile 2>$errFile
         $exit = $LASTEXITCODE
         $stderr = if (Test-Path -LiteralPath $errFile -PathType Leaf) {
             (Get-Content -LiteralPath $errFile -Raw -ErrorAction SilentlyContinue)
@@ -455,110 +652,6 @@ function Invoke-OverlayThreeWayMerge {
         if (Test-Path -LiteralPath $tmpRoot) {
             Remove-Item -LiteralPath $tmpRoot -Recurse -Force -ErrorAction SilentlyContinue
         }
-    }
-}
-
-function Get-OverlayMigrationManifest {
-    # Loads and validates a versioned migration manifest plus its assets.
-    # Renders every old/new path, verifies LF-normalized SHA-256 against the
-    # manifest, and returns a normal form:
-    #   { Manifest; Paths = [ @{ Action; Relative; RenderedPath; OldText; NewText;
-    #                            OldSha256; NewSha256 } ] }
-    # Any inconsistency makes this throw -> caller reports `unsupported`.
-    param(
-        [Parameter(Mandatory = $true)][string]$MigrationDir,
-        [Parameter(Mandatory = $true)][string]$ProjectPrefix,
-        [Parameter(Mandatory = $true)][string]$ProjectName
-    )
-    $migrationFile = Join-Path $MigrationDir 'migration.json'
-    if (-not (Test-Path -LiteralPath $migrationFile -PathType Leaf)) {
-        throw "迁移清单不存在: $migrationFile"
-    }
-    $manifest = $null
-    try {
-        $manifest = Get-Content -LiteralPath $migrationFile -Raw -Encoding UTF8 | ConvertFrom-Json -ErrorAction Stop
-        if ($null -eq $manifest) { throw 'JSON 内容为空' }
-    }
-    catch {
-        throw "迁移清单解析失败（unsupported）: $migrationFile`n$($_.Exception.Message)"
-    }
-    if (-not (Test-OverlayHasProperty -Object $manifest -Name 'schema_version') -or $manifest.schema_version -ne 1) {
-        throw "迁移清单 schema 不受支持"
-    }
-    if (-not (Test-OverlayHasProperty -Object $manifest -Name 'overlay') -or
-        -not (Test-OverlayHasProperty -Object $manifest -Name 'from_version') -or
-        -not (Test-OverlayHasProperty -Object $manifest -Name 'to_version') -or
-        [string]::IsNullOrWhiteSpace([string]$manifest.overlay) -or
-        [string]::IsNullOrWhiteSpace([string]$manifest.from_version) -or
-        [string]::IsNullOrWhiteSpace([string]$manifest.to_version)) {
-        throw "迁移清单缺少 overlay/from_version/to_version"
-    }
-
-    $seen = @{}
-    $results = @()
-    foreach ($entry in $manifest.paths) {
-        $relative = [string]$entry.path
-        if ([string]::IsNullOrWhiteSpace($relative)) {
-            throw "迁移清单包含空路径"
-        }
-        if ($seen.ContainsKey($relative)) {
-            throw "迁移清单路径重复: $relative"
-        }
-        $seen[$relative] = $true
-        $renderedRelative = Get-OverlayRenderRelative -Relative $relative -ProjectPrefix $ProjectPrefix
-        $action = [string]$entry.action
-        if ($action -notin @('merge', 'adopt', 'add')) {
-            throw "迁移清单动作不受支持: action=$action path=$relative"
-        }
-        $oldText = $null
-        $oldSha = $null
-        $hasOld = Test-OverlayHasProperty -Object $entry -Name 'old'
-        if ($hasOld -and -not [string]::IsNullOrWhiteSpace([string]$entry.old)) {
-            $oldRel = [string]$entry.old
-            $oldPath = Resolve-OverlayAssetPath -Relative $oldRel -BaseDir $MigrationDir
-            if (-not (Test-Path -LiteralPath $oldPath -PathType Leaf)) {
-                throw "迁移旧基线缺失: $oldRel（${relative}）"
-            }
-            # Manifest hashes are computed over the RAW stored asset (CRLF->LF
-            # only); the project placeholders are applied afterwards for the
-            # three-way merge so the manifest stays independent of the runtime
-            # ProjectPrefix/ProjectName.
-            $rawOld = Get-OverlayContentText -Path $oldPath
-            $oldText = Get-OverlayRenderContent -Content $rawOld -ProjectPrefix $ProjectPrefix -ProjectName $ProjectName
-            $oldSha = Get-OverlayTextHash -Text $rawOld -NormalizeLineEndings
-            if (-not (Test-OverlayHasProperty -Object $entry -Name 'old_sha256') -or $oldSha -ne [string]$entry.old_sha256) {
-                throw "迁移旧基线内容哈希不符（unsupported）: $relative"
-            }
-        }
-        $newRel = [string]$entry.new
-        if ([string]::IsNullOrWhiteSpace($newRel)) {
-            throw "迁移清单缺少 new 引用: $relative"
-        }
-        $newPath = Resolve-OverlayAssetPath -Relative $newRel -BaseDir $MigrationDir
-        if (-not (Test-Path -LiteralPath $newPath -PathType Leaf)) {
-            throw "迁移新模板缺失: $newRel（${relative}）"
-        }
-        $rawNew = Get-OverlayContentText -Path $newPath
-        $newText = Get-OverlayRenderContent -Content $rawNew -ProjectPrefix $ProjectPrefix -ProjectName $ProjectName
-        $newSha = Get-OverlayTextHash -Text $rawNew -NormalizeLineEndings
-        if (-not (Test-OverlayHasProperty -Object $entry -Name 'new_sha256') -or $newSha -ne [string]$entry.new_sha256) {
-            throw "迁移新模板内容哈希不符（unsupported）: $relative"
-        }
-
-        $results += [pscustomobject]@{
-            Action         = $action
-            Relative       = $relative
-            RenderedPath   = $renderedRelative
-            OldText        = $oldText
-            NewText        = $newText
-            OldSha256      = $oldSha
-            NewSha256      = $newSha
-        }
-    }
-    return [pscustomobject]@{
-        Manifest     = $manifest
-        Paths        = $results
-        MigrationDir = $MigrationDir
     }
 }
 
@@ -727,6 +820,8 @@ function Invoke-OverlayApply {
 
 Export-ModuleMember -Function @(
     'Get-OverlayForgeVersion',
+    'Get-OverlayHistoryRoot',
+    'Get-OverlayStructuralDir',
     'Assert-OverlayTargetRoot',
     'Assert-OverlayProjectParams',
     'Assert-OverlaySafeRelative',
@@ -737,10 +832,14 @@ Export-ModuleMember -Function @(
     'Get-OverlayFileHash',
     'Get-OverlayGitMetadataDir',
     'New-OverlayUniqueDir',
+    'Read-OverlayJsonFile',
+    'Get-OverlayVersionManifest',
+    'Get-OverlayCanonicalText',
+    'Get-OverlayStructuralChain',
+    'Assert-OverlayLiveTemplateMatchesManifest',
     'Read-OverlayReceipt',
     'New-OverlayReceiptPayload',
     'Invoke-OverlayThreeWayMerge',
-    'Get-OverlayMigrationManifest',
     'Invoke-OverlayApply',
     'Get-OverlayNormalizedText',
     'Test-OverlayTextUsesCrLf',

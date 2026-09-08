@@ -12,7 +12,7 @@
   "assignee": "Noob184",
   "createdAt": "2026-09-07",
   "completedAt": null,
-  "branch": null,
+  "branch": "trellis-channel-dispatch-wait-and-upgrade",
   "base_branch": "master",
   "worktree_path": null,
   "commit": null,

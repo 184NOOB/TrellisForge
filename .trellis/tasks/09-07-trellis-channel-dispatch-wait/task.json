@@ -3,7 +3,7 @@
   "name": "trellis-channel-dispatch-wait",
   "title": "规范 Trellis Channel worker 派发与等待流程",
   "description": "",
-  "status": "planning",
+  "status": "in_progress",
   "dev_type": null,
   "scope": null,
   "package": "main",
@@ -12,7 +12,7 @@
   "assignee": "Noob184",
   "createdAt": "2026-09-07",
   "completedAt": null,
-  "branch": null,
+  "branch": "trellis-channel-dispatch-wait-and-upgrade",
   "base_branch": "master",
   "worktree_path": null,
   "commit": null,
@@ -23,7 +23,7 @@
   "relatedFiles": [],
   "notes": "",
   "meta": {
-    "planning_ready": false,
-    "plan_approved": false
+    "planning_ready": true,
+    "plan_approved": true
   }
 }

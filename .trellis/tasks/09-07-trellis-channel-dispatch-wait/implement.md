@@ -1,53 +1,73 @@
 # Trellis Channel 派发与等待流程实施计划
 
+## 实施前边界检查
+
+- 当前任务必须仍为 `09-07-trellis-channel-dispatch-wait`，分支必须为 `trellis-channel-dispatch-wait-and-upgrade`。
+- 只允许修改 `templates/embedded-c-overlay/` 中与 Trellis Channel 规则和契约测试直接相关的文件。
+- 发现需要修改 `docs/接入指南.md`、README、`TEMPLATE-CONTENTS.md`、`tools/install-embedded-c-overlay.ps1`、版本号或升级逻辑时，记录为子任务 2 输入并停止跨范围修改。
+- 不修改仓库根目录现用的 `.trellis/`、`.agents/`、`.claude/` 或 `.codex/` 产品文件；任务规划文件和状态元数据除外。
+
 ## 实施顺序
 
-1. **建立变更清单与基线**
-   - 读取本任务 `prd.md`、`design.md`、相关 Spec 和现有 channel 参考文档。
-   - 记录实际修改范围：`.trellis/workflow.md` 的 Codex 路由/inline 提示、`.agents/skills/trellis-channel/` 与 `.claude/skills/trellis-channel/` 中的 provider-neutral 规则，以及必要的文档契约测试文件。
-   - 批量确认 `.agents` 与 `.claude` 两套 channel 文件当前正文一致，避免覆盖用户已有差异。
+1. **建立模板 Skill 基线**
+   - 以根目录当前 `.agents/skills/trellis-channel/` 与 `.claude/skills/trellis-channel/` 为只读参考，确认两套来源相同。
+   - 将完整文件树加入模板对应目录，包括 `SKILL.md` 及全部 reference 文件；不得只复制本次修改涉及的段落。
+   - 记录模板新增路径集合，供契约测试和子任务 2 的安装/升级规划使用。
 
-2. **更新 Codex 主会话工作流规则**
-   - 仅在 `.trellis/workflow.md` 的 Codex 路由和 Codex inline 相关提示中补充唯一 wait 进程、同一 `session_id` 复用、等待期间暂停其他主会话活动、终止后恢复的明确规则。
-   - 明确 Claude Code 作为 dispatcher 的流程不在本任务范围内，不能复用或推断 Codex 的 `exec_command`/`write_stdin` 规则。
-   - 保留现有 implement/check 派发协议、执行计划门禁和 review profile 规则；不把 channel wait 与 native sub-agent dispatch 混写成同一机制。
+2. **更新公共 Channel 规则**
+   - 在模板两套 Skill 的对应公共文件中同步写入一次 spawn、一个 wait、终止事件、可调整 timeout 和 progress 诊断边界。
+   - 为实施与审查分别给出 PowerShell 可解释的派发/等待示例。
+   - 公共规则不使用 `exec_command`、`write_stdin` 或 `session_id` 描述 Claude Code 主会话。
 
-3. **更新 provider-neutral channel 技能参考并同步 Claude 镜像**
-   - 在 `references/workflows.md` 与 `references/workers.md` 增加实施和审查的统一 dispatcher 示例，明确一次 spawn、一次 wait 和终止事件；不把 Codex 的终端 API 当作 Claude Code 主会话的流程要求。
-   - 在必要的 `SKILL.md`、`command-reference.md` 或 `progress-debugging.md` 处补充边界说明：`done/error` 是完成信号，progress 只用于故障诊断，正常等待不轮询；工具窗口和 CLI timeout 分离；Codex 专属条目加范围标记。
-   - 将 provider-neutral 规则按批次同步到 `.claude/skills/trellis-channel/`，同步后做逐文件正文比较。
+3. **更新 Codex 主会话工作流**
+   - 只在模板 `.trellis/workflow.md` 的 Codex 路由和 `[codex-inline]` 相关范围加入终端编排。
+   - 写明首次短 yield、复用同一 `session_id`、单次窗口以运行时 schema 为准、运行中继续 `write_stdin`、终止后恢复处理。
+   - 将“等待时保持安静”落实为可观察的工具动作约束：wait session 存活期间不运行新的 wait、额外 channel、progress/messages/list、`plan.py status` 或其他任务操作；用户中断和明确故障走异常路径。
 
-4. **增加文档契约验证**
-   - 新增一个 Python 单元测试，批量读取两套 channel 文档，验证 provider-neutral 关键规则和命令示例存在、镜像文件一致、正常流程未引入禁止的重复 wait 或 progress 轮询指导，并验证 Codex 专属范围声明存在。
-   - 测试只验证文档契约，不启动真实 provider、worker 或终端等待进程。
+4. **核对 worker 终止事件契约**
+   - 检查模板 `.trellis/agents/implement.md` 和 `check.md` 是否已经明确完成发布 `done`、失败发布 `error`。
+   - 只在契约缺失时补充；不把 dispatcher 的终端 session 管理复制到 worker 角色卡。
 
-5. **按项目规则验证并形成报告**
-   - 运行：
-     - `python -B -m unittest discover -s .trellis/scripts/tests -p "test_*.py"`
-     - 对 `.trellis/scripts/`、`.claude/hooks/`、`.codex/hooks/` 下 Python 文件运行 `python -m py_compile`。
-     - `git diff --check`
-   - 分别报告单元测试、语法检查、文档契约检查；构建、部署、硬件验证标记为 `not applicable`。
+5. **扩展模板契约测试**
+   - 在模板测试目录扩展现有测试或新增职责单一的测试，校验完整文件集合、两套公共 Skill 逐字节一致、Codex 专属术语的作用域和标准流程关键语义。
+   - 增加反例断言，防止正常流程出现重复 `trellis channel wait`、`list --all`、progress 轮询、`messages --include-progress` 或 `plan.py status` 指导。
+   - 测试只检查静态模板契约，不启动真实 worker，不依赖外部 provider。
 
-6. **strict 审查与收敛**
-   - 在每个重要文档批次后检查实际 diff；完成全部修改后派发一次独立的 full-scope `trellis-check` 审查，使用本任务的 strict profile。
-   - 审查范围包括完整任务 diff、`.trellis/workflow.md` 的 Codex 路由、两套 provider-neutral channel 技能镜像、文档契约测试、相关 Spec 和项目验证命令；确认没有把 Codex 规则扩展为 Claude Code 主会话要求。
-   - 对所有阻塞性正确性、安全性或验收问题修复后重复相关审查，直到没有阻塞发现；审查未完成前不得提交。
+6. **执行验证**
+   - 运行 `python -B -m unittest discover -s .trellis/scripts/tests -p "test_*.py"`。
+   - 运行 `python -B -m unittest discover -s templates/embedded-c-overlay/.trellis/scripts/tests -p "test_*.py"`。
+   - 按项目规则对相关 `.trellis/scripts/`、`.claude/hooks/`、`.codex/hooks/` Python 文件执行 `python -m py_compile`，并清理验证生成的缓存，确保模板不包含 `__pycache__`、`.pyc` 或 `.pyo`。
+   - 运行 `git diff --check`。
+   - 构建、部署和硬件验证报告为 `not applicable`；本仓库不产出可执行产品或硬件目标。
+
+7. **执行 standard 审查**
+   - 实施完成后派发一次独立 affected-scope `trellis-check`；提交前不执行 full-scope（全盘）审查。
+   - 审查本任务完整 diff、全部验收项、Skill 完整性与镜像同步、Codex/Claude 平台边界、模板测试和子任务边界，不扫描无影响证据的仓库区域。
+   - 修复阻塞问题后由主会话重跑受影响检查；只有修复导致任务范围发生实质变化时，才重新派发完整独立审查。
 
 ## 验收映射
 
-- 派发与等待示例、session 复用、完成后恢复：步骤 2–3，文档契约测试覆盖。
-- 禁止重复 wait、额外 channel、progress/完整聊天轮询和等待期间其他主会话活动：步骤 2–4 覆盖。
-- 实施与审查流程对称、timeout 分层：步骤 3–4 覆盖。
-- 平台分层与镜像边界：步骤 2–4 覆盖；验证公共 `.agents/skills`/`.claude/skills` 文件一致，同时确认 Codex 专属终端编排没有扩展为 Claude Code 主会话流程。
-- strict review：步骤 6，必须有独立审查结果及修复后的复审证据。
+| 验收主题 | 实施步骤 |
+|---|---|
+| 仅修改发布模板，不跨入安装/升级 | 实施前边界检查、步骤 7 |
+| 完整 Skill 覆盖层与公共镜像一致 | 步骤 1、2、5 |
+| Codex 专属 session 编排不影响 Claude Code | 步骤 2、3、5 |
+| 实施/审查流程、唯一 wait 与 timeout 分层 | 步骤 2、3、5 |
+| worker `done`/`error` 契约 | 步骤 4、5 |
+| 自动验证与不含全盘提交前检查的 standard 审查 | 步骤 6、7 |
 
-## 非目标
+## 禁止修改清单
 
-- 不修改 Trellis CLI、事件存储、provider adapter、worker role card 或任务状态机；不设计或实现 Claude Code 主会话的派发/等待流程。
-- 不执行 `task.py start`、不生成执行计划、不提交 Git、不升级 TrellisForge 版本。
-- 不把诊断场景的受限 `messages --raw` 读取写成正常等待流程。
+- `docs/接入指南.md`
+- `README.md`
+- `templates/embedded-c-overlay/TEMPLATE-CONTENTS.md`
+- `tools/install-embedded-c-overlay.ps1`
+- 任何版本文件、升级补丁或 1.0 迁移实现
+- 根目录现用 `.trellis/workflow.md`、`.agents/skills/trellis-channel/`、`.claude/skills/trellis-channel/`、`.codex/`、Hook 和代理文件
+
+上述内容全部留给子任务 2 或不在父任务范围内。实施 agent 若发现它们是完成发布所必需的，只记录依赖，不得自行跨任务编辑。
 
 ## 回滚点
 
-- 主会话规则批次与 channel 技能批次可分别回滚；镜像同步必须与共享文件保持同一批次。
-- 若文档契约测试失败，先修正文档或测试契约，再继续 strict 审查；不得记录未执行或失败的检查为通过。
+- 完整 Skill 模板导入、公共规则修改、Codex workflow 修改、worker 契约和测试分别形成可审查批次。
+- 任一批次出现范围越界或平台语义混淆时，只回滚该批次的模板改动，保留用户已有文件和任务规划。

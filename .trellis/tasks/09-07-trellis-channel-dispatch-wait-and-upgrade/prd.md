@@ -1,4 +1,4 @@
-# 规范 Trellis Channel 派发与等待流程并规划 1.1 升级
+# 规范 Trellis Channel 派发等待并规划 TrellisForge 1.1 升级
 
 ## Workflow Settings
 
@@ -6,41 +6,62 @@
 
 ## Goal
 
-建立一套适用于 Codex 主会话通过 Trellis Channel 启动 Claude/Codex worker 进行实施或审查的稳定流程，确保主会话在等待 worker 完成期间只维护一个等待进程，不重复创建等待命令、读取进度或注入子代理完整对话，从而降低 token 消耗并保持主会话的独立判断能力。
+通过两个有先后关系的子任务完成 TrellisForge 的模板规则与升级交付：先在发布模板中建立 Codex 主会话正确的 Trellis Channel 派发/等待流程，再规划并实现 TrellisForge 1.1、接入说明和面向已安装 1.0 项目的安全升级方案。
 
-父任务同时登记后续的 TrellisForge 1.1 升级工作：升级子任务需要给已经安装 1.0 的 TrellisForge 提供可执行的升级方案，但本轮只记录范围，不编写该子任务 PRD。
+父任务及两个子任务的所有改动统一在分支 `trellis-channel-dispatch-wait-and-upgrade` 上进行。
 
-## Background And Evidence
+## Confirmed Facts
 
-- 当前 TrellisForge 版本为 `1.0`，版本事实记录在 `README.md`。
-- 仓库内 `trellis-channel` 文档的 dispatcher 模式要求先 `spawn` worker，再用单条 `trellis channel wait` 订阅 worker 的 `done`/`error` 等终止事件；正常等待不依赖反复读取 `list` 或 `messages --kind progress`。
-- `progress` 事件用于流式过程信息，属于高噪声事件；最终结果应在等待命令结束后按需读取，而不是持续把子代理聊天记录带回主会话。
-- Codex 主会话的 `exec_command` 在短暂首次等待后可能返回 `session_id`；之后应使用同一 `session_id` 调用 `write_stdin` 继续读取。当前内部工具接口对空轮询的 `yield_time_ms` 标注范围为 5000–300000 ms（范围上界约 5 分钟）；这是单次工具调用的等待窗口，不是 worker 或终端进程的总运行时长，也不是公开文档承诺的永久硬限制，实际执行应以当时工具 schema 为准。公开 OpenAI 文档未找到该内部接口的独立说明。
-- TrellisForge 的升级维护规范要求升级前运行 `trellis update --dry-run`，采用逐项迁移，不使用整体 `--force` 覆盖项目定制。
+- `templates/embedded-c-overlay/` 是下游工程的发布模板源；仓库根目录 `.trellis/`、`.agents/`、`.claude/`、`.codex/` 是 TrellisForge 自身工作流实例。
+- 模板目前没有完整复制上游提供的 `trellis-channel` Skill。若 TrellisForge 要发布自己的 Channel 规则，需要在模板中提供完整覆盖层，并处理它与下游已有上游 Skill 的关系。
+- 当前安装器递归复制模板文件并在 `-Force` 覆盖前备份，但没有面向已安装 TrellisForge 1.0 项目的版本化升级补丁流程。
+- 子任务 1 的 review level 已由用户改回 `standard`，提交前进行一次独立 affected-scope 审查，不进行 full-scope（全盘）审查；子任务 2 暂不编写详细 PRD。
+
+## Child Task Boundaries
+
+### 子任务 1：模板层 Channel 规则
+
+子任务目录：`.trellis/tasks/09-07-trellis-channel-dispatch-wait/`
+
+- 只修改 `templates/embedded-c-overlay/` 中与 Trellis Channel 直接相关的 Skill、Codex 工作流、worker 事件契约和模板契约测试。
+- 在模板中补齐完整 `trellis-channel` Skill，并将跨平台公共规则与 Codex 主会话的 `exec_command`/`write_stdin` session 编排分层。
+- 不修改根目录现用 Trellis 工作流，不修改接入指南、README、模板目录说明、安装脚本、版本号或升级逻辑。
+- 以 standard profile 实施和审查，实施完成后进行一次独立 affected-scope 审查，范围限定为本任务完整 diff、直接受影响契约和全部验收项，不进行 full-scope（全盘）审查；完成后才能进入子任务 2 的详细规划。
+
+### 子任务 2：1.1 接入与升级交付
+
+子任务目录：`.trellis/tasks/09-07-trellisforge-1-1-upgrade/`
+
+- 负责 TrellisForge 1.1 版本升级。
+- 负责 `docs/接入指南.md`、README、`TEMPLATE-CONTENTS.md` 等接入和发布说明的必要更新。
+- 负责 `tools/install-embedded-c-overlay.ps1` 的必要调整，以及面向已安装 1.0 项目的升级补丁能力。
+- 后续 PRD 必须覆盖版本识别、模板文件差异、用户定制保护、冲突提示、Git 元数据备份、逐项迁移或覆盖策略、异常回滚和升级后验证。
+- 本轮只登记上述目标和依赖，不编写子任务 2 的详细 PRD、design 或 implement。
 
 ## Requirements
 
-- **父任务范围**：维护两个独立子任务及其先后关系。子任务 1 先完成 Trellis Channel 派发/等待流程改动；子任务 2 在子任务 1 完成后再规划和实施，负责将 TrellisForge 升级为 1.1，并提供从已安装 1.0 的 TrellisForge 迁移的方案。
-- **子任务 1**：必须把 worker 启动、单一等待进程、同一终端 session 复用、完成后恢复主会话的行为写成可执行要求，并覆盖实施与审查两种 worker 角色。
-- **子任务 1 的等待约束**：首次 `exec_command` 只做短等待；若返回 `session_id`，后续只允许对同一 ID 调用 `write_stdin`，单次等待窗口遵循运行时工具 schema（当前标注上限约 300 秒）；未完成时继续复用该 ID，不得重新执行新的 `trellis channel wait`。
-- **子任务 1 的主会话约束**：等待进程运行期间，主会话暂停其他推理、规划、代码阅读和进度查询；不创建同类的额外 channel/wait 进程，不轮询 `trellis channel list`、`messages --kind progress` 或执行计划状态，也不把 worker 的完整对话持续读入主会话。只有 wait 收到终止事件后，主会话才恢复思考并读取必要的最终结果。
-- **升级子任务登记**：子任务 2 只在本父 PRD 中登记目标、依赖和后续交付，不在本轮填写升级 PRD，也不在本轮设计升级文件或实施升级改动。
-- **规划边界**：本轮只创建任务并编写 PRD；不写 `design.md`、`implement.md`，不运行 `task.py start`，不修改产品、模板、Hook、代理或文档代码。
+- 父任务保持两个子任务的父子关系，并明确执行顺序为子任务 1 完成后再规划和实施子任务 2。
+- 两个子任务使用同一指定分支，避免模板规则与升级机制分散到不同发布线。
+- 子任务 1 的实施 agent 必须遵守禁止修改清单，不得以“发布完整性”为由提前编辑接入指南或安装脚本。
+- 子任务 1 的审查 agent 必须遵守 standard 范围：实施完成后只进行一次独立 affected-scope 审查，阻塞问题修复后由主会话重跑受影响检查，不在提交前扩展为全盘审查。
+- 子任务 2 的占位 PRD保持未收敛状态，直到用户在子任务 1 完成后明确要求开始规划。
+- 父任务不会把仅完成子任务 1 的中间状态视为 TrellisForge 1.1 的完整交付。
 
 ## Acceptance Criteria
 
-- [ ] 父任务 `task.json` 关联两个子任务，且依赖关系明确为“子任务 1 完成后再处理子任务 2”。
-- [ ] 父 PRD 明确记录子任务 1 的流程目标、禁止行为和等待 session 复用规则。
-- [ ] 父 PRD 明确记录子任务 2 的 TrellisForge 1.1 目标以及为已安装 1.0 的 TrellisForge 提供升级方案的后续范围。
-- [ ] 子任务 1 存在独立 PRD，包含可观察的派发、等待、完成恢复和反例验收条件。
-- [ ] 子任务 2 保持为已创建但未规划的占位任务；本轮不新增其需求、设计或实施文件内容。
-- [ ] 本轮三个任务均保持 `planning` 状态；不执行 `task.py start`，不产生产品代码变更。
+- [ ] 父任务 `task.json` 关联两个子任务，两个子任务均指回本父任务。
+- [ ] 父任务和两个子任务的任务元数据均记录分支 `trellis-channel-dispatch-wait-and-upgrade`。
+- [ ] 子任务 1 的 PRD、design 和 implement 只以发布模板为产品修改对象，并逐项禁止接入指南、安装脚本、升级逻辑和根目录现用工作流改动。
+- [ ] 子任务 1 明确补齐完整 Channel Skill 覆盖层，并把公共 Channel 语义与 Codex 主会话终端编排分层。
+- [ ] 子任务 1 采用 standard 审查制度，实施完成后进行一次独立 affected-scope 审查；提交前不做 full-scope（全盘）审查，审查范围限定为任务 diff、直接受影响契约、相关测试和全部验收项。
+- [ ] 子任务 2 保持占位状态；父 PRD只登记其 1.1、接入文档、安装脚本和 1.0 升级方案责任。
+- [ ] 三个任务保持 `planning`，未运行 `task.py start`，未产生产品实现变更。
 
-## Out Of Scope
+## Out Of Scope For Current Planning Turn
 
-- 本轮不实现任何 Trellis Channel、Hook、代理或文档修改。
-- 本轮不验证具体 provider 的实际启动时延，也不承诺固定的 channel CLI timeout；timeout 由后续实施时按 worker 预计耗时设置。
-- 本轮不编写或审批 TrellisForge 1.1 升级子任务 PRD，不执行 `trellis update` 或迁移。
+- 编写或审批子任务 2 的详细升级 PRD、design 或 implement。
+- 修改任何模板、Skill、工作流、Hook、代理、接入文档、安装脚本或版本文件。
+- 执行 `trellis update`、升级演练、提交、推送或合并。
 
 ## Planning Convergence
 
@@ -48,9 +69,3 @@
 - Blocking user decisions: 0
 - Blocking technical decisions: 0
 - Final summary ready: no
-
-## Notes
-
-- Keep `prd.md` focused on requirements, constraints, and acceptance criteria.
-- Lightweight tasks can remain PRD-only.
-- For complex tasks, add `design.md` for technical design and `implement.md` for execution planning before `task.py start`.

@@ -141,6 +141,12 @@ Behavior:
 - **Timeout exits 124** and prints `timeout: still waiting on ...` to stderr
   when `--all` was in play.
 
+Standard dispatch use: a dispatcher spawns a worker once, then runs exactly
+one `wait` per work unit subscribed to the worker's terminal kinds
+(`--kind done,error`). `progress` / `--include-progress` are diagnostics, not
+normal completion filters; `--timeout` is set from the worker's expected
+duration.
+
 ---
 
 ## tag-vs-kind — how event shape is actually controlled

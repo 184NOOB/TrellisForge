@@ -48,28 +48,46 @@ needed.
 
 ## Pattern B: Implement / Check Agent
 
-Use when the user asks to dispatch implementation or review work.
+Use when the user asks to dispatch implementation or review work. One worker
+work unit creates one purpose-specific channel, runs exactly one `spawn`, and
+blocks on exactly one `wait` for that worker's terminal event (`done` /
+`error`). `progress` is process information, never a completion signal — do
+not watch or poll it in the normal path. CLI `--timeout` is set from the
+worker's expected duration; the 30 分钟 values below are adjustable examples,
+not fixed limits.
 
-```bash
-TASK=.trellis/tasks/05-12-foo
-trellis channel create cr-foo --task "$TASK" --by main
+### Standard Implement Dispatch
 
-trellis channel spawn cr-foo \
-  --agent check \
-  --jsonl "$TASK/check.jsonl" \
-  --file "$TASK/prd.md" \
-  --file "$TASK/design.md" \
-  --file "$TASK/implement.md" \
-  --cwd "$PWD" --timeout 15m
-
-trellis channel send cr-foo --as main --to check --text-file /tmp/cr-brief.md
-trellis channel wait cr-foo --as main --kind done --from check --timeout 15m
-trellis channel messages cr-foo --kind message --from check --tag final_answer
+```powershell
+$TASK = ".trellis/tasks/05-12-foo"
+trellis channel create impl-foo --task $TASK --by main
+trellis channel spawn impl-foo --agent implement --provider codex --as impl-cx `
+  --file "$TASK/prd.md" --file "$TASK/design.md" --file "$TASK/implement.md" `
+  --jsonl "$TASK/implement.jsonl" --cwd (Get-Location) --timeout 30m
+"实施 brief：写明验收条件、范围与验证命令。" `
+  | trellis channel send impl-foo --as main --to impl-cx --stdin
+trellis channel wait impl-foo --as main --from impl-cx --kind done,error --timeout 30m
 ```
 
-For implement work, use `--agent implement` and send an implementation brief.
-For check work, include the exact diff scope, relevant specs, and validation
-already run.
+### Standard Check Dispatch
+
+```powershell
+$TASK = ".trellis/tasks/05-12-foo"
+trellis channel create check-foo --task $TASK --by main
+trellis channel spawn check-foo --agent check --provider claude --as check-claude `
+  --file "$TASK/prd.md" --file "$TASK/design.md" --file "$TASK/implement.md" `
+  --jsonl "$TASK/check.jsonl" --cwd (Get-Location) --timeout 30m
+"审查 brief：写明任务 diff 范围、验收项与已运行的验证。" `
+  | trellis channel send check-foo --as main --to check-claude --stdin
+trellis channel wait check-foo --as main --from check-claude --kind done,error --timeout 30m
+```
+
+The implement and check flows differ only in `--agent`, provider / `--as`
+choice, and the brief content; the lifecycle (one spawn, one wait) is
+identical. After `wait` exits on `done` / `error`, read only the final result
+needed to decide the next step (e.g. `messages --from <worker> --last 1
+--raw`). Do not start a second `wait`, a duplicate channel, or progress
+inspection while the first wait is still running.
 
 ## Pattern C: Parallel Reviewers
 

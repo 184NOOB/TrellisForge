@@ -48,7 +48,19 @@ trellis channel context list <board> --scope global --thread <thread>
 - `--as` is the speaker or worker handle, depending on the command. Use explicit, stable names when multiple agents or sessions are involved.
 - `--scope project` (default) operates on the current cwd's project bucket; `--scope global` operates on the shared `__global__` bucket. Pick scope deliberately — a global board is invisible from project listings unless `--scope global` is passed.
 - For brainstorm, do multiple pressure-test rounds. One answer plus one confirmation is review, not brainstorm.
-- **Dispatcher wait pattern**: use `--kind done` / `--kind turn_finished` (trellis-emitted system events), NOT a user `--tag` as the completion signal. CLI help lists `phase_done` / `question` as `--tag` examples but only `interrupt` is a reserved tag with hardcoded trellis behavior; the others are opaque user labels. Relying on a worker to run `send --tag <my_signal>` is unreliable — LLM workers commonly write the tag string into prose instead of running the actual CLI command. See `references/command-reference.md` "tag vs kind".
+- **Unique wait pattern**: one worker work unit = one `spawn` + exactly one
+  blocking `wait` on the worker's terminal event. Use `--kind done,error`
+  (trellis-emitted system events) as the completion/failure signal, NOT a user
+  `--tag` and NOT `progress`. CLI help lists `phase_done` / `question` as
+  `--tag` examples but only `interrupt` is a reserved tag with hardcoded
+  trellis behavior; the others are opaque user labels. Relying on a worker to
+  run `send --tag <my_signal>` is unreliable — LLM workers commonly write the
+  tag string into prose instead of running the actual CLI command. While the
+  worker runs, do not re-`wait`, open a second channel for the same unit, or
+  poll `list` / progress `messages`; `progress` is diagnostic information, not
+  a completion signal. CLI `--timeout` is set from the worker's expected
+  duration, not from the example value. See `references/workflows.md`
+  "Pattern B" and `references/workers.md` "Dispatcher Wait Discipline".
 - Forum channels are event-sourced. Do not parse `events.jsonl` first; use `forum`, `thread`, `messages --thread`, and `context list`.
 - `@mindfoldhq/trellis-core` owns reusable channel/thread state, event append, seq allocation, context/title projection, reducers, and task helpers. The CLI owns flags, terminal rendering, prompts, worker lifecycle, and process exits.
 

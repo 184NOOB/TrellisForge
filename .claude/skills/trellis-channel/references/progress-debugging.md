@@ -140,6 +140,20 @@ trellis channel wait T --as main --thread release-note --action status --timeout
 Exit codes: `0` matched, `124` timeout, `1`/`2` errors. On `wait --all`
 timeout, stderr names the workers still missing.
 
+## Normal Path vs Diagnostics
+
+`done` / `error` are the terminal signals a dispatcher waits on; `progress`
+is process information only. In the normal path a dispatcher runs one `wait`
+with `--kind done,error` and does not inspect `progress`, run `list`, or
+replay the full message stream while the worker is running.
+
+Progress inspection (`messages --raw --kind progress`,
+`wait --include-progress`, `--no-progress` toggles) is a diagnostic activity
+for a stalled or suspicious worker, not part of a healthy wait. When a wait
+times out, the wait process has already exited (code 124); check the worker's
+status and the raw log first, then decide to resume, redirect, or kill. Do
+not turn reconnect-`wait` into an unconditional loop.
+
 ## Auditing `events.jsonl` — Use Subcommands, Not `grep`
 
 Every channel persists its full history at `$CHAN/events.jsonl`. It is

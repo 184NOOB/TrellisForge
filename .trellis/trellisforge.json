@@ -1,0 +1,543 @@
+{
+  "schema_version": 1,
+  "trellisforge_version": "1.1",
+  "overlay": "embedded-c",
+  "project_prefix": "trellisforge",
+  "project_name": "TrellisForge",
+  "files": [
+    {
+      "path": ".agents/skills/trellisforge-trellis-grill-adapter/agents/openai.yaml",
+      "canonical_sha256": "ac7966912bf90a3aa419e9f0c2d319bf08e5fb7fa715bfa9309096d16e0c9353",
+      "baseline_sha256": "985d19bc4e514ce6a4581be06e554a51976273cfc66fb8ee8cad229a41d8677e",
+      "installed_sha256": "985d19bc4e514ce6a4581be06e554a51976273cfc66fb8ee8cad229a41d8677e"
+    },
+    {
+      "path": ".agents/skills/trellisforge-trellis-grill-adapter/SKILL.md",
+      "canonical_sha256": "98c449245489d6c3323dceb495e293ded15879a9a06acbb15bff941863096aea",
+      "baseline_sha256": "e5561ae95045b13e5c6668c202631db3c59ad23b0034eaa52d6479f4a213522f",
+      "installed_sha256": "e5561ae95045b13e5c6668c202631db3c59ad23b0034eaa52d6479f4a213522f"
+    },
+    {
+      "path": ".agents/skills/trellisforge-trellis-review/agents/openai.yaml",
+      "canonical_sha256": "29458e535de590ae8d3104509fecadc691dbc2b85c951f4839b75b278fce17d3",
+      "baseline_sha256": "22b60f10ac7817fba72c70d275e42afa11015fa07aac2ab71e8134588ccf46da",
+      "installed_sha256": "22b60f10ac7817fba72c70d275e42afa11015fa07aac2ab71e8134588ccf46da"
+    },
+    {
+      "path": ".agents/skills/trellisforge-trellis-review/SKILL.md",
+      "canonical_sha256": "c1453d39f5de59cf5b8304ff66f19820a747acc429fef8fadd3682ac341c4c2f",
+      "baseline_sha256": "89d7b19d74380dd49b351007dd57d7589af00724a4c6eeb9426dcbe8fe93501f",
+      "installed_sha256": "f55f840ce2f8d81ea008288fb9e0a1b079b91ce83800c4cd5257363ebf6efeca"
+    },
+    {
+      "path": ".agents/skills/grill-me/agents/openai.yaml",
+      "canonical_sha256": "cd2028312aa22dbd6608bd99521c885f76804493049b261e81fceb115989afca",
+      "baseline_sha256": "cd2028312aa22dbd6608bd99521c885f76804493049b261e81fceb115989afca",
+      "installed_sha256": "cd2028312aa22dbd6608bd99521c885f76804493049b261e81fceb115989afca"
+    },
+    {
+      "path": ".agents/skills/grill-me/SKILL.md",
+      "canonical_sha256": "29df13d5e423c65dead537f61eb30519966aefa7f0f309aadd17f092facee3f2",
+      "baseline_sha256": "29df13d5e423c65dead537f61eb30519966aefa7f0f309aadd17f092facee3f2",
+      "installed_sha256": "29df13d5e423c65dead537f61eb30519966aefa7f0f309aadd17f092facee3f2"
+    },
+    {
+      "path": ".agents/skills/trellis-channel/references/command-reference.md",
+      "canonical_sha256": "75fda1a49dc7521fd561e4c400bdf956cd3ca7cd7bb5157939a4029b470175af",
+      "baseline_sha256": "75fda1a49dc7521fd561e4c400bdf956cd3ca7cd7bb5157939a4029b470175af",
+      "installed_sha256": "75fda1a49dc7521fd561e4c400bdf956cd3ca7cd7bb5157939a4029b470175af"
+    },
+    {
+      "path": ".agents/skills/trellis-channel/references/forum.md",
+      "canonical_sha256": "407db39e8ebde47cea8637e3069bdb3d76ba42b43ed1d08ba97a56f26dbcfcb4",
+      "baseline_sha256": "407db39e8ebde47cea8637e3069bdb3d76ba42b43ed1d08ba97a56f26dbcfcb4",
+      "installed_sha256": "407db39e8ebde47cea8637e3069bdb3d76ba42b43ed1d08ba97a56f26dbcfcb4"
+    },
+    {
+      "path": ".agents/skills/trellis-channel/references/progress-debugging.md",
+      "canonical_sha256": "09095bd55e035856dfa8ee2ef5aa2c2fd0621c064eba302b8abe89abbe493d08",
+      "baseline_sha256": "09095bd55e035856dfa8ee2ef5aa2c2fd0621c064eba302b8abe89abbe493d08",
+      "installed_sha256": "09095bd55e035856dfa8ee2ef5aa2c2fd0621c064eba302b8abe89abbe493d08"
+    },
+    {
+      "path": ".agents/skills/trellis-channel/references/workers.md",
+      "canonical_sha256": "772de7a6dcc98250d8ab1bafe1e158d4c810569152638b7e7ffac185194c5943",
+      "baseline_sha256": "772de7a6dcc98250d8ab1bafe1e158d4c810569152638b7e7ffac185194c5943",
+      "installed_sha256": "772de7a6dcc98250d8ab1bafe1e158d4c810569152638b7e7ffac185194c5943"
+    },
+    {
+      "path": ".agents/skills/trellis-channel/references/workflows.md",
+      "canonical_sha256": "20aa876275dd6373d9a61e592f826d95ea1b4d36ab479756e07c1bef131398b7",
+      "baseline_sha256": "20aa876275dd6373d9a61e592f826d95ea1b4d36ab479756e07c1bef131398b7",
+      "installed_sha256": "20aa876275dd6373d9a61e592f826d95ea1b4d36ab479756e07c1bef131398b7"
+    },
+    {
+      "path": ".agents/skills/trellis-channel/SKILL.md",
+      "canonical_sha256": "d80175517f8b2e9fbf2751f7b9eab311a7cb594003320c6c74eea7fba82409cf",
+      "baseline_sha256": "d80175517f8b2e9fbf2751f7b9eab311a7cb594003320c6c74eea7fba82409cf",
+      "installed_sha256": "d80175517f8b2e9fbf2751f7b9eab311a7cb594003320c6c74eea7fba82409cf"
+    },
+    {
+      "path": ".agents/skills/trellis-finish-work/SKILL.md",
+      "canonical_sha256": "d9ecf26b9a76bbc0e4c405535735d7a0c5b1a04de5069fa7267cb4f7e736a571",
+      "baseline_sha256": "d9ecf26b9a76bbc0e4c405535735d7a0c5b1a04de5069fa7267cb4f7e736a571",
+      "installed_sha256": "d9ecf26b9a76bbc0e4c405535735d7a0c5b1a04de5069fa7267cb4f7e736a571"
+    },
+    {
+      "path": ".claude/.gitignore",
+      "canonical_sha256": "51dc2ac019878cd54c2e60eb30980d5777604330b39bfd144388c7653eae7fd1",
+      "baseline_sha256": "51dc2ac019878cd54c2e60eb30980d5777604330b39bfd144388c7653eae7fd1",
+      "installed_sha256": "51dc2ac019878cd54c2e60eb30980d5777604330b39bfd144388c7653eae7fd1"
+    },
+    {
+      "path": ".claude/agents/trellis-check.md",
+      "canonical_sha256": "c06e8e2fb344c6e91e3469df8dba8c49901e04310d2115a8e6442f4fe848f142",
+      "baseline_sha256": "c06e8e2fb344c6e91e3469df8dba8c49901e04310d2115a8e6442f4fe848f142",
+      "installed_sha256": "dd7215ed2f1c983fc2551b6d2d6482660122586bd3847d93bbe65c5e89593156"
+    },
+    {
+      "path": ".claude/agents/trellis-implement.md",
+      "canonical_sha256": "122c765fcdd69e7470dee9a5101fde4c54d06b2f4ea3e61ee97cab7f6192dad2",
+      "baseline_sha256": "122c765fcdd69e7470dee9a5101fde4c54d06b2f4ea3e61ee97cab7f6192dad2",
+      "installed_sha256": "77fff5553aeaac1afc1a81f992304e23a7a8641b70a27c1205e4e5e1afe55b49"
+    },
+    {
+      "path": ".claude/agents/trellis-research.md",
+      "canonical_sha256": "10aecdd3d0777746a516e23cd2a55c9e9c8a015dc98c63ffbac36be21b7a7bb0",
+      "baseline_sha256": "10aecdd3d0777746a516e23cd2a55c9e9c8a015dc98c63ffbac36be21b7a7bb0",
+      "installed_sha256": "10aecdd3d0777746a516e23cd2a55c9e9c8a015dc98c63ffbac36be21b7a7bb0"
+    },
+    {
+      "path": ".claude/commands/trellis/continue.md",
+      "canonical_sha256": "118d126921c11baa836ea3e91a328de0bb45428e8bce983a6054a09ad4aa6491",
+      "baseline_sha256": "118d126921c11baa836ea3e91a328de0bb45428e8bce983a6054a09ad4aa6491",
+      "installed_sha256": "118d126921c11baa836ea3e91a328de0bb45428e8bce983a6054a09ad4aa6491"
+    },
+    {
+      "path": ".claude/commands/trellis/finish-work.md",
+      "canonical_sha256": "43c05ffd1773220923fe8aa274879e0738d39b9a082ddee27f05601a30faaf04",
+      "baseline_sha256": "43c05ffd1773220923fe8aa274879e0738d39b9a082ddee27f05601a30faaf04",
+      "installed_sha256": "43c05ffd1773220923fe8aa274879e0738d39b9a082ddee27f05601a30faaf04"
+    },
+    {
+      "path": ".claude/hooks/inject-subagent-context.py",
+      "canonical_sha256": "bf6eea2df602488f0a6351b3bbe072fff0423a43c57baea7592632a4bfd7d4b7",
+      "baseline_sha256": "bf6eea2df602488f0a6351b3bbe072fff0423a43c57baea7592632a4bfd7d4b7",
+      "installed_sha256": "f08436f1f44b33c330c61cad32309b4f4f426aa6a756122989c2e1ee922b684e"
+    },
+    {
+      "path": ".claude/hooks/inject-workflow-state.py",
+      "canonical_sha256": "11b9ea7d960e3a5fdf52ac4c78a406d3b152d548fa12fdc86d17d61da298fe57",
+      "baseline_sha256": "11b9ea7d960e3a5fdf52ac4c78a406d3b152d548fa12fdc86d17d61da298fe57",
+      "installed_sha256": "11b9ea7d960e3a5fdf52ac4c78a406d3b152d548fa12fdc86d17d61da298fe57"
+    },
+    {
+      "path": ".claude/hooks/plan-pretool-reminder.py",
+      "canonical_sha256": "056a2d00be2e160f46e6c5b446c14a8c1e09b72bc5ddf825cb1461f967b87aca",
+      "baseline_sha256": "056a2d00be2e160f46e6c5b446c14a8c1e09b72bc5ddf825cb1461f967b87aca",
+      "installed_sha256": "056a2d00be2e160f46e6c5b446c14a8c1e09b72bc5ddf825cb1461f967b87aca"
+    },
+    {
+      "path": ".claude/hooks/session-start.py",
+      "canonical_sha256": "99f27cf6ee133bba2eba63d726684acff0e4a5e54b7edf9b1c57eb9e01448c3c",
+      "baseline_sha256": "99f27cf6ee133bba2eba63d726684acff0e4a5e54b7edf9b1c57eb9e01448c3c",
+      "installed_sha256": "99f27cf6ee133bba2eba63d726684acff0e4a5e54b7edf9b1c57eb9e01448c3c"
+    },
+    {
+      "path": ".claude/settings.json",
+      "canonical_sha256": "a2dbe0887ea3b38d2a11b8326e769113af1fcec4859a308fdbb56649bfdf5d43",
+      "baseline_sha256": "a2dbe0887ea3b38d2a11b8326e769113af1fcec4859a308fdbb56649bfdf5d43",
+      "installed_sha256": "a2dbe0887ea3b38d2a11b8326e769113af1fcec4859a308fdbb56649bfdf5d43"
+    },
+    {
+      "path": ".claude/skills/trellis-channel/references/command-reference.md",
+      "canonical_sha256": "75fda1a49dc7521fd561e4c400bdf956cd3ca7cd7bb5157939a4029b470175af",
+      "baseline_sha256": "75fda1a49dc7521fd561e4c400bdf956cd3ca7cd7bb5157939a4029b470175af",
+      "installed_sha256": "75fda1a49dc7521fd561e4c400bdf956cd3ca7cd7bb5157939a4029b470175af"
+    },
+    {
+      "path": ".claude/skills/trellis-channel/references/forum.md",
+      "canonical_sha256": "407db39e8ebde47cea8637e3069bdb3d76ba42b43ed1d08ba97a56f26dbcfcb4",
+      "baseline_sha256": "407db39e8ebde47cea8637e3069bdb3d76ba42b43ed1d08ba97a56f26dbcfcb4",
+      "installed_sha256": "407db39e8ebde47cea8637e3069bdb3d76ba42b43ed1d08ba97a56f26dbcfcb4"
+    },
+    {
+      "path": ".claude/skills/trellis-channel/references/progress-debugging.md",
+      "canonical_sha256": "09095bd55e035856dfa8ee2ef5aa2c2fd0621c064eba302b8abe89abbe493d08",
+      "baseline_sha256": "09095bd55e035856dfa8ee2ef5aa2c2fd0621c064eba302b8abe89abbe493d08",
+      "installed_sha256": "09095bd55e035856dfa8ee2ef5aa2c2fd0621c064eba302b8abe89abbe493d08"
+    },
+    {
+      "path": ".claude/skills/trellis-channel/references/workers.md",
+      "canonical_sha256": "772de7a6dcc98250d8ab1bafe1e158d4c810569152638b7e7ffac185194c5943",
+      "baseline_sha256": "772de7a6dcc98250d8ab1bafe1e158d4c810569152638b7e7ffac185194c5943",
+      "installed_sha256": "772de7a6dcc98250d8ab1bafe1e158d4c810569152638b7e7ffac185194c5943"
+    },
+    {
+      "path": ".claude/skills/trellis-channel/references/workflows.md",
+      "canonical_sha256": "20aa876275dd6373d9a61e592f826d95ea1b4d36ab479756e07c1bef131398b7",
+      "baseline_sha256": "20aa876275dd6373d9a61e592f826d95ea1b4d36ab479756e07c1bef131398b7",
+      "installed_sha256": "20aa876275dd6373d9a61e592f826d95ea1b4d36ab479756e07c1bef131398b7"
+    },
+    {
+      "path": ".claude/skills/trellis-channel/SKILL.md",
+      "canonical_sha256": "d80175517f8b2e9fbf2751f7b9eab311a7cb594003320c6c74eea7fba82409cf",
+      "baseline_sha256": "d80175517f8b2e9fbf2751f7b9eab311a7cb594003320c6c74eea7fba82409cf",
+      "installed_sha256": "d80175517f8b2e9fbf2751f7b9eab311a7cb594003320c6c74eea7fba82409cf"
+    },
+    {
+      "path": ".codex/.gitignore",
+      "canonical_sha256": "51dc2ac019878cd54c2e60eb30980d5777604330b39bfd144388c7653eae7fd1",
+      "baseline_sha256": "51dc2ac019878cd54c2e60eb30980d5777604330b39bfd144388c7653eae7fd1",
+      "installed_sha256": "51dc2ac019878cd54c2e60eb30980d5777604330b39bfd144388c7653eae7fd1"
+    },
+    {
+      "path": ".codex/agents/trellis-check.toml",
+      "canonical_sha256": "a76b04ca631e79770d3ad9f5a79c3baecabb1cb4c2142f85ac514f3a36372448",
+      "baseline_sha256": "a76b04ca631e79770d3ad9f5a79c3baecabb1cb4c2142f85ac514f3a36372448",
+      "installed_sha256": "48b1c42d639c54529f6237f54fe2f24ab2e18de04000070a1697942f20f27f96"
+    },
+    {
+      "path": ".codex/agents/trellis-implement.toml",
+      "canonical_sha256": "67c52deb1ca26ce1bf77d7d4738844f9f96dc547f5910599dd52413f67acb936",
+      "baseline_sha256": "67c52deb1ca26ce1bf77d7d4738844f9f96dc547f5910599dd52413f67acb936",
+      "installed_sha256": "67c52deb1ca26ce1bf77d7d4738844f9f96dc547f5910599dd52413f67acb936"
+    },
+    {
+      "path": ".codex/agents/trellis-research.toml",
+      "canonical_sha256": "c3aaf4fa0b3f50b00db331030d68a19fbc064881971ad40581791efdfa2e8b59",
+      "baseline_sha256": "c3aaf4fa0b3f50b00db331030d68a19fbc064881971ad40581791efdfa2e8b59",
+      "installed_sha256": "c3aaf4fa0b3f50b00db331030d68a19fbc064881971ad40581791efdfa2e8b59"
+    },
+    {
+      "path": ".codex/config.toml",
+      "canonical_sha256": "9f2d20e28f0bc9c886312eca3ad3bba41533ef4615aaaafe25e98152302267bb",
+      "baseline_sha256": "9f2d20e28f0bc9c886312eca3ad3bba41533ef4615aaaafe25e98152302267bb",
+      "installed_sha256": "9f2d20e28f0bc9c886312eca3ad3bba41533ef4615aaaafe25e98152302267bb"
+    },
+    {
+      "path": ".codex/hooks.json",
+      "canonical_sha256": "c7c638e0982599b0692ad97bc835651c9fa83af5310be5d86a58c59132eb2dec",
+      "baseline_sha256": "c7c638e0982599b0692ad97bc835651c9fa83af5310be5d86a58c59132eb2dec",
+      "installed_sha256": "c7c638e0982599b0692ad97bc835651c9fa83af5310be5d86a58c59132eb2dec"
+    },
+    {
+      "path": ".codex/hooks/inject-subagent-context.py",
+      "canonical_sha256": "0dae998a862d8cc014d334ca35d6bbfc2f85ae3603511888dad5ea1e56631e9b",
+      "baseline_sha256": "0dae998a862d8cc014d334ca35d6bbfc2f85ae3603511888dad5ea1e56631e9b",
+      "installed_sha256": "1d52f9d1831ee8b2364528849a38b681ad38e46f02dce7b52683a6614231e59f"
+    },
+    {
+      "path": ".codex/hooks/inject-workflow-state.py",
+      "canonical_sha256": "b61cc952cb8079512baa8741764eabe63983ccb5609f964ceb2f2ecbce906a54",
+      "baseline_sha256": "b61cc952cb8079512baa8741764eabe63983ccb5609f964ceb2f2ecbce906a54",
+      "installed_sha256": "b61cc952cb8079512baa8741764eabe63983ccb5609f964ceb2f2ecbce906a54"
+    },
+    {
+      "path": ".codex/hooks/session-start.py",
+      "canonical_sha256": "ad064396d8c9516fc3b771434eb4689df7255d998a19940aef41a5ce8ea6c5c4",
+      "baseline_sha256": "ad064396d8c9516fc3b771434eb4689df7255d998a19940aef41a5ce8ea6c5c4",
+      "installed_sha256": "ad064396d8c9516fc3b771434eb4689df7255d998a19940aef41a5ce8ea6c5c4"
+    },
+    {
+      "path": ".trellis/agents/check.md",
+      "canonical_sha256": "f32d5ca043812fb3f4bad656649ca642f754a84b88667b2136ba5934060ecf1f",
+      "baseline_sha256": "0d50385c8a74f76701af26e5e6cf5112ea8b7545d6471f4d9c2eb8423e1773fe",
+      "installed_sha256": "14e235b4ae294cdfa17b2071787d1a3db4cb6d3f5a4ea5d7edd394d53c9b99ca"
+    },
+    {
+      "path": ".trellis/agents/implement.md",
+      "canonical_sha256": "c6f469b57bd53cd3e2657f29527017fbdbda52f1dc78dad86b9b1e9312bc0708",
+      "baseline_sha256": "c6f469b57bd53cd3e2657f29527017fbdbda52f1dc78dad86b9b1e9312bc0708",
+      "installed_sha256": "2447179b51a4a476e5eb11ebf43caec94d2c90a5799d6e5d04622762af18ae18"
+    },
+    {
+      "path": ".trellis/codex-review-low-risk-findings-next.md",
+      "canonical_sha256": "f59ea78f4684eeb6a7e176b4d60b4d04f26ab6cfd80a2cbc561c175eedd307ec",
+      "baseline_sha256": "f59ea78f4684eeb6a7e176b4d60b4d04f26ab6cfd80a2cbc561c175eedd307ec",
+      "installed_sha256": "f59ea78f4684eeb6a7e176b4d60b4d04f26ab6cfd80a2cbc561c175eedd307ec"
+    },
+    {
+      "path": ".trellis/codex-review-low-risk-findings-round2.md",
+      "canonical_sha256": "0cd9aa3c0ba1e3a30d645c04dabd047acb25673ae6f02e312989bca9d4809c02",
+      "baseline_sha256": "0cd9aa3c0ba1e3a30d645c04dabd047acb25673ae6f02e312989bca9d4809c02",
+      "installed_sha256": "0cd9aa3c0ba1e3a30d645c04dabd047acb25673ae6f02e312989bca9d4809c02"
+    },
+    {
+      "path": ".trellis/config.yaml",
+      "canonical_sha256": "6b163bb23bad56f827955b6bd4b9315ac17ea0e5c817cdeed5755feea3e5c522",
+      "baseline_sha256": "6b163bb23bad56f827955b6bd4b9315ac17ea0e5c817cdeed5755feea3e5c522",
+      "installed_sha256": "6b163bb23bad56f827955b6bd4b9315ac17ea0e5c817cdeed5755feea3e5c522"
+    },
+    {
+      "path": ".trellis/scripts/__init__.py",
+      "canonical_sha256": "1242be5b972094c2e141aecbe81a4efd478f6534e3d5e28306374e6a18fcf46c",
+      "baseline_sha256": "1242be5b972094c2e141aecbe81a4efd478f6534e3d5e28306374e6a18fcf46c",
+      "installed_sha256": "1242be5b972094c2e141aecbe81a4efd478f6534e3d5e28306374e6a18fcf46c"
+    },
+    {
+      "path": ".trellis/scripts/add_session.py",
+      "canonical_sha256": "ed6dddc50d83e6724358be3ea0a111424c95bad477ea9f6cf54e3137f28049e4",
+      "baseline_sha256": "ed6dddc50d83e6724358be3ea0a111424c95bad477ea9f6cf54e3137f28049e4",
+      "installed_sha256": "ed6dddc50d83e6724358be3ea0a111424c95bad477ea9f6cf54e3137f28049e4"
+    },
+    {
+      "path": ".trellis/scripts/common/__init__.py",
+      "canonical_sha256": "3d5e9347141f0296319a5beb29d69ae714c5a474b9078caeb3edd7c5f6562e22",
+      "baseline_sha256": "3d5e9347141f0296319a5beb29d69ae714c5a474b9078caeb3edd7c5f6562e22",
+      "installed_sha256": "3d5e9347141f0296319a5beb29d69ae714c5a474b9078caeb3edd7c5f6562e22"
+    },
+    {
+      "path": ".trellis/scripts/common/active_task.py",
+      "canonical_sha256": "097e80d5565c6c68106c2b404f0f0dde6a4cc98ecc683190ac93ac6fa53e258a",
+      "baseline_sha256": "097e80d5565c6c68106c2b404f0f0dde6a4cc98ecc683190ac93ac6fa53e258a",
+      "installed_sha256": "097e80d5565c6c68106c2b404f0f0dde6a4cc98ecc683190ac93ac6fa53e258a"
+    },
+    {
+      "path": ".trellis/scripts/common/cli_adapter.py",
+      "canonical_sha256": "5d6bd9d6f5c631e7e792db7dd343351317f9643bc87b73a9a98abd51cefb4307",
+      "baseline_sha256": "5d6bd9d6f5c631e7e792db7dd343351317f9643bc87b73a9a98abd51cefb4307",
+      "installed_sha256": "5d6bd9d6f5c631e7e792db7dd343351317f9643bc87b73a9a98abd51cefb4307"
+    },
+    {
+      "path": ".trellis/scripts/common/config.py",
+      "canonical_sha256": "8d2e5f8ccfcd5f622cd2af002aa761f3d3ffcc653182fefb2268afd102e77bca",
+      "baseline_sha256": "8d2e5f8ccfcd5f622cd2af002aa761f3d3ffcc653182fefb2268afd102e77bca",
+      "installed_sha256": "8d2e5f8ccfcd5f622cd2af002aa761f3d3ffcc653182fefb2268afd102e77bca"
+    },
+    {
+      "path": ".trellis/scripts/common/developer.py",
+      "canonical_sha256": "b2141b0145a41f8cedb4f9a24c925796edb2f0f6fde7c86b559513ec30499368",
+      "baseline_sha256": "b2141b0145a41f8cedb4f9a24c925796edb2f0f6fde7c86b559513ec30499368",
+      "installed_sha256": "b2141b0145a41f8cedb4f9a24c925796edb2f0f6fde7c86b559513ec30499368"
+    },
+    {
+      "path": ".trellis/scripts/common/execution_plan.py",
+      "canonical_sha256": "56f9421f4a97af56bb482292d78432fab04ed2b79fe9ca6e9cbcd3b4518b3ee2",
+      "baseline_sha256": "56f9421f4a97af56bb482292d78432fab04ed2b79fe9ca6e9cbcd3b4518b3ee2",
+      "installed_sha256": "56f9421f4a97af56bb482292d78432fab04ed2b79fe9ca6e9cbcd3b4518b3ee2"
+    },
+    {
+      "path": ".trellis/scripts/common/git_context.py",
+      "canonical_sha256": "fa30ced454f1a91ffc9f8b2abeb32225e3447cbdc90bad783797374eba07265d",
+      "baseline_sha256": "fa30ced454f1a91ffc9f8b2abeb32225e3447cbdc90bad783797374eba07265d",
+      "installed_sha256": "fa30ced454f1a91ffc9f8b2abeb32225e3447cbdc90bad783797374eba07265d"
+    },
+    {
+      "path": ".trellis/scripts/common/git.py",
+      "canonical_sha256": "ea9ad7686bae598b04e41281ca938f83c06d8021716332947ea51339e7cb1aa9",
+      "baseline_sha256": "ea9ad7686bae598b04e41281ca938f83c06d8021716332947ea51339e7cb1aa9",
+      "installed_sha256": "ea9ad7686bae598b04e41281ca938f83c06d8021716332947ea51339e7cb1aa9"
+    },
+    {
+      "path": ".trellis/scripts/common/io.py",
+      "canonical_sha256": "75648caae03d5b1107d7aeccaa785d133b25762266e54a520d90ca8c76b43bdb",
+      "baseline_sha256": "75648caae03d5b1107d7aeccaa785d133b25762266e54a520d90ca8c76b43bdb",
+      "installed_sha256": "75648caae03d5b1107d7aeccaa785d133b25762266e54a520d90ca8c76b43bdb"
+    },
+    {
+      "path": ".trellis/scripts/common/log.py",
+      "canonical_sha256": "471df6895cfac80f995edebbf9974f6b7440634b7a688f28b8331c868bc0f3cf",
+      "baseline_sha256": "471df6895cfac80f995edebbf9974f6b7440634b7a688f28b8331c868bc0f3cf",
+      "installed_sha256": "471df6895cfac80f995edebbf9974f6b7440634b7a688f28b8331c868bc0f3cf"
+    },
+    {
+      "path": ".trellis/scripts/common/packages_context.py",
+      "canonical_sha256": "efe158d7c99c2268851d0216fbb08de22836e418a8dbeb73575b8cc249eed7b7",
+      "baseline_sha256": "efe158d7c99c2268851d0216fbb08de22836e418a8dbeb73575b8cc249eed7b7",
+      "installed_sha256": "efe158d7c99c2268851d0216fbb08de22836e418a8dbeb73575b8cc249eed7b7"
+    },
+    {
+      "path": ".trellis/scripts/common/paths.py",
+      "canonical_sha256": "05898ef136cc7c4d861b05fbf2b16d53ddd3e6f311a231d4fcfcb81bde7c45ee",
+      "baseline_sha256": "05898ef136cc7c4d861b05fbf2b16d53ddd3e6f311a231d4fcfcb81bde7c45ee",
+      "installed_sha256": "05898ef136cc7c4d861b05fbf2b16d53ddd3e6f311a231d4fcfcb81bde7c45ee"
+    },
+    {
+      "path": ".trellis/scripts/common/planning_gate.py",
+      "canonical_sha256": "082be9798a981f267bb8354f41c60955b7e4ab82efde5034ff18faefd35dc75d",
+      "baseline_sha256": "082be9798a981f267bb8354f41c60955b7e4ab82efde5034ff18faefd35dc75d",
+      "installed_sha256": "082be9798a981f267bb8354f41c60955b7e4ab82efde5034ff18faefd35dc75d"
+    },
+    {
+      "path": ".trellis/scripts/common/safe_commit.py",
+      "canonical_sha256": "baa5c82324eb62154374ec63394ecdc8609bb37d93892e3bcb88f452bb7d6446",
+      "baseline_sha256": "baa5c82324eb62154374ec63394ecdc8609bb37d93892e3bcb88f452bb7d6446",
+      "installed_sha256": "baa5c82324eb62154374ec63394ecdc8609bb37d93892e3bcb88f452bb7d6446"
+    },
+    {
+      "path": ".trellis/scripts/common/session_context.py",
+      "canonical_sha256": "bb7618f1cfd2f509a63d7049b19a5765f4e52f70f89f61a892beae5035541433",
+      "baseline_sha256": "bb7618f1cfd2f509a63d7049b19a5765f4e52f70f89f61a892beae5035541433",
+      "installed_sha256": "bb7618f1cfd2f509a63d7049b19a5765f4e52f70f89f61a892beae5035541433"
+    },
+    {
+      "path": ".trellis/scripts/common/subagent_prompt_policy.py",
+      "canonical_sha256": "b0e3074177b957a8069592509d2518ca38315b34d2888919ab672710eac44dac",
+      "baseline_sha256": "b0e3074177b957a8069592509d2518ca38315b34d2888919ab672710eac44dac",
+      "installed_sha256": "b0e3074177b957a8069592509d2518ca38315b34d2888919ab672710eac44dac"
+    },
+    {
+      "path": ".trellis/scripts/common/task_context.py",
+      "canonical_sha256": "4ea260a022f4122361eb0d9dd9200a9324aeafbdb20cadd2848bea1649938f1d",
+      "baseline_sha256": "4ea260a022f4122361eb0d9dd9200a9324aeafbdb20cadd2848bea1649938f1d",
+      "installed_sha256": "4ea260a022f4122361eb0d9dd9200a9324aeafbdb20cadd2848bea1649938f1d"
+    },
+    {
+      "path": ".trellis/scripts/common/task_queue.py",
+      "canonical_sha256": "0be61f713462b1fe4574927c82fc4704e678afe72dcb9813543aedf2f9e9e0c5",
+      "baseline_sha256": "0be61f713462b1fe4574927c82fc4704e678afe72dcb9813543aedf2f9e9e0c5",
+      "installed_sha256": "0be61f713462b1fe4574927c82fc4704e678afe72dcb9813543aedf2f9e9e0c5"
+    },
+    {
+      "path": ".trellis/scripts/common/task_store.py",
+      "canonical_sha256": "632491d211e69f2f6335de42ca657e4bf9218339431cc9f7a2f73af83857e36d",
+      "baseline_sha256": "632491d211e69f2f6335de42ca657e4bf9218339431cc9f7a2f73af83857e36d",
+      "installed_sha256": "632491d211e69f2f6335de42ca657e4bf9218339431cc9f7a2f73af83857e36d"
+    },
+    {
+      "path": ".trellis/scripts/common/task_utils.py",
+      "canonical_sha256": "90c0a6d50bad502c3f01cb24c1ccfeb0eece5e2c69efaff8d65eb827fba43871",
+      "baseline_sha256": "90c0a6d50bad502c3f01cb24c1ccfeb0eece5e2c69efaff8d65eb827fba43871",
+      "installed_sha256": "90c0a6d50bad502c3f01cb24c1ccfeb0eece5e2c69efaff8d65eb827fba43871"
+    },
+    {
+      "path": ".trellis/scripts/common/tasks.py",
+      "canonical_sha256": "4436a8b0b53c270a35989e26d9dbd92669408c6562d88c02083a404562da85fe",
+      "baseline_sha256": "4436a8b0b53c270a35989e26d9dbd92669408c6562d88c02083a404562da85fe",
+      "installed_sha256": "4436a8b0b53c270a35989e26d9dbd92669408c6562d88c02083a404562da85fe"
+    },
+    {
+      "path": ".trellis/scripts/common/trellis_config.py",
+      "canonical_sha256": "e282e897183e3ec2f4e6e56349431946e5f98c1c31d3eca4de7fc44e1383a7bf",
+      "baseline_sha256": "e282e897183e3ec2f4e6e56349431946e5f98c1c31d3eca4de7fc44e1383a7bf",
+      "installed_sha256": "e282e897183e3ec2f4e6e56349431946e5f98c1c31d3eca4de7fc44e1383a7bf"
+    },
+    {
+      "path": ".trellis/scripts/common/types.py",
+      "canonical_sha256": "9962081cc2608fb9d1deb32c6880e336f62cdca6b338e7ae813304701e155ee9",
+      "baseline_sha256": "9962081cc2608fb9d1deb32c6880e336f62cdca6b338e7ae813304701e155ee9",
+      "installed_sha256": "9962081cc2608fb9d1deb32c6880e336f62cdca6b338e7ae813304701e155ee9"
+    },
+    {
+      "path": ".trellis/scripts/common/workflow_phase.py",
+      "canonical_sha256": "79ee522de20246acf1e2c222e8ad180ad25aaec7fec98214a93d9e81b350d9a8",
+      "baseline_sha256": "79ee522de20246acf1e2c222e8ad180ad25aaec7fec98214a93d9e81b350d9a8",
+      "installed_sha256": "79ee522de20246acf1e2c222e8ad180ad25aaec7fec98214a93d9e81b350d9a8"
+    },
+    {
+      "path": ".trellis/scripts/get_context.py",
+      "canonical_sha256": "af3ea7cd563a453227cf2cb4ab04d667390046b7febfac2217348d0892781f4b",
+      "baseline_sha256": "af3ea7cd563a453227cf2cb4ab04d667390046b7febfac2217348d0892781f4b",
+      "installed_sha256": "af3ea7cd563a453227cf2cb4ab04d667390046b7febfac2217348d0892781f4b"
+    },
+    {
+      "path": ".trellis/scripts/get_developer.py",
+      "canonical_sha256": "84c27076323c3e0f2c9c8ed16e8aa865e225d902a187c37e20ee1a46e7142d8f",
+      "baseline_sha256": "84c27076323c3e0f2c9c8ed16e8aa865e225d902a187c37e20ee1a46e7142d8f",
+      "installed_sha256": "84c27076323c3e0f2c9c8ed16e8aa865e225d902a187c37e20ee1a46e7142d8f"
+    },
+    {
+      "path": ".trellis/scripts/hooks/linear_sync.py",
+      "canonical_sha256": "cfc270b7ff775caa5b2434823c45414a3b37f9ba2aa1e293a26daef9fd2e577a",
+      "baseline_sha256": "cfc270b7ff775caa5b2434823c45414a3b37f9ba2aa1e293a26daef9fd2e577a",
+      "installed_sha256": "cfc270b7ff775caa5b2434823c45414a3b37f9ba2aa1e293a26daef9fd2e577a"
+    },
+    {
+      "path": ".trellis/scripts/init_developer.py",
+      "canonical_sha256": "0943f1c240993649ab89b91a2c5b379e84daa8c53b35f0490774bff05a552873",
+      "baseline_sha256": "0943f1c240993649ab89b91a2c5b379e84daa8c53b35f0490774bff05a552873",
+      "installed_sha256": "0943f1c240993649ab89b91a2c5b379e84daa8c53b35f0490774bff05a552873"
+    },
+    {
+      "path": ".trellis/scripts/plan.py",
+      "canonical_sha256": "713f335e9b8bbbe7b9c9002877561d8fa446ce8c9514f5a02f9f9b421c378ede",
+      "baseline_sha256": "713f335e9b8bbbe7b9c9002877561d8fa446ce8c9514f5a02f9f9b421c378ede",
+      "installed_sha256": "713f335e9b8bbbe7b9c9002877561d8fa446ce8c9514f5a02f9f9b421c378ede"
+    },
+    {
+      "path": ".trellis/scripts/task.py",
+      "canonical_sha256": "4cf3008ecca835a8cdae83b169cd889430a693a312b890b170e4e9a94cd9c22c",
+      "baseline_sha256": "4cf3008ecca835a8cdae83b169cd889430a693a312b890b170e4e9a94cd9c22c",
+      "installed_sha256": "4cf3008ecca835a8cdae83b169cd889430a693a312b890b170e4e9a94cd9c22c"
+    },
+    {
+      "path": ".trellis/scripts/tests/test_active_task_session_isolation.py",
+      "canonical_sha256": "27f787f7fafddd397e9e3f6631e9c6cfb3edbb6d3ebdc01524943999ac686840",
+      "baseline_sha256": "27f787f7fafddd397e9e3f6631e9c6cfb3edbb6d3ebdc01524943999ac686840",
+      "installed_sha256": "27f787f7fafddd397e9e3f6631e9c6cfb3edbb6d3ebdc01524943999ac686840"
+    },
+    {
+      "path": ".trellis/scripts/tests/test_execution_plan.py",
+      "canonical_sha256": "31c468e8f6be63d621b09a5110a750eb0e2238e380857bcb64b38c39c30accf4",
+      "baseline_sha256": "31c468e8f6be63d621b09a5110a750eb0e2238e380857bcb64b38c39c30accf4",
+      "installed_sha256": "31c468e8f6be63d621b09a5110a750eb0e2238e380857bcb64b38c39c30accf4"
+    },
+    {
+      "path": ".trellis/scripts/tests/test_planning_gate.py",
+      "canonical_sha256": "a779a3e45fe924db58a94f5fdf8a98cba88f8f65c31441872d0ebee58d580ba3",
+      "baseline_sha256": "a779a3e45fe924db58a94f5fdf8a98cba88f8f65c31441872d0ebee58d580ba3",
+      "installed_sha256": "a779a3e45fe924db58a94f5fdf8a98cba88f8f65c31441872d0ebee58d580ba3"
+    },
+    {
+      "path": ".trellis/scripts/tests/test_subagent_prompt_contract.py",
+      "canonical_sha256": "a46a065884af14c84f2cd386d083f41aff2b36161360ba778fe5f3b75c868921",
+      "baseline_sha256": "a46a065884af14c84f2cd386d083f41aff2b36161360ba778fe5f3b75c868921",
+      "installed_sha256": "a46a065884af14c84f2cd386d083f41aff2b36161360ba778fe5f3b75c868921"
+    },
+    {
+      "path": ".trellis/scripts/tests/test_trellis_channel_contract.py",
+      "canonical_sha256": "10a897a1bfa964aa2fcb8f3f60143b0b118378bb42e733f14c03773fdc531648",
+      "baseline_sha256": "10a897a1bfa964aa2fcb8f3f60143b0b118378bb42e733f14c03773fdc531648",
+      "installed_sha256": "10a897a1bfa964aa2fcb8f3f60143b0b118378bb42e733f14c03773fdc531648"
+    },
+    {
+      "path": ".trellis/spec/shared/hardware-contracts.md",
+      "canonical_sha256": "62dc13725af493777907e4a4e558672998c88e196e836081896a3ed33c943ad4",
+      "baseline_sha256": "62dc13725af493777907e4a4e558672998c88e196e836081896a3ed33c943ad4",
+      "installed_sha256": "51d5670628c9d90e523cc2f7ee6f25b611561c0eb84346f31b565492e9a72f03"
+    },
+    {
+      "path": ".trellis/spec/shared/index.md",
+      "canonical_sha256": "afc896cb592204d3e0add812920a0c73abc1036e27d2010673186d19a5197ba0",
+      "baseline_sha256": "afc896cb592204d3e0add812920a0c73abc1036e27d2010673186d19a5197ba0",
+      "installed_sha256": "8b4237caf8b2142a6f3a35efba42511a8c677a796655a8808350a6fc178ae520"
+    },
+    {
+      "path": ".trellis/spec/shared/repository-layout.md",
+      "canonical_sha256": "255ab56b97ac16f0789c9917db4c03424f734abe005fe310dd8854bd9132262e",
+      "baseline_sha256": "255ab56b97ac16f0789c9917db4c03424f734abe005fe310dd8854bd9132262e",
+      "installed_sha256": "fc29d580726638843f709c75497fd53682116ea8e5fc8f52b26621e4f4efb04a"
+    },
+    {
+      "path": ".trellis/spec/shared/trellis-maintenance.md",
+      "canonical_sha256": "ec302b7453fb49c63b9b9add017c87ed2edf627d16e14d560d9146dc8dd333c5",
+      "baseline_sha256": "ec302b7453fb49c63b9b9add017c87ed2edf627d16e14d560d9146dc8dd333c5",
+      "installed_sha256": "ec302b7453fb49c63b9b9add017c87ed2edf627d16e14d560d9146dc8dd333c5"
+    },
+    {
+      "path": ".trellis/spec/shared/validation.md",
+      "canonical_sha256": "c8dc75e5b0873011275457516fc29214c7621be22d00455bd42a8a73286027ce",
+      "baseline_sha256": "c8dc75e5b0873011275457516fc29214c7621be22d00455bd42a8a73286027ce",
+      "installed_sha256": "4cb4335b965167aa53b15a358ee84883507a6daea833a1306f9f3466fd11b2e7"
+    },
+    {
+      "path": ".trellis/two-level-verification-low-risk-findings.md",
+      "canonical_sha256": "0995e39b3fff7f10b5668b035cd25b7a3bb623b9cf2282fa5c20f188184e3cae",
+      "baseline_sha256": "0995e39b3fff7f10b5668b035cd25b7a3bb623b9cf2282fa5c20f188184e3cae",
+      "installed_sha256": "0995e39b3fff7f10b5668b035cd25b7a3bb623b9cf2282fa5c20f188184e3cae"
+    },
+    {
+      "path": ".trellis/workflow.md",
+      "canonical_sha256": "87ffbadb380d6ee3f26eaad792664d381f473a3330621ca9bbda444ea59bdce4",
+      "baseline_sha256": "64f1b29ad8d5b368b458aef626d068aaac3ba2930297530d022f0a74b9fccdf3",
+      "installed_sha256": "74c38a5e7bd1f8c5ccdc11cc136c2d26c02a3a10bf36b511f41c8a11e55eb738"
+    },
+    {
+      "path": "AGENTS.md.trellisforge-template",
+      "canonical_sha256": "de20d3ca73ccc7fca454191f7f1e66ac96d556a15591e1f1c925ae57fc55c6f5",
+      "baseline_sha256": "465ab59adccb660aa79a417032bd678391f1dc73bb2eb84a9d64d7cd492f09e8",
+      "installed_sha256": "465ab59adccb660aa79a417032bd678391f1dc73bb2eb84a9d64d7cd492f09e8"
+    }
+  ]
+}

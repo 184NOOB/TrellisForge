@@ -49,6 +49,19 @@ the scope.
 
 The supervising main session owns commits. Report the post-fix state; do not commit on its behalf.
 
+## Channel Termination Contract
+
+When running as a spawned channel worker, you do not manage the dispatcher's
+terminal: never run `trellis channel wait`, never wait on other workers, and
+never read the dispatcher's session or progress stream. Your turn ending is
+the signal the dispatcher waits on:
+
+- 正常完成:在最终的 channel 回复中给出审查报告(分级发现、验收证据、验证
+  结果与剩余风险),并正常结束本轮 turn;supervisor 会据此对外发布 `done`,
+  dispatcher 的 `wait --kind done,error` 随之退出。
+- 发现阻塞问题且无法继续:在回复中声明失败并给出原因,以失败状态结束 turn,
+  使 supervisor 记录 `error`;不得静默挂起或未完成就结束。
+
 ## Workflow
 
 1. Read `Review level: <level>` from the task PRD; missing or invalid values use `standard` and must be reported

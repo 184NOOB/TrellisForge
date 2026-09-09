@@ -271,6 +271,30 @@ trellis channel wait impl-task --as dispatcher \
 trellis channel messages impl-task --from codex-impl --last 1 --raw
 ```
 
+## Dispatcher Wait Discipline
+
+A dispatcher owns the wait. Per worker work unit, create one purpose-specific
+channel, run exactly one `spawn`, then block on exactly one `wait`:
+
+```bash
+trellis channel wait impl-task --as main --from impl-cx --kind done,error --timeout 30m
+```
+
+- `--kind done,error` subscribes only to terminal events. `done` means the
+  worker finished normally; `error` (or a `killed` from the user) is a failure
+  — both end the wait.
+- `progress` and `--include-progress` are diagnostics for a stalled or
+  suspicious worker, never part of a healthy wait. Do not run `channel list`,
+  progress `messages`, or full-stream replays while the worker is running.
+- CLI `--timeout` is the Channel CLI's total wait budget (timeouts exit 124),
+  set from the worker's expected duration — the 30 分钟 in the examples is
+  adjustable, not a convention.
+- After `wait` exits, read only the final result needed for the next decision
+  (e.g. `messages <channel> --from <worker> --last 1 --raw`). A timeout or a
+  terminal `error`/`killed` is an abnormal exit — check the worker status and
+  raw log, then decide to resume, redirect, or kill; do not reconnect-`wait`
+  in an unconditional loop.
+
 All event-emitting subcommands (`send`, `interrupt`, `post`, `context add` /
 `delete`, `title set` / `clear`, `thread rename`) print the appended event as
 a single JSON line on stdout, making the inbox layer easy to script against.

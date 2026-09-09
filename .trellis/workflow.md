@@ -603,6 +603,42 @@ The platform hook/plugin auto-handles:
 
 [/codex-inline]
 
+#### 2.1.1 Codex 主会话:Trellis Channel 派发与唯一等待
+
+[Codex]
+
+派发实施或审查 worker 时，Codex 主会话通过 `trellis channel` 维护唯一的
+wait 终端 session，整段等待期间只处理这一个进程：
+
+- 每个 worker 工作单元创建一个用途明确的 channel，只执行一次 `spawn`
+  （明确的 `--agent implement|check`、`--provider`、`--as` 和按预计耗时设置的
+  `--timeout`；示例中的 30 分钟只是可调整值），随后只启动一个
+  `trellis channel wait`（`--as main`、`--from <worker>`、`--kind done,error`）。
+- Channel CLI `--timeout` 是 wait 进程自身的总等待上限（超时退出码 124）；
+  Codex 工具调用中的 `yield_time_ms` 只约束单次读取窗口，两者不是同一上限。
+
+终端 session 编排（Codex 主会话专属，不是 Claude Code 的必需流程）：
+
+1. 用 `exec_command` 在 PowerShell 启动唯一的 `trellis channel wait`，首次使用
+   短 `yield_time_ms` 取得即时结果或仍在运行的 `session_id`。
+2. 若返回 `session_id`，后续主会话工具动作只对该 ID 调用 `write_stdin`；
+   单次等待窗口以当前运行时工具 schema 为准（当前上界约 300 秒），窗口结束
+   但进程仍在运行时继续复用同一 ID，不重建 channel，不重开 wait 进程。
+3. 该 wait session 存活期间，不运行新的 wait、额外同类 channel、
+   `trellis channel list --all`、`messages --kind progress` /
+   `--include-progress`、`plan.py status` 等观察命令，也不继续其他任务处理。
+   用户在等待期间发来的新指令属于交互中断：先遵循最新用户指令，不算后台
+   轮询。
+4. worker 发布 `done` 或 `error` 后 wait 进程退出，主会话恢复处理，只读取
+   判断下一步所需的最小最终结果。wait 超时或明确失败是异常处理入口：先判断
+   worker 状态与任务风险，再决定中止、恢复或重新派发，不得把重新 wait 写成
+   无条件循环。
+
+以上规则只约束 Codex 主会话；Claude Code 主会话不要求使用 `exec_command`、
+`write_stdin`、`yield_time_ms` 或 `session_id`。
+
+[/Codex]
+
 #### 2.2 Quality check `[required · repeatable]`
 
 Load `trellisforge-trellis-review` before choosing the review route. Read `prd.md`

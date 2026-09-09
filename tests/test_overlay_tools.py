@@ -193,6 +193,11 @@ class InstallTests(OverlayTestCase):
         self.assertEqual(receipt["overlay"], "embedded-c")
         self.assertEqual(receipt["project_prefix"], PREFIX)
         self.assertGreater(len(receipt["files"]), 80)
+        self.assertNotIn(
+            b"\r\n",
+            (self.project / ".trellis/trellisforge.json").read_bytes(),
+            "committable receipt must use LF line endings",
+        )
         for entry in receipt["files"]:
             self.assertTrue(entry["path"].startswith((".", AGENTS)))
             for key in ("canonical_sha256", "baseline_sha256", "installed_sha256"):

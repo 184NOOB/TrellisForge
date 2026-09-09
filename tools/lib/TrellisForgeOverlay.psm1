@@ -592,7 +592,9 @@ function New-OverlayReceiptPayload {
         project_name         = $ProjectName
         files                = @($files)
     }
-    return ($payload | ConvertTo-Json -Depth 5)
+    # ConvertTo-Json emits CRLF under Windows PowerShell. Receipts are intended
+    # to be committed, so normalize only the newline sequence to LF.
+    return (Get-OverlayNormalizedText -Text ($payload | ConvertTo-Json -Depth 5))
 }
 
 function Invoke-OverlayThreeWayMerge {

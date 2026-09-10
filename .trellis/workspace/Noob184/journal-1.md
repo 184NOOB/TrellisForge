@@ -79,3 +79,39 @@
 ### Next Steps
 
 - 可选推送分支；电梯模型已就位，未来改模板需提升 VERSION 并重生成 manifest/对象（见 spec overlay-upgrade.md）
+
+
+## Session 3: 实施五档审查等级子任务并归档
+
+**Date**: 2026-09-10
+**Task**: 实施五档审查等级子任务并归档
+**Package**: main
+**Branch**: `v1.2-development`
+
+### Summary
+
+在 templates/embedded-c-overlay/ 内把审查等级从三档扩展为五档（新增 reinforced/comprehensive），完成标准独立审查并归档 add-intermediate-review-levels 子任务。
+
+### Main Changes
+
+- 模板审查等级扩展为五档：gate/workflow/Skill/三类 Check Agent/Hook 跨层一致
+- 新增跨文件合约测试 test_review_profile_contract.py 锁定五档语义防漂移
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `351e9bb` | (see git log) |
+| `9d0af26` | (see git log) |
+
+### Testing
+
+- [OK] 模板单测 114 OK；根目录回归 99 OK；py_compile 与 git diff --check 通过
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- 继续父任务剩余子任务：channel 上下文优化、readme 接入指南补丁

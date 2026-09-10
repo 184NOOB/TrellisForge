@@ -1,0 +1,3 @@
+{"file":".trellis/spec/main/tooling/templates-and-docs.md","reason":"约束下游功能仅修改 embedded-c-overlay 模板，并保留版本收尾任务边界。"}
+{"file":".trellis/spec/main/tooling/python.md","reason":"约束模板 Python 合约测试的编码与验证方式。"}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"Channel Agent、公共 Skill、workflow 与契约测试共同消费上下文和等待协议，需同步验证跨层一致性。"}

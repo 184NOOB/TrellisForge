@@ -59,7 +59,8 @@ Implementation approval is a phase-transition gate, not a Grill question.
    select a safe design when it is an engineering decision; ask the user only
    when the remaining choice is user-owned.
 6. Treat the review profile separately: use the user's latest explicit
-   `light|standard|strict` choice; otherwise persist `standard`. Do not upgrade
+   `light|standard|reinforced|comprehensive|strict` choice; otherwise persist
+   `standard`. Do not upgrade
    it based on the AI's risk opinion and do not ask a question solely to select
    the default.
 7. Before final review, persist this exact section in `prd.md`:

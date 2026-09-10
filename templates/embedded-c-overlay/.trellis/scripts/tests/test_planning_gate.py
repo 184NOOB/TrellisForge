@@ -11,7 +11,7 @@ SCRIPTS_DIR = Path(__file__).resolve().parents[1]
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
-from common.planning_gate import validate_planning_gate
+from common.planning_gate import VALID_REVIEW_LEVELS, validate_planning_gate
 
 
 READY_PRD = """# Example
@@ -80,8 +80,41 @@ class PlanningGateTests(unittest.TestCase):
             self.assertFalse(result.ok)
             self.assertTrue(any("Blocking technical decisions" in error for error in result.errors))
 
+    def test_five_valid_review_levels_pass_gate(self) -> None:
+        self.assertEqual(
+            VALID_REVIEW_LEVELS,
+            ("light", "standard", "reinforced", "comprehensive", "strict"),
+        )
+        for level in VALID_REVIEW_LEVELS:
+            with self.subTest(level=level):
+                prd = READY_PRD.replace("Review level: standard", f"Review level: {level}")
+                with tempfile.TemporaryDirectory() as tmp:
+                    task_dir = self._task(
+                        Path(tmp),
+                        meta={"planning_ready": True, "plan_approved": True},
+                        prd=prd,
+                    )
+                    result = validate_planning_gate(task_dir)
+                    self.assertTrue(result.ok, (level, result.errors))
+
     def test_invalid_review_level_blocks_start(self) -> None:
         prd = READY_PRD.replace("Review level: standard", "Review level: extreme")
+        with tempfile.TemporaryDirectory() as tmp:
+            task_dir = self._task(
+                Path(tmp),
+                meta={"planning_ready": True, "plan_approved": True},
+                prd=prd,
+            )
+            result = validate_planning_gate(task_dir)
+            self.assertFalse(result.ok)
+            level_errors = [e for e in result.errors if "Review level" in e]
+            self.assertTrue(level_errors)
+            message = " ".join(level_errors)
+            for level in VALID_REVIEW_LEVELS:
+                self.assertIn(level, message)
+
+    def test_missing_review_level_section_blocks_start(self) -> None:
+        prd = READY_PRD.replace("## Workflow Settings\n\n- Review level: standard\n\n", "")
         with tempfile.TemporaryDirectory() as tmp:
             task_dir = self._task(
                 Path(tmp),

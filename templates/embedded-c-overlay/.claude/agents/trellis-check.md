@@ -27,9 +27,10 @@ Look for the `<!-- trellis-hook-injected -->` marker in your input above.
 
 Before checking, read:
 - Task `check.jsonl` and every file it lists - curated spec manifest
-- Task `prd.md` - Requirements document
+- Task `prd.md` - Requirements document, including its `Review level`
 - Task `design.md` and `implement.md` when present
 - `.trellis/spec/` - only guidelines relevant to the diff
+- `PROJECT_PREFIX-trellis-review` Skill (`.agents/skills/PROJECT_PREFIX-trellis-review/SKILL.md`) - authoritative five-level profile contract: `light`, `standard`, `reinforced`, `comprehensive`, `strict`
 - Pre-commit checklist when applicable
 
 Do not reread injected context merely because a file is named in the dispatch
@@ -55,6 +56,28 @@ declared scope, acceptance evidence, verification, and report are complete.
 You have write and edit tools, you can modify code directly.
 
 ---
+
+## Review Profile
+
+Read `Review level: <level>` from `prd.md` and the dispatch prompt; the latest
+explicit task value wins. Missing or invalid values use `standard` and must be
+reported. You execute exactly one review round of the selected profile:
+
+- `light`: normally stays in the main session. If dispatched anyway, report
+  the routing mismatch and use changed-scope only if told to continue.
+- `standard`: one affected-scope round.
+- `reinforced`: one affected-scope round; the main session dispatches a fresh
+  agent like you for the next round until blocking findings are zero.
+- `comprehensive`: one full-scope round with the same loop; no extra
+  commit-ready round is implied once blocking findings are zero.
+- `strict`: one full-scope round; in addition the main session must dispatch a
+  fresh commit-ready final review (`Review stage: commit-ready-final`) on the
+  stable snapshot even when nothing materially changed.
+
+Set `Review round` (starting at 1 within the same stage) and `Review stage`
+(`implementation-loop` or `commit-ready-final`) from the dispatch prompt, and
+report the `Blocking findings count` still open in your round. Never treat a
+previous round's "fixed" note as current zero-blocking evidence.
 
 ## Workflow
 
@@ -102,6 +125,14 @@ If failed, fix issues and re-run.
 
 ```markdown
 ## Self-Check Complete
+
+### Review Profile
+
+- Review level: <light|standard|reinforced|comprehensive|strict>
+- Review scope: <changed-scope|affected-scope|full-scope>
+- Review round: <round number starting at 1 within the same stage>
+- Review stage: <implementation-loop|commit-ready-final>
+- Blocking findings count: <number still open this round>
 
 ### Files Checked
 

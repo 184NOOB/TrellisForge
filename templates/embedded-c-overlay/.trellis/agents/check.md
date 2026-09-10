@@ -19,7 +19,7 @@ Before reviewing, read in this order:
 3. `<task-path>/design.md` if present — technical design
 4. `<task-path>/implement.md` if present — execution plan
 5. `.trellis/spec/` — project-wide guidelines (load only what is relevant to the diff under review)
-6. `.agents/skills/PROJECT_PREFIX-trellis-review/SKILL.md` — authoritative light/standard/strict profile contract
+6. `.agents/skills/PROJECT_PREFIX-trellis-review/SKILL.md` — authoritative light/standard/reinforced/comprehensive/strict profile contract
 
 Read `<task-path>/research/task-change-manifest.md` when present. Combine it with `git status --short`, tracked diffs, and the listed untracked task files to define the task change set. Exclude unrelated dirty files; `git diff` alone is incomplete for a newly initialized repository.
 
@@ -67,10 +67,13 @@ the signal the dispatcher waits on:
 1. Read `Review level: <level>` from the task PRD; missing or invalid values use `standard` and must be reported
 2. Build the complete task change set from the manifest, Git status, tracked diff, and listed untracked task files
 3. Read the task artifacts, every acceptance criterion, the project review Skill, and relevant shared/package Spec files
-4. Apply the selected profile: light = changed-scope main-session review (report a routing mismatch if dispatched); standard = exactly one independent affected-scope review including public headers, direct call sites, and one dependency hop; strict = full-scope review including affected packages and cross-package contracts
+4. Apply the selected profile: light = changed-scope main-session review (report a routing mismatch if dispatched); standard = exactly one independent affected-scope review including public headers, direct call sites, and one dependency hop; reinforced = independent affected-scope review that the main session re-dispatches as a fresh full round after each blocking-fix batch until blocking findings are zero; comprehensive = the same independent loop at full-scope with no extra commit-ready round; strict = full-scope independent loop plus a mandatory fresh full-scope commit-ready final review on the stable snapshot. Full-scope still requires impact evidence and is not an indiscriminate whole-repository scan. Each dispatched round re-covers the profile's complete scope rather than only confirming the previous round's findings.
 5. For each issue:
    - If mechanical (lint nit, missing type, wrong import, dead branch) → fix in-place
+   - If a larger implementation defect → record, report for the implementation stage; do not resume an exited agent
    - If a design/judgment issue → record and report, do not silently rewrite
+   - If out of task scope → report only; the main session decides
+   Fix blocking findings in batches; non-blocking findings may remain as fixed items or residual risks and never by themselves require another complete round.
 6. Trace every acceptance criterion to implementation or verification results/artifacts
 7. Run applicable embedded C project checks after self-fixes and identify every unavailable or user-only check
 8. Report
@@ -79,8 +82,11 @@ the signal the dispatcher waits on:
 
 ```
 ## Review profile
-- Review level: <light|standard|strict>
+- Review level: <light|standard|reinforced|comprehensive|strict>
 - Review scope: <changed-scope|affected-scope|full-scope>
+- Review round: <round number starting at 1 within the same stage>
+- Review stage: <implementation-loop|commit-ready-final>
+- Blocking findings count: <number still open this round>
 
 ## Findings (fixed)
 - Severity: <blocking|high|medium|low>

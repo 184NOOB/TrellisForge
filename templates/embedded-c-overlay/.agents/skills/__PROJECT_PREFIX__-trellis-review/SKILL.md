@@ -1,14 +1,15 @@
 ---
 name: PROJECT_PREFIX-trellis-review
-description: Applies the task-selected light, standard, or strict quality-review profile to this project's Trellis tasks. Use during planning to persist the review level and during Phase 2 or pre-commit review to choose reviewer dispatch, scope, repetition, validation, and reporting.
+description: Applies the task-selected light, standard, reinforced, comprehensive, or strict quality-review profile to this project's Trellis tasks. Use during planning to persist the review level and during Phase 2 or pre-commit review to choose reviewer dispatch, scope, repetition, validation, and reporting.
 ---
 
 # Project Trellis Review Profiles
 
 Read the active task's `prd.md`. For `light`, use this project Skill by
 itself with applicable embedded C project Specs; do not load the bundled generic
-`trellis-check` Skill. For `standard` and `strict`, use this Skill as the
-profile contract for the independent `trellis-check` agent.
+`trellis-check` Skill. For `standard`, `reinforced`, `comprehensive`, and
+`strict`, use this Skill as the profile contract for the independent
+`trellis-check` agent.
 
 ```markdown
 ## Workflow Settings
@@ -16,10 +17,39 @@ profile contract for the independent `trellis-check` agent.
 - Review level: standard
 ```
 
-Accept only `light`, `standard`, or `strict`. The latest explicit user choice
-wins. If missing or invalid, write and use `standard`. Do not ask a separate
-question only to choose a missing level; show the selected level in the final
-planning summary.
+Accept only `light`, `standard`, `reinforced`, `comprehensive`, or `strict`.
+The latest explicit user choice wins. If missing or invalid, write and use
+`standard`. Do not ask a separate question only to choose a missing level;
+show the selected level in the final planning summary.
+
+Fixed strength order: `light < standard < reinforced < comprehensive < strict`.
+Never rely on numeric comparison; each profile below is defined explicitly.
+
+## Scope Definitions
+
+- `changed-scope`: the actual task diff, listed untracked task files, changed
+  files, public headers, immediate call sites, and directly applicable fast
+  checks.
+- `affected-scope`: the complete task change set, affected modules, public
+  headers, direct call sites, one dependency hop, every acceptance criterion,
+  and the Specs and tests proven relevant by impact evidence. Do not expand to
+  unrelated modules without evidence.
+- `full-scope`: the complete task change set, all affected packages or
+  embedded C tool layers, applicable Specs, cross-layer contracts, tests,
+  installer checks, and the downstream-validation records required for release
+  template changes. It still excludes repository areas with no impact
+  relationship to the task; full-scope is not an indiscriminate whole-repository
+  scan.
+
+## Profile Matrix
+
+| Level | Scope | Independent review after implementation | After a blocking-fix round | Extra commit-ready review |
+|---|---|---|---|---|
+| `light` | changed-scope | none; main-session review | main session reruns failed or directly affected checks | none |
+| `standard` | affected-scope | exactly one | main-session verification; no repeat independent review unless evidence is invalidated | none |
+| `reinforced` | affected-scope | yes | dispatch a fresh independent Check Agent; fully re-review until blocking findings are zero | none |
+| `comprehensive` | full-scope | yes | dispatch a fresh independent Check Agent; fully re-review until blocking findings are zero | none; reaching zero blocking findings does not add a commit-ready review |
+| `strict` | full-scope | yes; also after significant implementation batches | dispatch a fresh independent Check Agent; fully re-review until blocking findings are zero | required: one fresh independent full-scope final review on the stable commit-ready snapshot, repeating until zero blocking |
 
 ## Light
 
@@ -72,18 +102,115 @@ planning summary.
 - Report findings by severity, verification evidence, checks not run, and
   residual risks.
 
+## Reinforced
+
+- Use affected-scope exactly as defined in `Standard`.
+- Run an independent review after implementation whenever the platform can
+  dispatch a `trellis-check` agent.
+- If the latest independent report has blocking findings, batch-fix that
+  round's blocking findings first (ownership rules below), then dispatch a
+  fresh independent `trellis-check` agent for the next review round. Repeat
+  until the newest independent report shows zero blocking findings.
+- Each re-review round re-covers the profile's complete affected-scope; it is
+  not a spot-check of only the previous round's findings. A materially
+  changed task diff must be reviewed as a new full round of this profile.
+- Do not review per minor finding: fix one batch of blocking findings, then
+  start the next round.
+- No extra commit-ready review is required once the blocking-fix loop reaches
+  zero.
+- Report the review round number and stage as in the Report Contract.
+
+## Comprehensive
+
+- Use full-scope as defined in `Scope Definitions`; full-scope still requires
+  impact evidence and is not an indiscriminate whole-repository scan.
+- Run an independent full-scope review after implementation whenever the
+  platform can dispatch a `trellis-check` agent.
+- Use the same blocking-fix and independent re-review loop as `reinforced`:
+  batch-fix the round's blocking findings, dispatch a fresh independent
+  `trellis-check` agent, and continue until the newest independent report
+  shows zero blocking findings. Each round re-covers the complete full-scope.
+- After reaching zero blocking findings, entering commit preparation does NOT
+  add an extra commit-ready review round. This is the fixed distinction from
+  `strict`.
+- Report the review round number and stage as in the Report Contract.
+
 ## Strict
 
-- Allow reviews after significant implementation batches and require a final
-  review before commit.
+- Use full-scope for every independent review round.
+- Allow reviews after significant implementation batches and run the first
+  independent review after implementation.
 - Codex inline mode suppresses implement-agent dispatch, not review dispatch;
   use independent `trellis-check` agents whenever the platform supports them.
-- Use full-scope for the final review: complete task diff, affected packages or
-  embedded C layers, applicable Specs, cross-layer contracts, tests, builds, and
-  required hardware-validation records.
-- Repeat the relevant review after fixes until all blocking findings are
-  resolved. A blocking correctness, safety, or acceptance failure cannot be
-  waived by lowering the profile or accepting it as residual risk.
+- Run the same blocking-fix and independent full-scope re-review loop as
+  `comprehensive` until the newest independent report shows zero blocking
+  findings.
+- In addition to that loop, before committing dispatch one fresh independent
+  full-scope final review against the stable commit-ready snapshot — code,
+  tests, Specs, and task artifacts all settled. This final review is
+  unconditional: it is required even when no material change happened after
+  the implementation-loop review reached zero blocking findings.
+- If the commit-ready final review finds blocking issues, fix them, rebuild a
+  stable snapshot, and run another fresh full-scope final review until the
+  final report shows zero blocking findings.
+- A blocking correctness, safety, or acceptance failure cannot be waived by
+  lowering the profile or accepting it as residual risk.
+
+## Blocking-Finding Ownership
+
+Route each round's findings in batches before the next review round:
+
+- Clear, local, mechanical, and in-scope issues: the current Check Agent fixes
+  them directly and records them in the report.
+- Larger implementation defects: return to the implementation stage; the main
+  session fixes them or dispatches a fresh implement agent. Never resume an
+  agent that already exited.
+- PRD, design, or acceptance defects: return to Phase 1 planning and obtain
+  the required approval again.
+- Out-of-task-scope issues: report only; the main session decides whether to
+  open a follow-up task.
+
+Non-blocking findings may remain recorded as fixed items or residual risks in
+the report; they never by themselves trigger another complete independent
+review round. Blocking correctness, safety, or acceptance findings are never
+waivable under any profile.
+
+## Evidence Invalidation
+
+After a profile's review completes, if the task change set, public contracts,
+acceptance criteria, or applicable Specs materially change, all existing
+review evidence for those areas is invalid and the current profile's review
+must run again. For `comprehensive`, such an evidence-invalidation re-review
+is not the extra commit-ready gate; only `strict` additionally requires a
+fresh commit-ready final review even when nothing materially changed.
+
+## Independence And Degradation
+
+- Every independent review round uses a freshly dispatched `trellis-check`
+  agent on Claude Code and Codex paths that support sub-agent dispatch; do not
+  resume a previous reviewer's session.
+- When the platform cannot dispatch an independent reviewer, follow the
+  existing degradation rule: run the equivalent main-session review and
+  explicitly record that independence was missing.
+
+## Report Contract
+
+Channel, Claude, and Codex Check Agents use semantically consistent report
+fields so the main session can decide whether to continue the review loop or
+enter commit preparation:
+
+- `Review level`: one of the five profiles.
+- `Review scope`: `changed-scope`, `affected-scope`, or `full-scope`.
+- `Review round`: round number starting at 1 within the same stage.
+- `Review stage`: `implementation-loop` or `commit-ready-final`.
+- `Blocking findings count`: blocking findings still open in this round.
+- Findings: split fixed vs not fixed, with severity, location, and reason.
+- Fixes/ownership: what was fixed and where unfixed items return (implement,
+  plan, or follow-up task).
+- Acceptance evidence, verification, checks not run, and residual risks.
+
+The main session treats only the latest round's report as current evidence;
+a previous round's "fixed" note is not zero-blocking evidence for now.
 
 ## Common Baseline
 
@@ -92,5 +219,5 @@ planning summary.
 - Preserve unrelated user changes and stay inside task scope.
 - Treat blocking correctness, safety, or acceptance failures as blocking under
   every profile.
-- Report review level, scope, checks run, checks not run, findings, fixes, and
-  residual risks.
+- Report review level, scope, round, stage, blocking findings count, checks
+  run, checks not run, findings, fixes, and residual risks.

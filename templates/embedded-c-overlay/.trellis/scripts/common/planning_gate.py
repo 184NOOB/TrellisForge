@@ -9,6 +9,18 @@ import re
 from .io import read_json
 
 
+# Fixed strength order: light < standard < reinforced < comprehensive < strict.
+# Consumers (workflow, review Skill, grill adapter, Check Agents) must accept
+# exactly this set; see tests/test_review_profile_contract.py.
+VALID_REVIEW_LEVELS: tuple[str, ...] = (
+    "light",
+    "standard",
+    "reinforced",
+    "comprehensive",
+    "strict",
+)
+
+
 @dataclass(frozen=True)
 class PlanningGateResult:
     """Result returned before a planning task may enter implementation."""
@@ -74,8 +86,11 @@ def validate_planning_gate(task_dir: Path) -> PlanningGateResult:
 
     workflow = _markdown_section(prd, "Workflow Settings")
     review_level = _list_field(workflow, "Review level") if workflow else None
-    if review_level not in {"light", "standard", "strict"}:
-        errors.append("prd.md must contain Workflow Settings with Review level: light|standard|strict")
+    if review_level not in VALID_REVIEW_LEVELS:
+        errors.append(
+            "prd.md must contain Workflow Settings with Review level: "
+            + "|".join(VALID_REVIEW_LEVELS)
+        )
 
     convergence = _markdown_section(prd, "Planning Convergence")
     if convergence is None:

@@ -190,7 +190,7 @@ Complex task: ask the user if you can create a Trellis task and enter the planni
 
 [workflow-state:planning]
 Load `trellis-brainstorm`, the upstream `grill-me`, and `PROJECT_PREFIX-trellis-grill-adapter`; stay in planning. First use repository evidence to separate facts, explicit user decisions, engineering decisions, and unresolved user-owned decisions. Ask one Grill question only when a user-owned product/scope/compatibility/risk/acceptance branch remains; never manufacture a question. Resolve engineering alternatives during planning and do not leave "implementation decides" branches. The project-local `task.py start` blocks unless convergence and subsequent approval markers are present.
-Persist `## Workflow Settings` with `Review level: light|standard|strict` in `prd.md`; use the latest explicit user choice, otherwise default to `standard` and show it in the final planning summary. Complex tasks still need `design.md` and `implement.md`.
+Persist `## Workflow Settings` with `Review level: light|standard|reinforced|comprehensive|strict` in `prd.md`; use the latest explicit user choice, otherwise default to `standard` and show it in the final planning summary. Complex tasks still need `design.md` and `implement.md`.
 Persist `## Planning Convergence`; it may become `ready` only when blocking user and technical decisions are both zero and the final summary is ready. A final approval request does not count as a Grill clarification question.
 Multi-deliverable scope: consider a parent task plus independently verifiable child tasks; dependencies must be written in child artifacts, not implied by tree position.
 Sub-agent mode: curate `implement.jsonl` and `check.jsonl` as spec/research manifests before start.
@@ -204,10 +204,10 @@ Sub-agent mode: curate `implement.jsonl` and `check.jsonl` as spec/research mani
 
 [workflow-state:planning-inline]
 Load `trellis-brainstorm`, the upstream `grill-me`, and `PROJECT_PREFIX-trellis-grill-adapter`; stay in planning. First use repository evidence to separate facts, explicit user decisions, engineering decisions, and unresolved user-owned decisions. Ask one Grill question only when a user-owned product/scope/compatibility/risk/acceptance branch remains; never manufacture a question. Resolve engineering alternatives during planning and do not leave "implementation decides" branches. The project-local `task.py start` blocks unless convergence and subsequent approval markers are present.
-Persist `## Workflow Settings` with `Review level: light|standard|strict` in `prd.md`; use the latest explicit user choice, otherwise default to `standard` and show it in the final planning summary. Complex tasks still need `design.md` and `implement.md`.
+Persist `## Workflow Settings` with `Review level: light|standard|reinforced|comprehensive|strict` in `prd.md`; use the latest explicit user choice, otherwise default to `standard` and show it in the final planning summary. Complex tasks still need `design.md` and `implement.md`.
 Persist `## Planning Convergence`; it may become `ready` only when blocking user and technical decisions are both zero and the final summary is ready. A final approval request does not count as a Grill clarification question.
 Multi-deliverable scope: consider a parent task plus independently verifiable child tasks; dependencies must be written in child artifacts, not implied by tree position.
-Inline mode: skip jsonl curation; Phase 2 reads artifacts/specs via `trellis-before-dev`. Inline keeps implementation in the main session, but `standard` and `strict` review still dispatch independent check agents when the platform supports them.
+Inline mode: skip jsonl curation; Phase 2 reads artifacts/specs via `trellis-before-dev`. Inline keeps implementation in the main session, but `standard`, `reinforced`, `comprehensive`, and `strict` review still dispatch independent check agents when the platform supports them.
 [/workflow-state:planning-inline]
 
 ### Phase 2: Execute
@@ -230,8 +230,8 @@ this template's supported scope and must not trigger extra files or dispatch wor
 
 [workflow-state:in_progress]
 Tools: `trellis-implement` / `trellis-research` are sub-agent types only (Task/Agent tool, NOT Skill; there is no skill by these names). `trellis-update-spec` and `PROJECT_PREFIX-trellis-review` are skills. `trellis-check` exists as both; prefer the Agent form according to the selected review level.
-Flow: `trellis-implement` -> `PROJECT_PREFIX-trellis-review` -> light main-session review OR standard/strict `trellis-check` Agent -> `trellis-update-spec` -> commit (Phase 3.4) -> `/trellis:finish-work`.
-Main-session default: dispatch the implement sub-agent. Review dispatch follows the persisted profile: light stays in the main session and does not load the bundled generic `trellis-check` Skill; standard/strict dispatch the independent `trellis-check` Agent when supported. Sub-agent self-exemption: if already running as `trellis-implement`, do NOT spawn another `trellis-implement` or `trellis-check`; if already running as `trellis-check`, do NOT spawn another `trellis-check` or `trellis-implement`. Dispatch is main session only.
+Flow: `trellis-implement` -> `PROJECT_PREFIX-trellis-review` -> light main-session review OR standard/reinforced/comprehensive/strict `trellis-check` Agent -> `trellis-update-spec` -> commit (Phase 3.4) -> `/trellis:finish-work`.
+Main-session default: dispatch the implement sub-agent. Review dispatch follows the persisted profile: light stays in the main session and does not load the bundled generic `trellis-check` Skill; standard dispatches exactly one independent affected-scope `trellis-check` Agent when supported; reinforced dispatches independent affected-scope `trellis-check` Agents and re-dispatches a fresh agent after each blocking-fix round until blocking findings are zero; comprehensive does the same at full-scope without an extra commit-ready review; strict adds a mandatory fresh full-scope `trellis-check` Agent on the stable commit-ready snapshot. Each re-review round uses a newly dispatched agent, never a resumed reviewer session. Sub-agent self-exemption: if already running as `trellis-implement`, do NOT spawn another `trellis-implement` or `trellis-check`; if already running as `trellis-check`, do NOT spawn another `trellis-check` or `trellis-implement`. Dispatch is main session only.
 Dispatch prompt starts with `Active task: <task path from task.py current>`. Read context: jsonl entries -> `prd.md` -> `design.md if present` -> `implement.md if present`.
 Execution plan: the implement sub-agent creates/approves `<task>/execution-plan.json` via `plan.py` before any source edit and advances only through `plan.py start/record/done/block/revise` (two-level verification: minimal records required_checks, one terminal report phase writes final-report.md); between rounds run `python .trellis/scripts/plan.py --task "<task-path>" status` to decide re-dispatch vs 2.2. The `<execution-plan>` breadcrumb is display-only.
 
@@ -259,7 +259,7 @@ does not repeat an unaffected scan or build merely to confirm it again.
 
 [workflow-state:in_progress-inline]
 Flow: `trellis-before-dev` -> edit -> `PROJECT_PREFIX-trellis-review` + profiled review -> validation -> `trellis-update-spec` -> commit (Phase 3.4) -> `/trellis:finish-work`.
-Inline mode keeps implementation in the main session. For review, `light` is a main-session changed-scope review; `standard` dispatches one independent affected-scope `trellis-check` agent when supported; `strict` dispatches independent full-scope reviews when supported and repeats until blocking findings are resolved.
+Inline mode keeps implementation in the main session. For review, `light` is a main-session changed-scope review; `standard` dispatches one independent affected-scope `trellis-check` agent when supported; `reinforced` dispatches independent affected-scope reviews and re-dispatches a fresh agent after each blocking-fix round until blocking findings are zero; `comprehensive` repeats the same independent loop at full-scope with no extra commit-ready review; `strict` adds a mandatory fresh full-scope final review on the stable commit-ready snapshot.
 Read context: `prd.md` -> `design.md if present` -> `implement.md if present`, plus relevant spec/research loaded by skills.
 Execution plan (same gate, main session as executor): write `<task>/execution-plan.json` first, `plan.py validate` before touching business source, then advance exclusively via `plan.py start/record/done/block/revise` per phase.
 [/workflow-state:in_progress-inline]
@@ -301,7 +301,8 @@ When a user request matches one of these intents inside an active task, route fi
 - Planning -> `trellis-brainstorm` + mandatory upstream `grill-me` + `PROJECT_PREFIX-trellis-grill-adapter`.
 - `in_progress` implementation -> dispatch `trellis-implement`; review ->
   load `PROJECT_PREFIX-trellis-review`, keep `light` in the main session, and
-  dispatch `trellis-check` only for `standard` / `strict`.
+  dispatch `trellis-check` for `standard` / `reinforced` / `comprehensive` /
+  `strict`.
 - Repeated debugging -> `trellis-break-loop`; spec updates -> `trellis-update-spec`.
 
 [/Claude Code]
@@ -311,7 +312,8 @@ When a user request matches one of these intents inside an active task, route fi
 - Planning -> `trellis-brainstorm` + mandatory upstream `grill-me` + `PROJECT_PREFIX-trellis-grill-adapter`.
 - Before editing -> `trellis-before-dev`; after editing -> load
   `PROJECT_PREFIX-trellis-review`. For `light`, review in the main session without
-  the bundled `trellis-check` Skill; for `standard` / `strict`, dispatch
+  the bundled `trellis-check` Skill; for `standard` / `reinforced` /
+  `comprehensive` / `strict`, dispatch
   the independent `trellis-check` agent when supported.
 - Repeated debugging -> `trellis-break-loop`; spec updates -> `trellis-update-spec`.
 
@@ -323,7 +325,7 @@ When a user request matches one of these intents inside an active task, route fi
 - PRD-only is valid for lightweight tasks; complex tasks need `design.md` + `implement.md`.
 - Planning must be persisted to task artifacts; checks must run before reporting completion.
 - Every Trellis task in `planning` or `planning-inline` must complete the upstream `grill-me` protocol with `PROJECT_PREFIX-trellis-grill-adapter`; task size and risk do not create an exemption.
-- Every task `prd.md` must include `## Workflow Settings` with `Review level: light|standard|strict`; missing or invalid values default to `standard`.
+- Every task `prd.md` must include `## Workflow Settings` with `Review level: light|standard|reinforced|comprehensive|strict`; missing or invalid values default to `standard`.
 - Phase 2 source edits require an approved `<task>/execution-plan.json`; task state advances only through `plan.py` with its audit log intact — hand-edited statuses, verification result maps, revisions, or guarded plan content are rejected against the audit replay, and no hook is load-bearing for that enforcement.
 
 ### Loading Step Detail
@@ -416,7 +418,7 @@ Persist review settings in every `prd.md`:
 - Review level: standard
 ```
 
-If the user explicitly specifies `light`, `standard`, or `strict`, write that exact latest choice. If missing or invalid, use `standard` without asking a separate question only for review level selection; show the selected level in the final planning summary.
+If the user explicitly specifies `light`, `standard`, `reinforced`, `comprehensive`, or `strict`, write that exact latest choice. If missing or invalid, use `standard` without asking a separate question only for review level selection; show the selected level in the final planning summary.
 
 When considering a parent/child split:
 - Use a parent task when one request contains several independently verifiable deliverables.
@@ -642,8 +644,8 @@ wait 终端 session，整段等待期间只处理这一个进程：
 #### 2.2 Quality check `[required · repeatable]`
 
 Load `PROJECT_PREFIX-trellis-review` before choosing the review route. Read `prd.md`
-and accept only `light`, `standard`, or `strict`; if missing or invalid, write
-and use `standard`.
+and accept only `light`, `standard`, `reinforced`, `comprehensive`, or `strict`;
+if missing or invalid, write and use `standard`.
 
 [Claude Code, codex-sub-agent]
 
@@ -669,10 +671,31 @@ Apply the selected profile:
   evidence expands the scope. For untracked initialization work, name
   `research/task-change-manifest.md` and require direct inspection of its
   listed files; do not paste their contents into the prompt.
-- `strict`: dispatch independent full-scope `trellis-check` agents after
-  significant implementation batches when useful and always before commit.
-  Repeat relevant review after fixes until blocking correctness, safety, and
-  acceptance findings are resolved.
+- `reinforced`: dispatch an independent affected-scope `trellis-check` agent
+  after implementation using the same dispatch prompt guard as `standard`.
+  If the report has blocking findings, batch-complete that round's fixes per
+  the ownership rules, then dispatch a fresh independent `trellis-check`
+  agent for a new full affected-scope round. Repeat until the newest
+  independent report shows zero blocking findings. Every re-review round
+  re-covers the complete affected-scope instead of only confirming the
+  previous round's findings, and a new round means a newly dispatched agent,
+  never a resumed reviewer session.
+- `comprehensive`: same independent blocking-fix loop as `reinforced`, but
+  each round reviews full-scope. After the loop reaches zero blocking
+  findings, entering commit preparation does not add an extra review round.
+- `strict`: run the same full-scope independent blocking-fix loop as
+  `comprehensive` after implementation and, when useful, after significant
+  implementation batches. Additionally, Phase 3.4 requires one fresh
+  independent full-scope commit-ready final review on the stable snapshot
+  regardless of material change (see the Phase 3.4 review-profile preamble).
+- Blocking findings from any round are triaged in batches: clear, local,
+  in-scope mechanical issues are fixed by the Check Agent itself; larger
+  implementation defects return to a fresh implementation pass; PRD/design/
+  acceptance defects return to Phase 1; out-of-scope issues are report-only.
+  Non-blocking findings never by themselves trigger another complete
+  independent round. If the task change set, public contracts, acceptance
+  criteria, or applicable Specs materially change after a review, the old
+  evidence is invalidated and the selected profile's review runs again.
 
 When dispatching the check sub-agent:
 
@@ -698,15 +721,17 @@ Apply the selected profile:
   `PROJECT_PREFIX-trellis-review`, task artifacts, and applicable embedded C project
   Specs. Do not load the bundled generic `trellis-check` Skill.
 - `standard`: Codex inline keeps implementation in the main session but still dispatches one independent affected-scope `trellis-check` agent when supported. Platforms that cannot dispatch a reviewer must explicitly record a main-session equivalent review.
-- `strict`: dispatch independent full-scope check agents when supported and repeat relevant review after fixes until blocking findings are resolved. Platforms that cannot dispatch a reviewer must explicitly record a main-session equivalent review.
+- `reinforced`: like `standard`, but after each blocking-fix round dispatch a fresh independent affected-scope `trellis-check` agent for a new full round, repeating until the newest independent report shows zero blocking findings. Platforms that cannot dispatch a reviewer must explicitly record a main-session equivalent review and the missing independence.
+- `comprehensive`: the same independent full-scope blocking-fix loop as `reinforced` but with full-scope rounds; reaching zero blocking findings does not add an extra commit-ready review round. Platforms that cannot dispatch a reviewer must explicitly record a main-session equivalent review.
+- `strict`: run the full-scope independent blocking-fix loop when supported, and additionally require one fresh independent full-scope commit-ready final review on the stable snapshot before Phase 3.4, repeating until blocking findings are zero. Platforms that cannot dispatch a reviewer must explicitly record a main-session equivalent review.
 
-All profiles check spec compliance, acceptance evidence, validation, and cross-layer consistency when changes span layers.
+All profiles check spec compliance, acceptance evidence, validation, and cross-layer consistency when changes span layers. Each independent re-review round re-covers the complete scope of the selected profile with a newly dispatched agent; blocking findings are fixed in batches before the next round, and non-blocking findings never by themselves trigger another complete round. Material post-review changes to the task diff, public contracts, acceptance criteria, or applicable Specs invalidate prior evidence and re-trigger the current profile's review.
 
 If issues are found → fix → re-check, until green.
 
 [/codex-inline]
 
-**Final pass (before Phase 3.4 commit)**: use the selected profile from `PROJECT_PREFIX-trellis-review`: `light` = changed-scope main-session review, `standard` = one independent affected-scope review when supported, `strict` = full-scope review with repeats until blocking findings are resolved. Derive affected packages from the actual diff, task manifest, and direct call graph; load only package/spec indexes supported by that evidence. Do not enumerate unrelated packages without evidence of impact.
+**Final pass (before Phase 3.4 commit)**: use the selected profile from `PROJECT_PREFIX-trellis-review`: `light` = changed-scope main-session review, `standard` = one independent affected-scope review when supported, `reinforced` = independent affected-scope rounds until the newest report shows zero blocking findings, `comprehensive` = the same loop at full-scope with no extra commit-ready round, and `strict` = the full-scope loop plus the mandatory fresh commit-ready final review defined in Phase 3.4. Before committing, confirm the latest review evidence is still valid; material post-review changes invalidate it and re-trigger the current profile's review. Derive affected packages from the actual diff, task manifest, and direct call graph; load only package/spec indexes supported by that evidence. Do not enumerate unrelated packages without evidence of impact.
 
 #### 2.3 Rollback `[on demand]`
 
@@ -742,7 +767,7 @@ Update the docs under `.trellis/spec/` accordingly. Even if the conclusion is "n
 
 **Spec-sync preamble**: before drafting commits, ask: did this task fix a bug or surface non-obvious knowledge that should land in `.trellis/spec/` so future-you (or future-AI) doesn't repeat the mistake? If yes, return to Phase 3.3 first — spec writes belong in the same task's commit batch, not as a forgotten follow-up.
 
-**Review-profile preamble**: before drafting commits, confirm the selected `PROJECT_PREFIX-trellis-review` profile from `prd.md` has completed: `light` changed-scope main-session review, `standard` one independent affected-scope review when supported, or `strict` final full-scope review with repeats until blocking findings are resolved. Do not commit while the required profile is incomplete.
+**Review-profile preamble**: before drafting commits, confirm the selected `PROJECT_PREFIX-trellis-review` profile from `prd.md` has completed and its latest evidence is still valid. `light`, `standard`, `reinforced`, and `comprehensive` require no extra commit-ready review round once their review path has reached a valid completed state (zero blocking findings where independent rounds apply). `strict` additionally requires, after code, tests, Specs, and task artifacts are all stable, one fresh independent full-scope commit-ready final review of the stable snapshot — even when nothing materially changed — repeating the fresh final review after any blocking-fix round until the final report shows zero blocking findings. Do not commit while the required profile is incomplete.
 
 The AI may drive a batched commit of this task's code changes only after the user explicitly approves the proposed commit plan. This project keeps `session_auto_commit: false`: `/finish-work`, `task.py archive`, and `add_session.py` update bookkeeping files but do not create Git commits. Work commits happen first; after finish-work, any archive/journal changes require a separate commit plan and fresh user approval.
 

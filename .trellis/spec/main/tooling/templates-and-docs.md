@@ -9,6 +9,18 @@
 - `history/embedded-c-overlay/`（对象库 + 版本 manifest）与
   `migrations/embedded-c-overlay/structural/` 是升级交付物，不属于发布模板本身。
 
+## 下游功能修改的默认归属
+
+- 除非用户或任务 PRD 明确要求修改 TrellisForge 仓库自身的工作流实例，面向下游项目的新功能、行为调整和缺陷修复只修改 `templates/embedded-c-overlay/` 内的对应文件。
+- 根目录 `.trellis/`、`.agents/skills/`、`.claude/` 和 `.codex/` 是 TrellisForge 自身正在使用的项目级工作流实现。实施者可以读取、比较或运行它们来确认现有行为，但不得仅因模板存在对应路径就反向修改这些文件。
+- “修改根目录自用 Trellis 时必须同步相关模板”是单向约束，不表示“修改模板时必须同步根目录”。任务规划必须分别列出模板写入范围和根目录禁改范围，避免把参考实现误判为交付目标。
+- 模板功能的实现和契约测试优先落在 `templates/embedded-c-overlay/` 内；允许只读运行仓库级检查，但除非任务明确授权，不修改根目录自用 Trellis 的测试或运行时实现。
+- 版本号、历史对象、版本 manifest、结构迁移链、README 和接入指南只由明确拥有发布收尾职责的任务更新，普通模板功能子任务不得提前扩展到这些交付物。
+
+错误做法：为实现一个下游审查等级，先修改根目录 `.trellis/workflow.md`，再复制到模板。
+
+正确做法：只修改 `templates/embedded-c-overlay/.trellis/workflow.md` 及模板内相关 Skill、Agent、门禁和测试；根目录对应文件仅作为只读参考。
+
 ## 文档契约
 
 README 负责说明定位、最短安装命令和覆盖层边界；`docs/接入指南.md` 负责逐步接入、合并规则、验证命令和升级维护。新增或改变模板目录时同步更新这两处目录说明。

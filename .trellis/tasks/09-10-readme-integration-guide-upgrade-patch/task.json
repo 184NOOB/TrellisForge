@@ -1,0 +1,29 @@
+{
+  "id": "readme-integration-guide-upgrade-patch",
+  "name": "readme-integration-guide-upgrade-patch",
+  "title": "更新 README、接入指南与升级补丁",
+  "description": "作为 TrellisForge 1.2 父任务的固定收尾子任务，更新 README、接入指南和升级补丁；升级补丁沿用当前工程更新逻辑。",
+  "status": "planning",
+  "dev_type": null,
+  "scope": null,
+  "package": "main",
+  "priority": "P2",
+  "creator": "Noob184",
+  "assignee": "Noob184",
+  "createdAt": "2026-09-10",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "v1.2-development",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": "09-10-trellisforge-1-2-upgrade",
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "planning_ready": false,
+    "plan_approved": false
+  }
+}

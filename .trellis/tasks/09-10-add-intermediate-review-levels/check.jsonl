@@ -1,0 +1,4 @@
+{"file":".trellis/spec/main/tooling/templates-and-docs.md","reason":"审查功能变更是否仅落在下游发布模板，并确认未越界修改版本收尾交付物。"}
+{"file":".trellis/spec/main/tooling/python.md","reason":"审查 planning gate、Hook、单测和 Python 语法检查是否符合仓库规范。"}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"审查新增枚举的所有消费者是否已搜索并由合约测试防漂移。"}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"审查 workflow、Skill、三类 Agent 和 Hook 的跨层语义是否一致。"}

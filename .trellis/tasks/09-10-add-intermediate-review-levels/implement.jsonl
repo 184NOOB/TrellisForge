@@ -1,0 +1,4 @@
+{"file":".trellis/spec/main/tooling/templates-and-docs.md","reason":"约束下游功能只修改 embedded-c-overlay 模板，禁止反向同步根目录自用 Trellis，并界定版本收尾职责。"}
+{"file":".trellis/spec/main/tooling/python.md","reason":"约束模板 planning gate、Hook 和 Python 合约测试的编码、分层与验证方式。"}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"五档枚举会出现在多个文本消费者中，需先搜索全部旧值并用合约测试防止重复契约漂移。"}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"workflow、Skill、Channel/Claude/Codex Agent 与 Hook 共同消费审查等级，需按跨平台模板契约同步验证。"}

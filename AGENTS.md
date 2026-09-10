@@ -23,7 +23,6 @@
 - 不虚构 `lint`、`typecheck`、固件构建或硬件验证命令；未适用的类别报告为 `not applicable` 并说明原因。
 - 修改模板正文、占位符替换、Hook 或代理时，必须运行对应 Python 单测、语法解析和 `git diff --check`。
 - 修改安装脚本时，必须检查目标路径校验、冲突检测、备份清单和异常回滚路径；不得静默覆盖用户文件。
-- 变更上游 Trellis 文件前先运行 `trellis update --dry-run`，使用逐项迁移，不使用整体 `--force` 覆盖项目定制。
 
 ## Git
 

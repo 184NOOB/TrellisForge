@@ -10,7 +10,8 @@
 
 ## Task Map
 
-- 当前规划子任务：`09-10-add-intermediate-review-levels`，负责新增 `reinforced` 和 `comprehensive` 审查等级。
+- 功能子任务：`09-10-add-intermediate-review-levels`，负责新增 `reinforced` 和 `comprehensive` 审查等级。
+- 规划子任务：`09-10-optimize-channel-context-loading`，负责将下游模板的 Channel 上下文调整为稳定规则注入、任务与 Spec 主动读取，并增加读取失败门禁与审计证据。
 - 固定收尾子任务：`09-10-readme-integration-guide-upgrade-patch`。
 - 后续子任务由用户逐步补充，均排列在固定收尾子任务之前。
 
@@ -25,6 +26,7 @@
 
 - [x] 父任务已创建，并关联固定收尾子任务。
 - [x] 新增审查等级子任务已挂载到父任务。
+- [x] Channel 上下文加载优化子任务已挂载到父任务。
 - [x] 当前 `children` 列表以 `09-10-readme-integration-guide-upgrade-patch` 结尾。
 - [ ] 后续每次新增子任务后，固定收尾子任务仍保持为最后一项。
 - [ ] 所有子任务完成后执行父任务级最终集成检查。

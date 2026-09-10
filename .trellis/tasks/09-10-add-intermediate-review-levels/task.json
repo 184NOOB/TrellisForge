@@ -3,7 +3,7 @@
   "name": "add-intermediate-review-levels",
   "title": "新增 reinforced 与 comprehensive 审查等级",
   "description": "在 standard 与 strict 之间新增 reinforced 和 comprehensive 两个可执行审查等级。",
-  "status": "planning",
+  "status": "in_progress",
   "dev_type": null,
   "scope": null,
   "package": "main",
@@ -24,6 +24,6 @@
   "notes": "",
   "meta": {
     "planning_ready": "true",
-    "plan_approved": false
+    "plan_approved": "true"
   }
 }

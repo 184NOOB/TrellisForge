@@ -13,6 +13,7 @@
 - 功能子任务：`09-10-add-intermediate-review-levels`，负责新增 `reinforced` 和 `comprehensive` 审查等级。
 - 规划子任务：`09-10-optimize-channel-context-loading`，负责将下游模板的 Channel 上下文调整为稳定规则注入、任务与 Spec 主动读取，并增加读取失败门禁与审计证据。
 - 功能子任务：`09-11-route-blocking-review-fixes`，负责统一下游模板各审查运行路径的直接修复边界，并明确阻塞问题返回主会话后的 Implement Agent 续接、主会话修复和新代理派发顺序。
+- 功能子任务：`09-11-support-opencode-platform`，负责为 TrellisForge 增加 OpenCode 平台能力，并使其工作流语义与现有 Claude Code、Codex 路径一致。
 - 固定收尾子任务：`09-10-readme-integration-guide-upgrade-patch`。
 - 后续子任务由用户逐步补充，均排列在固定收尾子任务之前。
 
@@ -29,6 +30,7 @@
 - [x] 新增审查等级子任务已挂载到父任务。
 - [x] Channel 上下文加载优化子任务已挂载到父任务。
 - [x] 审查阻塞问题修复责任子任务已挂载到父任务，并排列在固定收尾子任务之前。
+- [x] OpenCode 平台支持子任务已挂载到父任务，并排列在固定收尾子任务之前。
 - [x] 当前 `children` 列表以 `09-10-readme-integration-guide-upgrade-patch` 结尾。
 - [ ] 后续每次新增子任务后，固定收尾子任务仍保持为最后一项。
 - [ ] 所有子任务完成后执行父任务级最终集成检查。

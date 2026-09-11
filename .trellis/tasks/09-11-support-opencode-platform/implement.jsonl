@@ -1,0 +1,2 @@
+{"file":".trellis/spec/main/tooling/templates-and-docs.md","reason":"约束下游功能只修改发布模板，并把版本、manifest、升级资产和文档留给固定收尾任务"}
+{"file":".trellis/spec/main/tooling/overlay-upgrade.md","reason":"明确新增模板路径对 canonical、manifest、结构迁移和父任务交接的影响边界"}

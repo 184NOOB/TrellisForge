@@ -696,10 +696,27 @@ Apply the selected profile:
   implementation batches. Additionally, Phase 3.4 requires one fresh
   independent full-scope commit-ready final review on the stable snapshot
   regardless of material change (see the Phase 3.4 review-profile preamble).
-- Blocking findings from any round are triaged in batches: clear, local,
-  in-scope mechanical issues are fixed by the Check Agent itself; larger
-  implementation defects return to a fresh implementation pass; PRD/design/
-  acceptance defects return to Phase 1; out-of-scope issues are report-only.
+- Blocking findings from any round are triaged in batches. Fix ownership only
+  answers who fixes a finding and never schedules a review round; the selected
+  profile and Evidence Invalidation decide all subsequent reviews.
+  - Mechanical, small, and determinate in-scope issues are fixed directly by
+    the Check Agent, which records each fix and its verification. These are
+    the only issues the Check Agent may write.
+  - PRD/design/acceptance defects return to Phase 1 and need the required
+    approval again before implementation continues.
+  - Out-of-task-scope or environment/permission blocks are report-only; the
+    main session decides whether to open a follow-up task.
+  - Other implementation blocking defects are returned to the main session,
+    which verifies the finding against the current snapshot and then routes
+    in this order:
+    - Codex inline fixes the defect in the main session itself.
+    - Otherwise the main session preferably relies on being able to reliably
+      resume the original Implement Agent when the host supports it.
+    - Otherwise a small clear-boundary fix is made by the main session.
+    - Otherwise the main session chooses to dispatch a new Implement Agent
+      for a complex implementation repair.
+    Report-only categories are design/judgment issues, implementation
+    blocking defects, planning defects, and out-of-task-scope findings.
   Non-blocking findings never by themselves trigger another complete
   independent round. If the task change set, public contracts, acceptance
   criteria, or applicable Specs materially change after a review, the old
@@ -708,13 +725,15 @@ Apply the selected profile:
 When dispatching the check sub-agent:
 
 - **Agent type**: `trellis-check`
-- **Task description**: Review code changes against specs, task artifacts, and the selected `PROJECT_PREFIX-trellis-review` profile; fix clear in-scope findings directly; ensure applicable validation is run or explicitly reported as unavailable
+- **Task description**: Review code changes against specs, task artifacts, and the selected `PROJECT_PREFIX-trellis-review` profile; fix mechanical, small, and determinate in-scope findings directly, record each fix and its verification, and report design/judgment issues, implementation blocking defects, planning defects, and out-of-task-scope findings; ensure applicable validation is run or explicitly reported as unavailable
 - **Dispatch prompt guard**: The prompt MUST start with `Active task: <task path>`, then tell the spawned agent it is already the `trellis-check` sub-agent and must review/fix directly, not spawn another `trellis-check` / `trellis-implement`.
 
 The check agent's job:
 - Review code changes against specs
 - Review code changes against `prd.md`, `design.md` if present, and `implement.md` if present
-- Auto-fix issues it finds
+- Auto-fix only mechanical, small, and determinate in-scope issues; record each
+  fix and its verification, and report every other finding instead of
+  silently rewriting it
 - Run applicable configured checks and builds; report static checks, tests,
   target builds, and hardware validation separately as pass/fail/not run/not applicable
   with reasons, and never invent generic checks for the project type

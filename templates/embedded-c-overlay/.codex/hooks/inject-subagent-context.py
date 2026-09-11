@@ -696,12 +696,24 @@ or when a precise uncached line is required.
 3. Check every acceptance criterion against implementation or validation evidence.
 4. Read additional Specs when the diff, call graph, acceptance criteria,
    selected review profile, or project rules prove they are relevant.
-5. Fix clear in-scope issues and rerun only checks affected by each fix.
+5. Fix only mechanical, small, and determinate in-scope issues and rerun only
+   checks affected by each fix.
 6. Report findings, checks not run, and residual risks before stopping.
+
+## Finding handling
+
+Fix only issues that are simultaneously mechanical, small, and determinate and
+inside the current task scope, and record each fix and its verification in the
+report. Design/judgment issues, implementation blocking defects, planning
+defects, or out-of-task-scope findings are report-only: record location,
+severity, evidence, and reason instead of silently rewriting them. You are a
+reviewer, not an implementer: never dispatch or resume the Implement Agent,
+and fix routing itself never schedules a review round. Review scheduling
+follows the selected review profile and the task's evidence invalidation rules.
 
 ## Important Constraints
 
-- Fix issues yourself, don't just report
+- Follow the finding-handling boundary above; never silently rewrite report-only findings.
 - Do not stage/commit/push/fetch, merge/rebase, switch branches/worktrees, or change Trellis task lifecycle state
 - Do not invent generic Web lint/type-check commands for this embedded C project"""
 
@@ -1185,7 +1197,7 @@ def main():
             context = get_finish_context(repo_root, task_dir)
             new_prompt = build_finish_prompt(original_prompt, context)
         else:
-            # Regular check phase: use check context (full specs for self-fix loop)
+            # Regular check phase: use check context (full specs for the fix loop)
             context = get_check_context(repo_root, task_dir)
             new_prompt = build_check_prompt(original_prompt, context)
     elif subagent_type == AGENT_RESEARCH:

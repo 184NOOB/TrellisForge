@@ -257,11 +257,11 @@ class TrellisChannelWorkerCardTests(unittest.TestCase):
         implement_text = IMPLEMENT_CARD.read_text(encoding="utf-8")
         check_text = CHECK_CARD.read_text(encoding="utf-8")
         # Role-specific first-work gates: implement stops before delivery
-        # writes, check stops before touching the diff / review / self-fix.
+        # writes, check stops before touching the diff / review / direct fixing.
         self.assertIn("before the first delivery write", implement_text)
         self.assertIn("error", implement_text)
         self.assertIn("efore viewing the task diff", check_text)
-        self.assertIn("self-fixing", check_text)
+        self.assertIn("directly fixing a finding", check_text)
         self.assertIn("error", check_text)
 
 

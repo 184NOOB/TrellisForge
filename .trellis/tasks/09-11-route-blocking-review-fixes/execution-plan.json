@@ -1,0 +1,354 @@
+{
+  "schema": 3,
+  "task": ".trellis/tasks/09-11-route-blocking-review-fixes",
+  "revision": 2,
+  "status": "approved",
+  "audit": {
+    "required": true,
+    "file": "execution-events.jsonl"
+  },
+  "created_by": "trellis-implement",
+  "goal": "在 templates/embedded-c-overlay/ 内统一 review Skill、模板 workflow、Channel/Claude/Codex Check Agent 与 Claude/Codex context-injection Hook 的 Check Agent 直接修复边界，并建立实现阻塞问题返回主会话后的实施责任路由（R1-R5），用新增所有权合约测试防止多入口漂移。",
+  "constraints": {
+    "forbidden_git_operations": [
+      "commit",
+      "push",
+      "tag",
+      "reset",
+      "restore-modified-source"
+    ],
+    "max_tasks": 8,
+    "max_edits_per_file": 5,
+    "allow_parallel_tasks": false
+  },
+  "tasks": [
+    {
+      "id": "add-ownership-contract-test",
+      "title": "新增所有权合约测试",
+      "status": "completed",
+      "objective": "新增 templates/embedded-c-overlay/.trellis/scripts/tests/test_review_fix_ownership_contract.py，静态锁定受管入口（template workflow、权威 review Skill、Channel/Claude/Codex Check Agent、Claude/Codex Hook）的修复责任边界，并行为调用两个 Hook 的 build_check_prompt 校验运行时注入语义；先用当前模板运行该测试，确认它能捕获无条件 self-fix、禁止一切 Implement Agent 续接和 fresh implementation 强制路由等现有漂移（红色基线日志落入任务目录 research/），再进入改文阶段。",
+      "depends_on": [],
+      "scope": {
+        "read": [
+          "templates/embedded-c-overlay/.trellis/workflow.md",
+          "templates/embedded-c-overlay/.agents/skills/__PROJECT_PREFIX__-trellis-review/SKILL.md",
+          "templates/embedded-c-overlay/.trellis/agents/check.md",
+          "templates/embedded-c-overlay/.claude/agents/trellis-check.md",
+          "templates/embedded-c-overlay/.codex/agents/trellis-check.toml",
+          "templates/embedded-c-overlay/.claude/hooks/inject-subagent-context.py",
+          "templates/embedded-c-overlay/.codex/hooks/inject-subagent-context.py",
+          "templates/embedded-c-overlay/.trellis/scripts/tests/test_review_profile_contract.py",
+          "templates/embedded-c-overlay/.trellis/scripts/tests/test_subagent_prompt_contract.py"
+        ],
+        "write": [
+          "templates/embedded-c-overlay/.trellis/scripts/tests/test_review_fix_ownership_contract.py"
+        ]
+      },
+      "verification": {
+        "level": "minimal",
+        "required_checks": [
+          "ownership-test-syntax"
+        ]
+      },
+      "verification_results": {
+        "ownership-test-syntax": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-11T06:12:41Z",
+          "command": "py_compile new contract test",
+          "summary": "New test file compiles cleanly; red-baseline run against pre-fix templates fails 9/11 assertions naming exactly the drift phrases (unconditional self-fix, blanket no-resume, forced fresh implement agent pass); platform-command and write-boundary checks stay green."
+        }
+      }
+    },
+    {
+      "id": "align-review-skill-workflow",
+      "title": "重写权威 review Skill 与模板 workflow 路由",
+      "status": "completed",
+      "objective": "重写 review SKILL.md 的 Blocking-Finding Ownership：Check Agent 仅直接修复局部、机械、小、确定且范围内的问题并记录验证；主会话先核实 finding 真实性与任务归属；PRD/设计/验收缺陷返回 Phase 1；越界只报告；非机械性实现阻塞进入实施责任路由（Codex inline 由主会话处理；否则宿主可靠续接时优先续接原 Implement Agent；不可续接且小、边界明确由主会话直接修复；不可续接且复杂派发新 Implement Agent），并写明可靠续接契约与复杂度信号，数量/严重度不单独决定路由。模板 workflow.md 的 Phase 2 finding triage 同步该路由，去除 fresh implementation pass 强制路由歧义，声明后续审查只由五档 profile 与证据失效规则决定，保留 fresh Check Agent 规则。",
+      "depends_on": [
+        "add-ownership-contract-test"
+      ],
+      "scope": {
+        "read": [
+          "templates/embedded-c-overlay/.agents/skills/__PROJECT_PREFIX__-trellis-review/SKILL.md",
+          "templates/embedded-c-overlay/.trellis/workflow.md",
+          "templates/embedded-c-overlay/.trellis/scripts/tests/test_review_fix_ownership_contract.py"
+        ],
+        "write": [
+          "templates/embedded-c-overlay/.agents/skills/__PROJECT_PREFIX__-trellis-review/SKILL.md",
+          "templates/embedded-c-overlay/.trellis/workflow.md"
+        ]
+      },
+      "verification": {
+        "level": "minimal",
+        "required_checks": [
+          "skill-workflow-routing-scan",
+          "no-blanket-no-resume"
+        ]
+      },
+      "verification_results": {
+        "skill-workflow-routing-scan": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-11T06:21:21Z",
+          "command": "normalized phrase scan skill+workflow",
+          "summary": "whitespace-normalized case-insensitive scan: mechanical/small/determinate, reliably resume original Implement Agent, dispatch new Implement Agent, Codex inline, Phase 1, and never-schedules anchors all present in review SKILL.md Blocking-Finding Ownership and workflow Phase 2 triage; unit tests (test_skill/test_workflow) pass"
+        },
+        "no-blanket-no-resume": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-11T06:21:21Z",
+          "command": "forbidden phrase absence scan skill+workflow",
+          "summary": "old blanket phrases absent from skill and workflow: unconditional Fix issues yourself, Never resume an agent that already exited, do not resume an exited agent, fresh implementation pass, fresh implement agent"
+        }
+      }
+    },
+    {
+      "id": "align-three-check-agents",
+      "title": "对齐三个 Check Agent 的修复边界",
+      "status": "completed",
+      "objective": "对齐 Channel check.md、Claude trellis-check.md、Codex trellis-check.toml：仅机械、小、确定且范围内的问题允许直接修复并记录验证；设计/判断问题、非机械性实现阻塞、规划缺陷与越界问题只记录和报告；Check Agent 不自行派发或续接 Implement Agent；删除 Claude/Codex 无条件 Fix issues yourself，删除 Channel 的不得续接已退出代理 blanket 禁令；保留各 Agent 的上下文读取、递归保护、Git/生命周期禁令、五档 review profile 执行语义与报告字段。",
+      "depends_on": [
+        "align-review-skill-workflow"
+      ],
+      "scope": {
+        "read": [
+          "templates/embedded-c-overlay/.trellis/agents/check.md",
+          "templates/embedded-c-overlay/.claude/agents/trellis-check.md",
+          "templates/embedded-c-overlay/.codex/agents/trellis-check.toml"
+        ],
+        "write": [
+          "templates/embedded-c-overlay/.trellis/agents/check.md",
+          "templates/embedded-c-overlay/.claude/agents/trellis-check.md",
+          "templates/embedded-c-overlay/.codex/agents/trellis-check.toml"
+        ]
+      },
+      "verification": {
+        "level": "minimal",
+        "required_checks": [
+          "agents-boundaries-scan",
+          "agents-no-unconditional-selffix"
+        ]
+      },
+      "verification_results": {
+        "agents-boundaries-scan": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-11T08:31:35Z",
+          "command": "normalized anchor scan + ownership agent tests",
+          "summary": "normalized case-insensitive scan: all three agents carry mechanical/small/determinate direct-fix set, report-only set, never dispatch/resume Implement Agent, and never-schedules anchor; test_check_agents_never_dispatch/three_check_agents sets pass (4 assertions)"
+        },
+        "agents-no-unconditional-selffix": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-11T08:31:35Z",
+          "command": "stale term scan three agents",
+          "summary": "no unconditional Fix issues yourself, no do not resume an exited agent, no fresh implement agent, no self-fix/self-fixes wording left in channel check.md, claude trellis-check.md, or codex trellis-check.toml; review-profile contract test still green (13 tests)"
+        }
+      }
+    },
+    {
+      "id": "align-hook-prompts",
+      "title": "对齐 Claude/Codex Hook 的 Check 提示",
+      "status": "completed",
+      "objective": "修改两个 inject-subagent-context.py 的 build_check_prompt，注入语义一致的 finding handling 段：仅机械、小、确定且范围内允许直接修复；实现阻塞、规划缺陷与越界问题必须报告，不由 Check Agent 派发或续接实施者；修复后的审查动作由所选五档 profile 决定，Hook 不决定复审轮次；删除无条件 Fix issues yourself；保留两端已有上下文、生命周期、Git、安全与项目检查差异。",
+      "depends_on": [
+        "align-three-check-agents"
+      ],
+      "scope": {
+        "read": [
+          "templates/embedded-c-overlay/.claude/hooks/inject-subagent-context.py",
+          "templates/embedded-c-overlay/.codex/hooks/inject-subagent-context.py"
+        ],
+        "write": [
+          "templates/embedded-c-overlay/.claude/hooks/inject-subagent-context.py",
+          "templates/embedded-c-overlay/.codex/hooks/inject-subagent-context.py"
+        ]
+      },
+      "verification": {
+        "level": "minimal",
+        "required_checks": [
+          "hook-finding-handling-scan",
+          "hooks-py-compile"
+        ]
+      },
+      "verification_results": {
+        "hook-finding-handling-scan": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-11T08:35:58Z",
+          "command": "ownership contract tests -k test_hook",
+          "summary": "test_hooks_generate_equivalent_finding_handling and test_hook_check_prompt_does_not_clone_dispatch_commands pass; both build_check_prompt outputs carry mechanical/small/determinate boundary, report-only set (design/judgment...out-of-task-scope), never-schedules and review-profile anchors, byte-equivalent Finding handling section, no unconditional Fix issues yourself, no channel spawn commands"
+        },
+        "hooks-py-compile": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-11T08:35:58Z",
+          "command": "python -m py_compile both hooks with temp PYTHONPYCACHEPREFIX",
+          "summary": "claude and codex inject-subagent-context.py compile cleanly; no __pycache__ written into the template tree"
+        }
+      }
+    },
+    {
+      "id": "cross-file-consistency-tests",
+      "title": "跨文件一致性合约测试",
+      "status": "completed",
+      "objective": "运行新增ownership合约测试与现有合约测试：断言 workflow/review Skill 主会话路由完整、三个 Check Agent 的直接修复集合与只报告集合一致、两个 Hook builder 生成的 finding handling 段运行时语义一致、受管文件无旧的无条件 self-fix 与 blanket no-resume 文案；test_review_profile_contract.py 证明五档 review 范围、轮次、fresh reviewer 与证据失效契约未被修复责任改写。",
+      "depends_on": [
+        "align-hook-prompts"
+      ],
+      "scope": {
+        "read": [
+          "templates/embedded-c-overlay/.trellis/workflow.md",
+          "templates/embedded-c-overlay/.agents/skills/__PROJECT_PREFIX__-trellis-review/SKILL.md",
+          "templates/embedded-c-overlay/.trellis/agents/check.md",
+          "templates/embedded-c-overlay/.claude/agents/trellis-check.md",
+          "templates/embedded-c-overlay/.codex/agents/trellis-check.toml",
+          "templates/embedded-c-overlay/.claude/hooks/inject-subagent-context.py",
+          "templates/embedded-c-overlay/.codex/hooks/inject-subagent-context.py",
+          "templates/embedded-c-overlay/.trellis/scripts/tests"
+        ],
+        "write": []
+      },
+      "verification": {
+        "level": "minimal",
+        "required_checks": [
+          "ownership-contract-tests",
+          "review-profile-tests",
+          "subagent-prompt-tests"
+        ]
+      },
+      "verification_results": {
+        "ownership-contract-tests": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-11T08:37:07Z",
+          "command": "unittest discover -p test_review_fix_ownership_contract.py",
+          "summary": "11/11 OK: workflow/review-skill routing complete, three Check Agents share direct-fix and report-only sets and never dispatch/resume, hooks emit equivalent finding-handling, managed files free of old policy phrases"
+        },
+        "review-profile-tests": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-11T08:37:08Z",
+          "command": "unittest discover -p test_review_profile_contract.py",
+          "summary": "13/13 OK: five-level scope, rounds, fresh reviewer and evidence-invalidation contract unchanged by fix-ownership routing"
+        },
+        "subagent-prompt-tests": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-11T08:37:08Z",
+          "command": "unittest discover -p test_subagent_prompt_contract.py",
+          "summary": "15/15 OK: implement dispatch prompt normalization still intact; hook builders still load and run"
+        }
+      }
+    },
+    {
+      "id": "full-validation",
+      "title": "全量验证与边界审计",
+      "status": "completed",
+      "objective": "运行模板全量单测、根目录自用 Trellis 回归（只读验证未受影响）、两个修改 Hook 的 py_compile（临时 PYTHONPYCACHEPREFIX，不写入模板树 __pycache__）、旧策略残留扫描（无条件 self-fix / blanket no-resume / fresh implementation 强制路由，人工区分 Implement Agent 续接与 fresh Check Agent）、根目录自用实现无改动 git status 审计、git diff --check 模板范围与仓库范围。若模板全量单测暴露既有测试锚点被移除的 self-fix 文案锁定（如 test_trellis_channel_contract.py 断言 channel check card 含 self-fixing），同步更新该模板测试锚点为新的 precheck 措辞。",
+      "depends_on": [
+        "cross-file-consistency-tests"
+      ],
+      "scope": {
+        "read": [
+          "templates/embedded-c-overlay",
+          ".trellis/scripts/tests"
+        ],
+        "write": [
+          "templates/embedded-c-overlay/.trellis/scripts/tests/test_trellis_channel_contract.py"
+        ]
+      },
+      "verification": {
+        "level": "minimal",
+        "required_checks": [
+          "template-full-tests",
+          "root-regression",
+          "hooks-pycompile-final",
+          "stale-policy-scan",
+          "forbidden-dirs-clean",
+          "diff-check-final"
+        ]
+      },
+      "verification_results": {
+        "template-full-tests": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-11T08:44:08Z",
+          "command": "unittest discover -s templates/embedded-c-overlay/.trellis/scripts/tests -p test_*.py",
+          "summary": "129/129 template unit tests OK, including new ownership contract test and updated channel contract precheck anchor"
+        },
+        "root-regression": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-11T08:44:08Z",
+          "command": "unittest discover -s .trellis/scripts/tests -p test_*.py",
+          "summary": "99/99 root self-used Trellis regression tests OK; root mechanism unaffected"
+        },
+        "hooks-pycompile-final": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-11T08:44:08Z",
+          "command": "python -m py_compile both hooks with temp PYTHONPYCACHEPREFIX",
+          "summary": "claude and codex inject-subagent-context.py compile cleanly with fixed comments; no __pycache__ inside template tree"
+        },
+        "forbidden-dirs-clean": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-11T08:44:08Z",
+          "command": "git status --short -- .trellis/workflow.md .trellis/agents .agents/skills .claude .codex",
+          "summary": "empty output: root self-use Trellis, skills, .claude, .codex have no task changes (AC8)"
+        },
+        "diff-check-final": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-11T08:44:08Z",
+          "command": "git diff --check -- templates/embedded-c-overlay && git diff --check",
+          "summary": "whitespace clean in template write scope and repo-wide; no CRLF/trailing-whitespace issues from template edits"
+        },
+        "stale-policy-scan": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-11T08:45:09Z",
+          "command": "batch stale-policy scan over 7 managed entries (exits 0 only when zero matches)",
+          "summary": "8 managed files scanned individually: all clean for Fix issues yourself / Never resume an agent / fresh implementation pass / self-fix (STALE_FOUND=False); manual role distinction confirms Implement Agent resume vs fresh Check Agent stays separate"
+        }
+      }
+    },
+    {
+      "id": "report",
+      "title": "最终验收报告",
+      "status": "completed",
+      "objective": "确认全部依赖阶段完成，汇总改动文件、阶段与检查结果、未运行项（构建/部署/硬件验证 not applicable）与剩余风险，逐项映射 AC1-AC8，产出 final-report.md 并登记为 artifact；记录本任务不执行额外 commit-ready final review 的任务级例外依据。",
+      "depends_on": [
+        "full-validation"
+      ],
+      "scope": {
+        "read": [
+          "templates/embedded-c-overlay"
+        ],
+        "write": [
+          "final-report.md"
+        ]
+      },
+      "verification": {
+        "level": "report",
+        "required_checks": [
+          "changed-files-audit"
+        ],
+        "report_path": "final-report.md"
+      },
+      "verification_results": {
+        "changed-files-audit": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-11T08:48:04Z",
+          "command": "git status --short -- templates/embedded-c-overlay",
+          "summary": "9 changed template files (8 modified + 1 new contract test), all inside templates/embedded-c-overlay; no writes outside task scope; AC1-AC8 mapped in final-report.md; final-report.md registered as artifact",
+          "artifact": ".trellis/tasks/09-11-route-blocking-review-fixes/final-report.md"
+        }
+      }
+    }
+  ],
+  "approved_fingerprint": "207f0330ab212ed6cf0a78a326165b3e2c9b75b3115397b8f726a8161213016c"
+}

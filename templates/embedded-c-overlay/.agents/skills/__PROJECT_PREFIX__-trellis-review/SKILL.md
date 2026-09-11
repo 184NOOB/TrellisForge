@@ -158,22 +158,70 @@ Never rely on numeric comparison; each profile below is defined explicitly.
 
 ## Blocking-Finding Ownership
 
+Fix ownership only answers *who fixes a finding*; it never schedules a review
+round. Whether and how to re-review is decided solely by the selected profile
+and the Evidence Invalidation rules below.
+
 Route each round's findings in batches before the next review round:
 
-- Clear, local, mechanical, and in-scope issues: the current Check Agent fixes
-  them directly and records them in the report.
-- Larger implementation defects: return to the implementation stage; the main
-  session fixes them or dispatches a fresh implement agent. Never resume an
-  agent that already exited.
-- PRD, design, or acceptance defects: return to Phase 1 planning and obtain
-  the required approval again.
-- Out-of-task-scope issues: report only; the main session decides whether to
-  open a follow-up task.
+1. **Verify before routing** — the main session first confirms the finding is
+   real against the current snapshot and belongs to the current task. This
+   ownership check is a routing judgment, not a new independent review round.
+2. **Mechanical, small, and determinate issues** — an issue the current Check
+   Agent may fix directly must be simultaneously local, mechanical, small,
+   and determinate, inside the current task scope. The Check Agent fixes it
+   in place and records both the fix and its verification in the report.
+   Examples include lint nits, missing types, wrong imports, and clearly dead
+   branches; examples never widen the set, and issue count or severity never
+   widens it either.
+3. **PRD, design, or acceptance defects** — return to Phase 1 planning and
+   obtain the required approval again; they are not an Implement-Agent fix.
+4. **Out-of-task-scope or environment/permission blocks** — report only; the
+   main session decides whether to open a follow-up task.
+5. **Other implementation blocking defects** — record location, severity,
+   evidence, and why the Check Agent did not fix them, then return the finding
+   to the main session. The Check Agent never dispatches or resumes an
+   Implement Agent.
+
+The main session routes non-mechanical implementation blocking defects — all
+of which are report-only categories: design/judgment issues, implementation
+blocking defects, planning defects, and out-of-task-scope findings — in this
+order:
+
+- **Codex inline mode**: the main session is itself the implementer and fixes
+  the defect directly; it does not invent or force-dispatch an Implement Agent
+  that does not exist.
+- **Reliably resume the original Implement Agent first** when the host
+  supports it: the current main session holds a host-confirmed handle, session
+  id, or thread id for that same task and workspace, the host accepts the
+  resume call, the task execution plan and audit events are still valid, and
+  resuming does not break task scope, permissions, or isolation. Do not scan
+  or guess foreign session identifiers, and never treat a handle as a
+  crash-recovery source of truth — the task directory remains the recovery
+  state.
+- **Main session fixes directly** when the original Implement Agent cannot be
+  reliably resumed and the fix is small with a clear boundary. Such a fix may
+  need a little implementation judgment but does not require rebuilding the
+  implementation context.
+- **Dispatch a new Implement Agent** when the original Implement Agent cannot
+  be reliably resumed and the fix is a complex implementation repair: one or
+  more mutually coupled blocking problems touching cross-module, public
+  interface, data-flow, or contract surfaces with a larger blast radius or
+  regression risk, or a repair that needs a fuller implementation context and
+  batched verification.
+
+Finding count and severity are signals only and never decide routing by
+themselves. A single high-risk finding can be complex enough to warrant a new
+Implement Agent, while multiple same-root local findings may still suit a
+main-session fix. When a host cannot resume, degradation to a main-session fix
+or a new Implement Agent is the normal path, not a failure, and this policy
+never requires new resume infrastructure.
 
 Non-blocking findings may remain recorded as fixed items or residual risks in
 the report; they never by themselves trigger another complete independent
-review round. Blocking correctness, safety, or acceptance findings are never
-waivable under any profile.
+review round, and fix ownership itself never schedules a review round.
+Blocking correctness, safety, or acceptance findings are never waivable under
+any profile.
 
 ## Evidence Invalidation
 

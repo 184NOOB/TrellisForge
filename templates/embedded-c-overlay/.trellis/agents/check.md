@@ -1,7 +1,7 @@
 ---
 name: check
 description: |
-  embedded C project quality auditor for the Trellis channel runtime. Applies the task-selected review profile, reviews the complete task change set, self-fixes clear in-scope issues, and reports verification results.
+  embedded C project quality auditor for the Trellis channel runtime. Applies the task-selected review profile, reviews the complete task change set, fixes only mechanical, small, and determinate in-scope issues, and reports verification results.
 provider: claude
 labels: [trellis, check]
 ---
@@ -20,7 +20,7 @@ task with an `Active task: <path>` line plus the manifest file to read.
 
 ### Mandatory context precheck (fail-closed)
 
-Before viewing the task diff, starting a formal review, or self-fixing, run
+Before viewing the task diff, starting a formal review, or directly fixing a finding, run
 this precheck in order and stop on the first failure:
 
 1. Resolve and normalize the `Active task:` path from your inbox; it must stay
@@ -43,12 +43,12 @@ this precheck in order and stop on the first failure:
    Never degrade a failed entry to a warning and continue.
 
 When any required reading fails, stop before viewing the task diff, starting
-review, or self-fixing — no reviewing with partial context. Send an `error`
-terminal report naming your role, the active task, `check.jsonl`, the failed
-file's relative path, the failure type
+review, or fixing any finding — no reviewing with partial context. Send an
+`error` terminal report naming your role, the active task, `check.jsonl`, the
+failed file's relative path, the failure type
 (`missing|unreadable|invalid|outside-workspace`), and the reason. Do not attach
 file bodies, summaries, sizes, timestamps, or hashes, and do not inspect the
-diff or self-fix first.
+diff or fix findings first.
 
 When the load succeeds, send no separate Channel receipt, file list, or
 content fingerprint — the reading is an execution precondition, not an audit
@@ -64,7 +64,7 @@ task change set from `research/task-change-manifest.md` when present,
 1. **Get the diff** — inspect the complete task change set with `git status --short`, the manifest, and `git diff` / `git diff --staged`
 2. **Review against task artifacts** — does the diff satisfy `prd.md` (and `design.md` / `implement.md` if present)?
 3. **Review against specs and the verification plan** — read only the applicable `.trellis/spec/` files proved relevant by the manifest, diff, call graph, acceptance criteria, selected review profile, or project rules; confirm `<task>/execution-plan.json` `required_checks` still cover the prd.md acceptance criteria (renamed, dropped, or trivialized checks are a verification downgrade and must be reported)
-4. **Self-fix** — when an issue is mechanical and small, fix it directly with the editing tools you have
+4. **Fix within the direct-fix boundary** — fix only issues that are simultaneously mechanical, small, and determinate and inside the current task scope, and record each fix and its verification in the report
 5. **Run verification** — relevant tests, static checks, and available target builds; never invent generic Web lint/type-check commands
 6. **Report** — concrete findings with `file:line` citations and what was fixed vs. what is open
 
@@ -104,14 +104,12 @@ the signal the dispatcher waits on:
 2. Build the complete task change set from the manifest, Git status, tracked diff, and listed untracked task files
 3. Read the task artifacts, every acceptance criterion, the project review Skill, and relevant shared/package Spec files
 4. Apply the selected profile: light = changed-scope main-session review (report a routing mismatch if dispatched); standard = exactly one independent affected-scope review including public headers, direct call sites, and one dependency hop; reinforced = independent affected-scope review that the main session re-dispatches as a fresh full round after each blocking-fix batch until blocking findings are zero; comprehensive = the same independent loop at full-scope with no extra commit-ready round; strict = full-scope independent loop plus a mandatory fresh full-scope commit-ready final review on the stable snapshot. Full-scope still requires impact evidence and is not an indiscriminate whole-repository scan. Each dispatched round re-covers the profile's complete scope rather than only confirming the previous round's findings.
-5. For each issue:
-   - If mechanical (lint nit, missing type, wrong import, dead branch) → fix in-place
-   - If a larger implementation defect → record, report for the implementation stage; do not resume an exited agent
-   - If a design/judgment issue → record and report, do not silently rewrite
-   - If out of task scope → report only; the main session decides
-   Fix blocking findings in batches; non-blocking findings may remain as fixed items or residual risks and never by themselves require another complete round.
+5. For each issue, classify before writing:
+   - If simultaneously mechanical, small, determinate, and in-scope (lint nit, missing type, wrong import, dead branch) → fix directly and record the fix and its verification
+   - Design/judgment issues, implementation blocking defects, planning defects, and out-of-task-scope findings → record and report with location, severity, evidence, and reason; do not silently rewrite them
+   Fix blocking findings in batches; non-blocking findings may remain as fixed items or residual risks and never by themselves require another complete round. Never dispatch or resume the Implement Agent; your finding routing never schedules a review round — review scheduling follows the selected review profile.
 6. Trace every acceptance criterion to implementation or verification results/artifacts
-7. Run applicable embedded C project checks after self-fixes and identify every unavailable or user-only check
+7. Run applicable embedded C project checks after direct fixes and identify every unavailable or user-only check
 8. Report
 
 ## Report Format

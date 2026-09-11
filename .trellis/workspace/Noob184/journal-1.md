@@ -115,3 +115,27 @@
 ### Next Steps
 
 - 继续父任务剩余子任务：channel 上下文优化、readme 接入指南补丁
+
+
+## Session 4: 实施 Channel 上下文加载优化子任务
+
+**Date**: 2026-09-11
+**Task**: 实施 Channel 上下文加载优化子任务
+**Package**: main
+**Branch**: `v1.2-development`
+
+### Summary
+
+将下游模板 Channel Implement/Check 上下文加载改为混合模型（system prompt 只承载协议与角色，任务/Spec 正文由 worker 按 manifest 主动读取并带 fail-closed 门禁），并把 Codex 取得 session_id 后正常等待路径固定 yield_time_ms=300000 复用同一 session。审查级别改为 strict；实施 agent=opus、审查 agent=fable；提交前跳过全盘复查。spec 记录 write_json 在 Windows 写出 CRLF 的 gotcha。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `3169e4b` | (see git log) |
+| `97c9669` | (see git log) |
+| `878c957` | (see git log) |
+
+### Status
+
+[OK] **Completed**

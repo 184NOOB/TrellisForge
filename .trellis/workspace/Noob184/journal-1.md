@@ -174,3 +174,26 @@
 ### Next Steps
 
 - 进入固定收尾子任务 09-10-readme-integration-guide-upgrade-patch（README/接入指南/升级补丁/版本号/manifest）
+
+
+## Session 6: 完成 OpenCode 第三默认平台接入（任务 09-11）
+
+**Date**: 2026-09-12
+**Task**: 完成 OpenCode 第三默认平台接入（任务 09-11）
+**Package**: main
+**Branch**: `v1.2-development`
+
+### Summary
+
+trellis-implement(sonnet) 8/8 阶段交付 templates/embedded-c-overlay/.opencode 平台闭包（package.json+2 lib+3 插件+3 子代理+3 命令+Skills 树）、workflow 三平台路由、subagent_prompt_policy --json 桥与 5 份跨平台合同测试；trellis-check(fable) strict full-scope 独立审查零阻塞，2 处非阻塞修正；模板 154/154、根回归 99/99、node/py 语法与 git diff --check 全绿；按任务一次性例外不追加 commit-ready 终审。发布资产集成留待父任务固定收尾子任务。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `65523cf` | (see git log) |
+| `c3bf86e` | (see git log) |
+
+### Status
+
+[OK] **Completed**

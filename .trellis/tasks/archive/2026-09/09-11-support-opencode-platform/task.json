@@ -1,0 +1,35 @@
+{
+  "id": "support-opencode-platform",
+  "name": "support-opencode-platform",
+  "title": "支持 OpenCode 平台",
+  "description": "为 TrellisForge 1.2 覆盖层新增 OpenCode 平台支持，并使其 Trellis 工作流语义与现有 Claude Code、Codex 路径一致。",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": "main",
+  "priority": "P2",
+  "creator": "Noob184",
+  "assignee": "Noob184",
+  "createdAt": "2026-09-11",
+  "completedAt": "2026-09-12",
+  "branch": null,
+  "base_branch": "v1.2-development",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": "09-10-trellisforge-1-2-upgrade",
+  "relatedFiles": [
+    "templates/embedded-c-overlay/.opencode/",
+    "templates/embedded-c-overlay/.trellis/workflow.md",
+    "templates/embedded-c-overlay/.trellis/scripts/tests/",
+    "templates/embedded-c-overlay/TEMPLATE-CONTENTS.md",
+    "templates/embedded-c-overlay/AGENTS.md.template"
+  ],
+  "notes": "",
+  "meta": {
+    "planning_ready": true,
+    "plan_approved": true
+  }
+}

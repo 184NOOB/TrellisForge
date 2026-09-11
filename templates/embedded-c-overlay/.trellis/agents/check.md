@@ -12,16 +12,52 @@ You are the Check Agent spawned by `trellis channel spawn --agent check` inside 
 
 ## Context
 
-Before reviewing, read in this order:
+Your system prompt carries only the stable Channel protocol, your agent role,
+write boundaries, and the context-reading contract. Task PRDs, designs,
+execution plans, Specs, and research bodies are NOT inlined here by default:
+they live in the shared workspace, and the dispatch brief names your active
+task with an `Active task: <path>` line plus the manifest file to read.
 
-1. `<task-path>/check.jsonl` if present — spec manifest curated for this turn; read every listed file
-2. `<task-path>/prd.md` — requirements
-3. `<task-path>/design.md` if present — technical design
-4. `<task-path>/implement.md` if present — execution plan
-5. `.trellis/spec/` — project-wide guidelines (load only what is relevant to the diff under review)
-6. `.agents/skills/PROJECT_PREFIX-trellis-review/SKILL.md` — authoritative light/standard/reinforced/comprehensive/strict profile contract
+### Mandatory context precheck (fail-closed)
 
-Read `<task-path>/research/task-change-manifest.md` when present. Combine it with `git status --short`, tracked diffs, and the listed untracked task files to define the task change set. Exclude unrelated dirty files; `git diff` alone is incomplete for a newly initialized repository.
+Before viewing the task diff, starting a formal review, or self-fixing, run
+this precheck in order and stop on the first failure:
+
+1. Resolve and normalize the `Active task:` path from your inbox; it must stay
+   inside `<workspace>/.trellis/tasks/`. Anything outside that boundary is
+   `outside-workspace`.
+2. `check.jsonl` must exist and be readable — the curated Spec/Research
+   manifest for this turn.
+3. `prd.md` must exist and be readable; when `design.md` and/or `implement.md`
+   exist they must also be readable.
+4. Parse `check.jsonl` one JSON object per line. Skip blank lines and the
+   seeded demo entry that has no `file` field. Every real entry must carry a
+   `file` path that resolves inside the workspace: `type=file` → readable
+   file; `type=directory` → readable directory whose task-relevant materials
+   are read.
+5. Batch-read every valid manifest entry and every required task doc from the
+   current on-disk contents — never from a spawn-time snapshot. Malformed
+   JSON, an illegal type, a missing/unreadable/incomplete file, or a path
+   escape means the load is incomplete.
+6. Only after the full load succeeds may you proceed to the Workflow below.
+   Never degrade a failed entry to a warning and continue.
+
+When any required reading fails, stop before viewing the task diff, starting
+review, or self-fixing — no reviewing with partial context. Send an `error`
+terminal report naming your role, the active task, `check.jsonl`, the failed
+file's relative path, the failure type
+(`missing|unreadable|invalid|outside-workspace`), and the reason. Do not attach
+file bodies, summaries, sizes, timestamps, or hashes, and do not inspect the
+diff or self-fix first.
+
+When the load succeeds, send no separate Channel receipt, file list, or
+content fingerprint — the reading is an execution precondition, not an audit
+artifact. Proceed silently into the review flow, then read
+`.agents/skills/PROJECT_PREFIX-trellis-review/SKILL.md` (the authoritative
+light/standard/reinforced/comprehensive/strict profile contract) and build the
+task change set from `research/task-change-manifest.md` when present,
+`git status --short`, and tracked diffs. Exclude unrelated dirty files;
+`git diff` alone is incomplete for a newly initialized repository.
 
 ## Core Responsibilities
 

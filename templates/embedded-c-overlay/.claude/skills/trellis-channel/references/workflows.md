@@ -62,12 +62,26 @@ not fixed limits.
 $TASK = ".trellis/tasks/05-12-foo"
 trellis channel create impl-foo --task $TASK --by main
 trellis channel spawn impl-foo --agent implement --provider codex --as impl-cx `
-  --file "$TASK/prd.md" --file "$TASK/design.md" --file "$TASK/implement.md" `
-  --jsonl "$TASK/implement.jsonl" --cwd (Get-Location) --timeout 30m
-"实施 brief：写明验收条件、范围与验证命令。" `
-  | trellis channel send impl-foo --as main --to impl-cx --stdin
+  --cwd (Get-Location) --timeout 30m
+@"
+Active task: $TASK
+Context manifest: implement.jsonl
+本轮角色: Implement worker。目标: <目标>。范围: <受影响文件>。明确非目标: <非目标>。
+验证命令: <任务或工程已经规定的命令>。
+先完成上下文预检: 读取 implement.jsonl 全部有效条目与 prd.md、design.md、implement.md,
+失败则报告 error 并停止,成功后才可写入交付文件。
+"@ | trellis channel send impl-foo --as main --to impl-cx --stdin
 trellis channel wait impl-foo --as main --from impl-cx --kind done,error --timeout 30m
 ```
+
+Task PRD, design, execution-plan, Spec, and research bodies are **not**
+injected at spawn time. The task and the worker share the workspace, so the
+`spawn` stays lean and the brief locates the context. The worker resolves the
+active task path, batch-reads `implement.jsonl` plus the required task docs
+from the shared workspace, and only then modifies delivery files. Use
+`--file` / `--jsonl` only when the worker cannot access the source files or
+an immutable spawn-time snapshot is required. See `workers.md` "Context
+Injection".
 
 ### Standard Check Dispatch
 
@@ -75,12 +89,21 @@ trellis channel wait impl-foo --as main --from impl-cx --kind done,error --timeo
 $TASK = ".trellis/tasks/05-12-foo"
 trellis channel create check-foo --task $TASK --by main
 trellis channel spawn check-foo --agent check --provider claude --as check-claude `
-  --file "$TASK/prd.md" --file "$TASK/design.md" --file "$TASK/implement.md" `
-  --jsonl "$TASK/check.jsonl" --cwd (Get-Location) --timeout 30m
-"审查 brief：写明任务 diff 范围、验收项与已运行的验证。" `
-  | trellis channel send check-foo --as main --to check-claude --stdin
+  --cwd (Get-Location) --timeout 30m
+@"
+Active task: $TASK
+Context manifest: check.jsonl
+本轮角色: Check worker。目标: 按 <profile> 审查 <范围>。明确非目标: <非目标>。
+已运行的验证与验收项: <任务或工程已经规定的命令/验收>。
+先完成上下文预检: 读取 check.jsonl 全部有效条目与 prd.md、design.md、implement.md,
+失败则报告 error 并停止,成功后才可查看 diff、审查或自修复。
+"@ | trellis channel send check-foo --as main --to check-claude --stdin
 trellis channel wait check-foo --as main --from check-claude --kind done,error --timeout 30m
 ```
+
+The check worker pulls `check.jsonl` and the required task docs from the
+shared workspace before it starts reviewing; same mix as the implement flow
+above.
 
 The implement and check flows differ only in `--agent`, provider / `--as`
 choice, and the brief content; the lifecycle (one spawn, one wait) is
@@ -91,18 +114,28 @@ inspection while the first wait is still running.
 
 ## Pattern C: Parallel Reviewers
 
-Use one channel and distinct worker names.
+Use one channel and distinct worker names. Task review workers are
+shared-workspace work units: no full-text `--file` / `--jsonl` injection, the
+brief locates the active task and manifest.
 
 ```bash
+TASK=.trellis/tasks/05-12-foo
 trellis channel create cr-feature --by main --ephemeral
 
 trellis channel spawn cr-feature --agent check \
-  --jsonl "$TASK/check.jsonl" --file "$TASK/prd.md" --file "$TASK/design.md" \
-  --timeout 15m
+  --cwd "$PWD" --timeout 15m
 
 trellis channel spawn cr-feature --agent check --provider codex --as check-cx \
-  --jsonl "$TASK/check.jsonl" --file "$TASK/prd.md" --file "$TASK/design.md" \
-  --timeout 15m
+  --cwd "$PWD" --timeout 15m
+
+cat > /tmp/cr-brief.md <<EOF
+Active task: $TASK
+Context manifest: check.jsonl
+目标: 按 <profile> 审查 <范围>。明确非目标: <非目标>。
+已运行的验证与验收项: <任务或工程已经规定的命令/验收>。
+先完成上下文预检: 读取 check.jsonl 全部有效条目与 prd.md、design.md、implement.md,
+失败则报告 error 并停止,成功后才可查看 diff、审查或自修复。
+EOF
 
 trellis channel send cr-feature --as main --to check --text-file /tmp/cr-brief.md
 trellis channel send cr-feature --as main --to check-cx --text-file /tmp/cr-brief.md

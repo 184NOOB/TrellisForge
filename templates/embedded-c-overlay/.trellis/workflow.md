@@ -621,20 +621,28 @@ wait 终端 session，整段等待期间只处理这一个进程：
 
 终端 session 编排（Codex 主会话专属，不是 Claude Code 的必需流程）：
 
-1. 用 `exec_command` 在 PowerShell 启动唯一的 `trellis channel wait`，首次使用
-   短 `yield_time_ms` 取得即时结果或仍在运行的 `session_id`。
-2. 若返回 `session_id`，后续主会话工具动作只对该 ID 调用 `write_stdin`；
-   单次等待窗口以当前运行时工具 schema 为准（当前上界约 300 秒），窗口结束
-   但进程仍在运行时继续复用同一 ID，不重建 channel，不重开 wait 进程。
-3. 该 wait session 存活期间，不运行新的 wait、额外同类 channel、
+1. 用 `exec_command` 在 PowerShell 启动唯一的 `trellis channel wait`，首次只用
+   短 `yield_time_ms` 取得即时终态或仍在运行的 `session_id`。
+2. 若返回 `session_id`，正常等待路径的后续每次工具动作只对该 ID 调用 `write_stdin`
+   （不发送输入字符），并固定 `yield_time_ms=300000`、复用同一 ID；wait 进程
+   提前退出时工具应即时返回，不强制等待满五分钟。
+3. `300000` 只是 Codex 工具的单次读取窗口，不是 Channel CLI `--timeout`
+   （wait 进程自身总等待上限，超时退出码 124），也不是 worker 总运行上限。
+   五分钟窗口到期但 wait 进程仍在运行时，只复用原 `session_id` 继续读取，
+   不新建 channel、不重开 wait、不重建 worker。
+4. 正常实施/审查等待路径禁用 `30000` 等短周期 `write_stdin`；只有明确说明
+   原因的诊断或交互场景才允许使用短窗口，且不得以周期播报“仍在运行”为由
+   缩短窗口。
+5. 该 wait session 存活期间，不运行新的 wait、额外同类 channel、
    `trellis channel list --all`、`messages --kind progress` /
    `--include-progress`、`plan.py status` 等观察命令，也不继续其他任务处理。
    用户在等待期间发来的新指令属于交互中断：先遵循最新用户指令，不算后台
    轮询。
-4. worker 发布 `done` 或 `error` 后 wait 进程退出，主会话恢复处理，只读取
-   判断下一步所需的最小最终结果。wait 超时或明确失败是异常处理入口：先判断
-   worker 状态与任务风险，再决定中止、恢复或重新派发，不得把重新 wait 写成
-   无条件循环。
+6. worker 发布 `done` 或 `error` 后 wait 进程退出，主会话恢复处理，只读取
+   判断下一步所需的最小最终结果。wait 超时（退出码 124）或明确失败是异常
+   处理入口：先判断 worker 状态与任务风险，再决定中止、恢复或重新派发，
+   不得把重新 wait 写成无条件循环；用户中断后按最新指令处理，不自动创建
+   第二个 wait。
 
 以上规则只约束 Codex 主会话；Claude Code 主会话不要求使用 `exec_command`、
 `write_stdin`、`yield_time_ms` 或 `session_id`。

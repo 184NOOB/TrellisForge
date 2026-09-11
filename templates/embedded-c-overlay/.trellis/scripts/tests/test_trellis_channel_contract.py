@@ -121,6 +121,22 @@ class TrellisChannelWorkflowScopeTests(unittest.TestCase):
         self.assertIn("复用同一 ID", codex_text)
         self.assertIn("只对该 ID 调用 `write_stdin`", codex_text)
 
+    def test_workflow_codex_wait_window_fixed_at_300000(self):
+        text = WORKFLOW.read_text(encoding="utf-8")
+        codex_text = "\n".join(_tag_blocks(text, "Codex"))
+        self.assertIn("yield_time_ms=300000", codex_text)
+        self.assertIn("单次读取窗口", codex_text)
+        self.assertIn("不是 Channel CLI `--timeout`", codex_text)
+        self.assertIn("总等待上限", codex_text)
+        # Short polling windows must not become the documented default.
+        # Note: "yield_time_ms=30000" is a prefix of "yield_time_ms=300000",
+        # so this must be a word-boundary regex, not a substring check.
+        self.assertIsNone(
+            re.search(r"yield_time_ms=30000(?!0)", codex_text),
+            "short write_stdin windows must not appear in the Codex wait contract",
+        )
+        self.assertNotIn("yield_time_ms=300000", "\n".join(_tag_blocks(text, "Claude Code")))
+
 
 class TrellisChannelDispatchExampleTests(unittest.TestCase):
     def setUp(self):
@@ -162,12 +178,41 @@ class TrellisChannelDispatchExampleTests(unittest.TestCase):
             ):
                 self.assertNotIn(probe, block, f"{header} shows forbidden {probe}")
 
-    def test_normal_path_carries_explicit_one_wait_rule(self):
-        self.assertIn("Unique wait pattern", self.skill)
-        self.assertIn("do not re-`wait`", self.skill)
-        self.assertIn("Dispatcher Wait Discipline", self.workers)
-        self.assertIn("exactly one `spawn`, then block on exactly one `wait`", self.workers)
-        self.assertIn("progress", self.workers)
+    def test_standard_dispatch_examples_no_task_body_injection(self):
+        # Standard Implement/Check no longer push full task + Spec/Research
+        # bodies into the system prompt; the brief locates the context.
+        cases = [
+            ("Standard Implement Dispatch", "implement.jsonl"),
+            ("Standard Check Dispatch", "check.jsonl"),
+        ]
+        for header, manifest in cases:
+            block = _code_section(self.workflows, header)
+            self.assertTrue(block, f"missing {header} dispatch section")
+            self.assertNotIn("--file", block, f"{header} leaks --file injection")
+            self.assertNotIn("--jsonl", block, f"{header} leaks --jsonl injection")
+            self.assertIn("Active task", block, f"{header} brief must carry Active task")
+            self.assertIn(manifest, block, f"{header} brief must locate {manifest}")
+            self.assertIn("上下文预检", block, f"{header} brief must remind the precheck")
+
+    def test_parallel_reviewers_default_to_active_read(self):
+        match = re.search(
+            r"## Pattern C: Parallel Reviewers\n\n([\s\S]*?)\n```bash\n(.*?)\n```",
+            self.workflows,
+            re.S,
+        )
+        self.assertTrue(match, "missing Parallel Reviewers bash section")
+        block = match.group(2)
+        self.assertNotIn("--file", block, "Parallel Reviewers leaks --file injection")
+        self.assertNotIn("--jsonl", block, "Parallel Reviewers leaks --jsonl injection")
+        self.assertIn("Active task", block, "Parallel Reviewers brief must carry Active task")
+        self.assertIn("check.jsonl", block, "Parallel Reviewers brief must locate check.jsonl")
+
+    def test_workers_doc_keeps_snapshot_and_defaults_active_read(self):
+        self.assertIn("--file <path>", self.workers)
+        self.assertIn("--jsonl <path>", self.workers)
+        self.assertIn("Explicit snapshot vs. shared-workspace active read", self.workers)
+        self.assertIn("Active task", self.workers)
+        self.assertIn("`implement.jsonl` / `check.jsonl`", self.workers)
 
     def test_progress_diagnostic_boundary_is_documented(self):
         debugging = (AGENTS_SKILL / "references" / "progress-debugging.md").read_text(
@@ -189,6 +234,35 @@ class TrellisChannelWorkerCardTests(unittest.TestCase):
                 "trellis channel wait" in text,
                 f"{path} should forbid dispatcher waits explicitly",
             )
+
+    def test_worker_cards_require_mixed_context_precheck(self):
+        cards = {"implement": IMPLEMENT_CARD, "check": CHECK_CARD}
+        for name, path in cards.items():
+            text = path.read_text(encoding="utf-8")
+            expected_manifest = "implement.jsonl" if name == "implement" else "check.jsonl"
+            self.assertIn("Active task", text, f"{path} must parse the Active task brief")
+            self.assertIn(expected_manifest, text, f"{path} must read {expected_manifest}")
+            self.assertIn("prd.md", text, f"{path} must read prd.md")
+            self.assertIn("Batch-read", text, f"{path} must require batch reading")
+            self.assertIn("outside-workspace", text, f"{path} must define the trust boundary")
+            self.assertIn(
+                "missing|unreadable|invalid|outside-workspace",
+                text,
+                f"{path} must name the failure types",
+            )
+            # Success path is silent: the card explicitly disclaims a separate
+            # receipt or file list instead of emitting a self-report.
+            self.assertIn("no separate Channel receipt", text, f"{path} success path is silent")
+            self.assertIn("file list", text, f"{path} must disclaim a success file list")
+        implement_text = IMPLEMENT_CARD.read_text(encoding="utf-8")
+        check_text = CHECK_CARD.read_text(encoding="utf-8")
+        # Role-specific first-work gates: implement stops before delivery
+        # writes, check stops before touching the diff / review / self-fix.
+        self.assertIn("before the first delivery write", implement_text)
+        self.assertIn("error", implement_text)
+        self.assertIn("efore viewing the task diff", check_text)
+        self.assertIn("self-fixing", check_text)
+        self.assertIn("error", check_text)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,352 @@
+{
+  "schema": 3,
+  "task": ".trellis/tasks/09-10-optimize-channel-context-loading",
+  "revision": 1,
+  "status": "approved",
+  "audit": {
+    "required": true,
+    "file": "execution-events.jsonl"
+  },
+  "created_by": "trellis-implement",
+  "goal": "把下游模板 Channel Implement/Check 上下文加载改为混合模型（system prompt 只承载协议与角色，任务正文由 worker 按 manifest 主动读取），并把 Codex 唯一 wait session 的后续读取窗口固定为 yield_time_ms=300000",
+  "constraints": {
+    "forbidden_git_operations": [
+      "commit",
+      "push",
+      "tag",
+      "reset",
+      "restore-modified-source"
+    ],
+    "max_tasks": 8,
+    "max_edits_per_file": 5,
+    "allow_parallel_tasks": false
+  },
+  "tasks": [
+    {
+      "id": "discover-template-contract",
+      "title": "盘点模板现状与既有约束",
+      "status": "completed",
+      "objective": "读取 .trellis/agents/implement.md 与 check.md、.agents 与 .claude 两份 trellis-channel Skill 镜像、workflow.md 的 [Codex] 等待块、test_trellis_channel_contract.py 与 command-reference.md，确认公共 Skill 两份镜像逐字节一致、基线测试通过，并确认根目录自用 Trellis 仅作只读参考。",
+      "depends_on": [],
+      "scope": {
+        "read": [
+          "templates/embedded-c-overlay/.trellis/agents/*.md",
+          "templates/embedded-c-overlay/.agents/skills/trellis-channel/**",
+          "templates/embedded-c-overlay/.claude/skills/trellis-channel/**",
+          "templates/embedded-c-overlay/.trellis/workflow.md",
+          "templates/embedded-c-overlay/.trellis/scripts/tests/test_trellis_channel_contract.py",
+          ".trellis/tasks/09-10-optimize-channel-context-loading/*.jsonl"
+        ],
+        "write": []
+      },
+      "verification": {
+        "level": "minimal",
+        "required_checks": []
+      },
+      "no_check_reason": "纯只读盘点阶段：只读取模板现状与既有测试基线，不产生任何文件修改，不需声明可执行检查。"
+    },
+    {
+      "id": "update-agent-cards",
+      "title": "Implement/Check Agent 卡增加 fail-closed 上下文预检",
+      "status": "completed",
+      "objective": "在模板 .trellis/agents/implement.md 增加活动任务路径解析、implement.jsonl 逐行解析、任务文档/Spec/Research 批量读取、工作区信任边界与首次交付写入前门禁；check.md 对称实现 check.jsonl 门禁并把首次工作边界定义为查看任务 diff、正式审查或自修复之前。成功路径静默进入工作；失败走现有 error 终态报告 missing|unreadable|invalid|outside-workspace 与原因。不引入 Codex 主会话工具术语。",
+      "depends_on": [
+        "discover-template-contract"
+      ],
+      "scope": {
+        "read": [
+          "templates/embedded-c-overlay/.trellis/agents/*.md"
+        ],
+        "write": [
+          "templates/embedded-c-overlay/.trellis/agents/implement.md",
+          "templates/embedded-c-overlay/.trellis/agents/check.md"
+        ]
+      },
+      "verification": {
+        "level": "minimal",
+        "required_checks": [
+          "agent-cards-fail-closed-gates",
+          "agent-cards-codex-terms-absent"
+        ]
+      },
+      "verification_results": {
+        "agent-cards-fail-closed-gates": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-11T03:14:05Z",
+          "command": "grep-gate-markers",
+          "summary": "两张 Agent 卡均含各自 manifest、prd/design/implement、outside-workspace、missing|unreadable|invalid|outside-workspace、Active task、Batch-read 与 error 门禁标记"
+        },
+        "agent-cards-codex-terms-absent": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-11T03:14:05Z",
+          "command": "grep-codex-terms",
+          "summary": "两张 Agent 卡均未出现 exec_command/write_stdin/yield_time_ms/session_id（grep 无匹配，退出码 1 视为 0 命中）"
+        }
+      }
+    },
+    {
+      "id": "update-skill-docs",
+      "title": "标准派发改为 brief 定位 + 显式快照能力保留（含 .claude 镜像）",
+      "status": "completed",
+      "objective": "修改 .agents/skills/trellis-channel/references/workflows.md 的 Standard Implement/Check 与 Parallel Reviewers 示例：spawn 去除任务正文 --file/--jsonl，brief 传递 Active task 与对应 manifest 定位；修改 workers.md 把 --file/--jsonl 定义为保留的显式快照能力并把共享工作区 Implement/Check 标为主动读取默认值；同步 .claude 镜像保持逐字节一致。",
+      "depends_on": [
+        "update-agent-cards"
+      ],
+      "scope": {
+        "read": [
+          "templates/embedded-c-overlay/.agents/skills/trellis-channel/**",
+          "templates/embedded-c-overlay/.claude/skills/trellis-channel/**"
+        ],
+        "write": [
+          "templates/embedded-c-overlay/.agents/skills/trellis-channel/references/workflows.md",
+          "templates/embedded-c-overlay/.agents/skills/trellis-channel/references/workers.md",
+          "templates/embedded-c-overlay/.claude/skills/trellis-channel/references/workflows.md",
+          "templates/embedded-c-overlay/.claude/skills/trellis-channel/references/workers.md"
+        ]
+      },
+      "verification": {
+        "level": "minimal",
+        "required_checks": [
+          "standard-dispatch-no-fulltext-injection",
+          "workers-snapshot-capability-kept",
+          "skills-mirror-byte-identical"
+        ]
+      },
+      "verification_results": {
+        "standard-dispatch-no-fulltext-injection": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-11T03:16:55Z",
+          "command": "python-section-scan",
+          "summary": "Standard Implement/Check 与 Parallel Reviewers 示例均不含 --file/--jsonl，brief 含 Active task 与 implement.jsonl/check.jsonl 定位，且各保持一次 spawn 一次 wait"
+        },
+        "workers-snapshot-capability-kept": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-11T03:16:55Z",
+          "command": "grep-snapshot-markers",
+          "summary": "workers.md 保留 --file <path>/--jsonl <path> 快照能力文档并新增（Explicit snapshot vs. shared-workspace active read）区分段落"
+        },
+        "skills-mirror-byte-identical": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-11T03:16:55Z",
+          "command": "diff-mirror-files",
+          "summary": ".agents 与 .claude 两份 trellis-channel 公共 Skill 6 个文件逐字节一致（diff 全部 IDENTICAL）"
+        }
+      }
+    },
+    {
+      "id": "update-workflow-codex-window",
+      "title": "固化 Codex 唯一等待会话的 300000 读取窗口",
+      "status": "completed",
+      "objective": "更新模板 .trellis/workflow.md 的 [Codex] 2.1.1 布局块：首次 exec_command 用短窗口，取得 session_id 后每次 write_stdin 固定 yield_time_ms=300000 并复用同一 ID；明确五分钟是单次读取上界而非 wait 总超时，窗口到期继续复用同一 ID；正常路径禁用 30000 等短窗口，仅诊断/交互且当轮说明原因时例外；保留 done/error、CLI 超时 124、进程失败与用户中断边界。",
+      "depends_on": [
+        "update-skill-docs"
+      ],
+      "scope": {
+        "read": [
+          "templates/embedded-c-overlay/.trellis/workflow.md"
+        ],
+        "write": [
+          "templates/embedded-c-overlay/.trellis/workflow.md"
+        ]
+      },
+      "verification": {
+        "level": "minimal",
+        "required_checks": [
+          "workflow-wait-window-contract"
+        ]
+      },
+      "verification_results": {
+        "workflow-wait-window-contract": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-11T03:17:55Z",
+          "command": "workflow-codex-scan",
+          "summary": "[Codex] 块含确切 yield_time_ms=300000、复用同一 ID、只对该 ID 调用 write_stdin、单次读取窗口/总等待上限/总运行上限区分、30000 仅限诊断例外；[Claude Code] 块不含 Codex 术语与 300000；既有 10 条合约测试通过"
+        }
+      }
+    },
+    {
+      "id": "extend-contract-tests",
+      "title": "扩展 Channel 静态合约测试",
+      "status": "completed",
+      "objective": "扩展模板 test_trellis_channel_contract.py：断言标准 Implement/Check 与 Parallel Reviewers spawn 示例不含任务正文 --file/--jsonl 且 brief 含 Active task 与 manifest 定位；断言两个 Agent 卡含批量读取、工作区边界、失败 error 报告与首次工作门禁且成功路径不要求回执；断言 workflow [Codex] 块含确切 yield_time_ms=300000、同一 session_id 复用与读取窗口/总上限区分，并能阻止 30000 短轮询成为默认；保留镜像一致与一次 spawn/一次 wait 断言。",
+      "depends_on": [
+        "update-workflow-codex-window"
+      ],
+      "scope": {
+        "read": [
+          "templates/embedded-c-overlay/.trellis/scripts/tests/test_trellis_channel_contract.py",
+          "templates/embedded-c-overlay/.trellis/agents/*.md",
+          "templates/embedded-c-overlay/.agents/skills/trellis-channel/**",
+          "templates/embedded-c-overlay/.trellis/workflow.md"
+        ],
+        "write": [
+          "templates/embedded-c-overlay/.trellis/scripts/tests/test_trellis_channel_contract.py"
+        ]
+      },
+      "verification": {
+        "level": "minimal",
+        "required_checks": [
+          "channel-contract-suite",
+          "contract-tests-wait-window-guard"
+        ]
+      },
+      "verification_results": {
+        "channel-contract-suite": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-11T03:20:01Z",
+          "command": "python -B -m unittest ... test_trellis_channel_contract.py",
+          "summary": "扩展后 14 条静态合约测试全部通过（原 10 条 + 新增 4 条）"
+        },
+        "contract-tests-wait-window-guard": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-11T03:20:01Z",
+          "command": "red-light-vs-HEAD",
+          "summary": "新断言对 HEAD 基线全 Red：旧派发仍用 --file/--jsonl、旧 Codex 块无 300000、旧 Agent 卡无门禁；对 HEAD 的对比证明新测试能阻止 30000 短轮询与无注入回归"
+        }
+      }
+    },
+    {
+      "id": "cross-file-consistency",
+      "title": "跨文件契约与回归扫描",
+      "status": "completed",
+      "objective": "扫描模板全部 trellis channel spawn 示例，确认只有任务型 Implement/Check 默认派发移除全文注入、显式快照场景仍有说明；确认公共 Skill 不含 Codex 工具术语；确认 Agent 卡、workflow、Skill 示例与测试对 manifest 名称、读取顺序、失败报告与写入前门禁一致；确认改动仅位于 templates/embedded-c-overlay/ 下。",
+      "depends_on": [
+        "extend-contract-tests"
+      ],
+      "scope": {
+        "read": [
+          "templates/embedded-c-overlay/.trellis/agents/*.md",
+          "templates/embedded-c-overlay/.agents/skills/trellis-channel/**",
+          "templates/embedded-c-overlay/.claude/skills/trellis-channel/**",
+          "templates/embedded-c-overlay/.trellis/workflow.md",
+          "templates/embedded-c-overlay/.trellis/scripts/tests/test_trellis_channel_contract.py"
+        ],
+        "write": []
+      },
+      "verification": {
+        "level": "minimal",
+        "required_checks": [
+          "template-unit-suite",
+          "repo-changes-confined"
+        ]
+      },
+      "verification_results": {
+        "template-unit-suite": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-11T03:20:53Z",
+          "command": "python -B -m unittest discover -s templates/embedded-c-overlay/.trellis/scripts/tests -p \"test_*.py\"",
+          "summary": "模板单元测试全套 118 条通过；公共 Skill 两份镜像无 exec_command/write_stdin/yield_time_ms/session_id 泄漏"
+        },
+        "repo-changes-confined": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-11T03:20:53Z",
+          "command": "git-status-confine-scan",
+          "summary": "功能改动 7 个文件全部位于 templates/embedded-c-overlay/；任务目录仅有父会话规划产物与 execution-plan/events 状态文件；根目录 .trellis/.agents/.claude/.codex 无功能性修改"
+        }
+      }
+    },
+    {
+      "id": "full-validation",
+      "title": "全量验证",
+      "status": "completed",
+      "objective": "运行仓库自用 Trellis 回归测试、模板 Python 语法 py_compile 与 git diff --check；构建、部署与硬件验证报告为 not applicable 且不执行。",
+      "depends_on": [
+        "cross-file-consistency"
+      ],
+      "scope": {
+        "read": [
+          "templates/embedded-c-overlay/.trellis/scripts/**",
+          ".trellis/scripts/tests/**"
+        ],
+        "write": []
+      },
+      "verification": {
+        "level": "minimal",
+        "required_checks": [
+          "root-regression-suite",
+          "template-py-compile",
+          "git-diff-check"
+        ]
+      },
+      "verification_results": {
+        "root-regression-suite": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-11T03:22:04Z",
+          "command": "python -B -m unittest discover -s .trellis/scripts/tests -p \"test_*.py\"",
+          "summary": "仓库自用 Trellis 回归测试 99 条全部通过"
+        },
+        "template-py-compile": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-11T03:22:04Z",
+          "command": "py_compile 模板 scripts/hooks",
+          "summary": "模板 .trellis/scripts 与 .claude/.codex hooks 全部 .py py_compile 通过，无失败项"
+        },
+        "git-diff-check": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-11T03:22:04Z",
+          "command": "git diff --check -- templates/embedded-c-overlay",
+          "summary": "任务范围模板 diff 无空白错误（exit 0）；全仓命令仅因父会话预存在 task.json CRLF 4 行报尾随空白，属于规划期产物非本任务改动，已在报告中说明"
+        }
+      }
+    },
+    {
+      "id": "final-report",
+      "title": "最终验收与交付报告",
+      "status": "completed",
+      "objective": "确认全部前置阶段完成，逐项核对 PRD 验收条件，运行最终报告阶段声明的检查，写入 .trellis/tasks/09-10-optimize-channel-context-loading/final-report.md（修改文件、阶段结果、检查结果、未运行项与已知风险），并用 record --artifact final-report.md 注册后 done。",
+      "depends_on": [
+        "full-validation"
+      ],
+      "scope": {
+        "read": [
+          "templates/embedded-c-overlay/.trellis/agents/*.md",
+          "templates/embedded-c-overlay/.agents/skills/trellis-channel/**",
+          "templates/embedded-c-overlay/.trellis/workflow.md",
+          "templates/embedded-c-overlay/.trellis/scripts/tests/test_trellis_channel_contract.py"
+        ],
+        "write": [
+          ".trellis/tasks/09-10-optimize-channel-context-loading/final-report.md"
+        ]
+      },
+      "verification": {
+        "level": "report",
+        "required_checks": [
+          "acceptance-criteria-trace",
+          "report-written"
+        ],
+        "report_path": "final-report.md"
+      },
+      "verification_results": {
+        "acceptance-criteria-trace": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-11T03:22:59Z",
+          "command": "prd-acceptance-mapping",
+          "summary": "15 条 PRD 验收条件逐项映射到实现文件与测试证据，全部通过；验证类别区分 pass/not applicable"
+        },
+        "report-written": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-11T03:22:59Z",
+          "command": "write-final-report.md",
+          "summary": "final-report.md 已写入并记录修改文件、阶段结果、验收核对、验证结果、未运行项与已知风险",
+          "artifact": ".trellis/tasks/09-10-optimize-channel-context-loading/final-report.md"
+        }
+      }
+    }
+  ],
+  "approved_fingerprint": "d9512a2d5269131cf0f1c22f0f6cfc69f075981a263da4a037f82922857b807a"
+}

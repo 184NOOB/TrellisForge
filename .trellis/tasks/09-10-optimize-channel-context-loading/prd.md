@@ -2,7 +2,8 @@
 
 ## Workflow Settings
 
-- Review level: standard
+- Review level: strict
+- 提交前全盘审查：跳过（收尾提交前不对完整任务 diff 执行 full-scope 复查）
 
 ## Goal
 

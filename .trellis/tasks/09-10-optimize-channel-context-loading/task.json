@@ -3,7 +3,7 @@
   "name": "optimize-channel-context-loading",
   "title": "优化 Trellis Channel 上下文加载",
   "description": "将下游模板的 Channel worker 上下文改为稳定规则注入、任务与 Spec 按 manifest 主动读取，并提供 fail-closed 的读取失败门禁。",
-  "status": "planning",
+  "status": "in_progress",
   "dev_type": null,
   "scope": null,
   "package": "main",
@@ -24,6 +24,6 @@
   "notes": "",
   "meta": {
     "planning_ready": "true",
-    "plan_approved": false
+    "plan_approved": "true"
   }
 }

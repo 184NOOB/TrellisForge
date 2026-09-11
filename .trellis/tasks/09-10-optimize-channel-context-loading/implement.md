@@ -74,7 +74,7 @@
 
 ### 7. 审查与交付
 
-- [ ] 按 PRD 的 `Review level: standard` 对完整任务 diff 执行一次独立 affected-scope 审查，覆盖 Agent 卡、公共 Skill 镜像、workflow Codex 块、合约测试和所有验收条件。
+- [ ] 按 PRD 的 `Review level: strict` 对受影响范围执行独立审查，覆盖 Agent 卡、公共 Skill 镜像、workflow Codex 块、合约测试和所有验收条件；提交前不进行完整任务 diff 的全盘复查。
 - [ ] 批量处理审查发现并重跑直接受影响检查；若任务范围、公共契约、验收条件或适用 Spec 实质变化，则旧证据失效并重新审查。
 - [ ] 汇总修改文件、上下文加载与等待契约、测试结果、未运行项和剩余风险；不提前更新版本、升级资产、README 或接入指南。
 - [ ] 未经用户另行授权不执行 `git add`、`git commit`、推送、合并或历史重写。

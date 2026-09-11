@@ -139,3 +139,38 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 5: 实施审查阻塞问题修复责任子任务并归档
+
+**Date**: 2026-09-11
+**Task**: 实施审查阻塞问题修复责任子任务并归档
+**Package**: main
+**Branch**: `v1.2-development`
+
+### Summary
+
+在 templates/embedded-c-overlay/ 内统一 review Skill、模板 workflow、Channel/Claude/Codex Check Agent 与 Claude/Codex Hook 的 Check Agent 直接修复边界，并建立阻塞实现问题返回主会话后的实施责任路由（R1-R5）；用新增所有权合约测试防多入口漂移。实施 agent=opus、审查 agent=fable（strict full-scope 零阻塞）。
+
+### Main Changes
+
+- 统一七个策略入口（review SKILL / workflow / 三 Check Agent / 两 Hook）的机械直修边界与只报告集合
+- 新增 test_review_fix_ownership_contract.py（11 断言，运行时调用两 Hook build_check_prompt 断言）
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `8a7eebc` | (see git log) |
+
+### Testing
+
+- [OK] 模板单测 129/129；根目录回归 99/99；两 Hook py_compile；git diff --check 全绿
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- 进入固定收尾子任务 09-10-readme-integration-guide-upgrade-patch（README/接入指南/升级补丁/版本号/manifest）

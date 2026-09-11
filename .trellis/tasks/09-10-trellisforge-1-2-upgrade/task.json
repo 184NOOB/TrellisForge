@@ -21,6 +21,7 @@
   "children": [
     "09-10-add-intermediate-review-levels",
     "09-10-optimize-channel-context-loading",
+    "09-11-route-blocking-review-fixes",
     "09-10-readme-integration-guide-upgrade-patch"
   ],
   "parent": null,

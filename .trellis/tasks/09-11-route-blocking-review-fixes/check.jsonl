@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/main/tooling/index.md", "reason": "质量检查命令（Python 单测、py_compile、diff --check）与模板文档契约的核对标准"}
+{"file": ".trellis/spec/main/tooling/templates-and-docs.md", "reason": "模板契约一致性检查依据，核对修改后的模板占位符与文档政策未弱化"}
+{"file": ".trellis/spec/shared/validation.md", "reason": "验证策略，核对新增合约测试是否覆盖需要防漂移的失败情形"}
+{"file": ".trellis/spec/guides/index.md", "reason": "AI 审查假阳性识别与跨层一致性核验，指导对合约测试与语义一致性的独立检查"}

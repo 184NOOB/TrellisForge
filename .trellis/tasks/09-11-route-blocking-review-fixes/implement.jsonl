@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/main/tooling/index.md", "reason": "主工具包开发规范总览：脚本边界、编码与测试方式、模板与文档契约、开发前检查与质量检查命令"}
+{"file": ".trellis/spec/main/tooling/templates-and-docs.md", "reason": "发布模板占位符与文档契约，本任务改写模板 workflow/Skill/Agent/Hook 语义的约束来源"}
+{"file": ".trellis/spec/main/tooling/python.md", "reason": "Python 工作流脚本编码与测试规范，覆盖两个 inject-subagent-context.py Hook 与新增合约测试"}
+{"file": ".trellis/spec/main/tooling/overlay-upgrade.md", "reason": "覆盖层升级架构与哈希收据契约，模板目录是下游发布 overlay 的一部分，需了解其结构约束"}
+{"file": ".trellis/spec/shared/validation.md", "reason": "验证策略，为合约测试与验证命令设计（单测/py_compile/diff --check）提供约束"}
+{"file": ".trellis/spec/guides/index.md", "reason": "思考指南（跨层、代码复用），用于防止同一审查责任政策在 review Skill/三 Agent/两 Hook 多入口间漂移"}

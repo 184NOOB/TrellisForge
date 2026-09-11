@@ -22,3 +22,7 @@ Python 代码主要位于 `.trellis/scripts/`、`.claude/hooks/` 和 `.codex/hoo
 - 不用字符串拼接替代 JSON/结构化解析。
 - 不吞掉异常或把不可执行的检查伪造为通过；应报告 `not applicable`，必要时用 `plan.py block/revise`。
 - 不提交 `__pycache__`、`.pyc` 或 `.pyo`；模板安装器会主动拒绝这些缓存。
+
+## 常见错误
+
+- **Windows 下 `task.json` 变 CRLF 触发 `git diff --check` 尾随空白**：`common/io.py` 的 `write_json` 用 `os.fdopen(fd, "w", encoding="utf-8")` 写文件（未传 `newline=`），Windows 文本模式把 `\n` 转成 `\r\n`，因此 `task.py`/`plan.py` 推进状态落盘的 `task.json` 等 JSON 会成为 CRLF。仓库 `core.autocrlf=false` 且 `.gitattributes` 无 JSON 换行规则，`git diff --check` 会把 CRLF 判为 `trailing whitespace` 报错。提交前若在 `task.json` 上遇到该报错，先将文件规范化为 LF（`git add --renormalize` 或脚本转 LF）；根治需给 `write_json` 传 `newline="\n"`，属根级工具修复、需单独任务授权。

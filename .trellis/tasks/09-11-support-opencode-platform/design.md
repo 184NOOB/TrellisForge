@@ -186,6 +186,24 @@ OpenCode Check Agent 直接读取项目
 Agent；规划缺陷返回 Phase 1，越界/环境问题只报告，其余非机械实现阻塞返回主会话。
 修复所有权不改变 profile 决定的独立性、范围和轮次。
 
+## 本任务审查执行配置
+
+本任务自身使用 `Review level: strict`，但采用用户明确指定的任务级调度例外：
+
+- 实施完成后派发独立 full-scope Check Agent，覆盖完整任务 diff、受影响工具层、适用
+  Spec、跨平台合同、测试和全部验收条件；
+- 每批阻塞 finding 修复后，新派 fresh Check Agent 重新执行完整 full-scope 审查，直到
+  最新独立报告的阻塞数为零；
+- 任务变更集、公共合同、验收条件或适用 Spec 实质变化时，既有证据失效并重新进入
+  full-scope 审查闭环；
+- 进入提交准备时不追加额外的 commit-ready final review，也不因省略该轮而降低前述
+  implementation-loop 的范围、独立性或零阻塞要求。
+
+该例外只控制当前任务的审查调度。交付给下游的五级 profile 仍必须保持标准
+`strict` 合同，包括其 commit-ready fresh full-scope 终审；不得修改
+`templates/embedded-c-overlay/` 中的 Review Skill、workflow、Agent 或测试来固化本任务
+例外。每次审查派发提示和最终报告都必须显式记录该例外及未执行额外终审的依据。
+
 ## 文件修改面
 
 | 文件或目录 | 设计改动 |
@@ -246,3 +264,4 @@ OpenCode 而改写其行为。若合约测试暴露原有平台陈旧的“两�
 - 通过现有 Python prompt policy 的受控入口复用规范化语义，不复制正则规则。
 - 用合同/行为测试证明平台等价，不要求不同语言实现逐字节相同。
 - OpenCode 原生 Task 是主工作流子代理路径；Channel 受管 OpenCode worker 不进入设计。
+- 本任务的 strict 无 commit-ready 终审是一次性调度例外，不成为产品设计或 Spec。

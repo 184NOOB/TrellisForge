@@ -2,7 +2,8 @@
 
 ## Workflow Settings
 
-- Review level: standard
+- Review level: strict
+- Task-specific review override: keep strict full-scope independent implementation-loop reviews and fresh re-review after each blocking-fix batch until zero blocking findings, but omit the additional commit-ready final review for this task only.
 
 ## Goal
 
@@ -124,6 +125,7 @@
 - OpenCode 使用原生 Task/子代理执行 Research、Implement、Check；Channel 通用协作能力可继续使用，但 OpenCode 受管 worker provider 暂不纳入。
 - OpenCode 必须实现模板现有五级审查：`light`、`standard`、`reinforced`、`comprehensive`、`strict`。
 - 功能子任务只交付模板能力和模板内验证；父任务固定收尾子任务统一完成 1.2 发布资产与文档集成。
+- 本开发任务采用 `strict` 审查，但只执行实施后的独立 full-scope 阻塞闭环；每批阻塞修复后使用 fresh Check Agent 完整重审至零，不追加额外 commit-ready final review。该例外不进入下游模板、Review Skill 或项目 Spec。
 
 ## Risks And Deferred Items
 

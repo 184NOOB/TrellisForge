@@ -3,7 +3,7 @@
   "name": "support-opencode-platform",
   "title": "支持 OpenCode 平台",
   "description": "为 TrellisForge 1.2 覆盖层新增 OpenCode 平台支持，并使其 Trellis 工作流语义与现有 Claude Code、Codex 路径一致。",
-  "status": "planning",
+  "status": "in_progress",
   "dev_type": null,
   "scope": null,
   "package": "main",
@@ -30,6 +30,6 @@
   "notes": "",
   "meta": {
     "planning_ready": true,
-    "plan_approved": false
+    "plan_approved": true
   }
 }

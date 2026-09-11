@@ -8,6 +8,8 @@
   才进入 `in_progress`。
 - [ ] 读取 `prd.md`、`design.md`、本文件以及 `implement.jsonl` / `check.jsonl`
   中列出的 Spec；不得只读 Spec 索引便开始实施。
+- [ ] 审查调度读取并保留任务级例外：使用 strict full-scope implementation-loop 和
+  每批阻塞修复后的 fresh re-review，但不追加 commit-ready final review。
 - [ ] 用 `git status --short` 记录父任务和用户现有改动，功能写入仅限
   `templates/embedded-c-overlay/` 与本任务资料。
 - [ ] 确认根目录自用 `.trellis/`、`.agents/`、`.claude/`、`.codex/`、README、
@@ -187,11 +189,15 @@
 
 ### 10. 审查与父任务交接
 
-- [ ] 按本任务 `Review level: standard` 派发恰好一次独立 affected-scope Check Agent；
-  覆盖完整任务 diff、OpenCode JS 行为、模板 Python 公共合同、五级审查、任务隔离、
-  提示规范化、全部 AC 和适用 Spec。
-- [ ] 批量处理机械 finding 和返回主会话的实施 finding，重跑直接受影响检查；只有任务
-  范围、公共合同、验收条件或适用 Spec 实质变化使证据失效时才重新独立审查。
+- [ ] 按本任务定制的 `Review level: strict` 派发独立 full-scope implementation-loop
+  Check Agent；覆盖完整任务 diff、OpenCode JS 行为、模板 Python 公共合同、五级审查、
+  任务隔离、提示规范化、全部 AC 和适用 Spec。
+- [ ] 批量处理机械 finding 和返回主会话的实施 finding；每批阻塞 finding 修复完成后，
+  新派 fresh Check Agent 重新执行完整 full-scope 审查，直到最新独立报告为零阻塞。
+- [ ] 若任务范围、公共合同、验收条件或适用 Spec 实质变化，则按 evidence invalidation
+  重新执行 full-scope 审查。
+- [ ] 当前任务不执行额外 commit-ready final review；每次审查派发提示和最终报告都明确
+  这是用户指定的一次性任务例外，不修改或弱化发布模板中的 `strict` 契约。
 - [ ] 最终 `final-report.md` 按 AC1-AC13 映射证据，分别列出测试、静态检查、JS/JSON
   语法、构建/部署/硬件不适用、未运行项和剩余风险。
 - [ ] 向父任务固定收尾子任务提供新增/修改模板文件清单、`.opencode/package.json` 依赖、

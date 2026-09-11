@@ -4,6 +4,9 @@ import contextlib
 import importlib.util
 import io
 import json
+import os
+import re
+import subprocess
 import sys
 import unittest
 from pathlib import Path
@@ -288,6 +291,130 @@ class SubagentPromptContractTests(unittest.TestCase):
         self.assertIn("report granularity", template)
         self.assertIn("call `grep` once per item", template)
         self.assertIn("Stop on completion", template)
+
+
+class OpenCodePromptPolicyBridgeTests(unittest.TestCase):
+    """The OpenCode plugin must reuse the Python policy through --json.
+
+    JavaScript must never re-implement the normalization regex tables; these
+    tests lock the bridge contract and the static degradation fallback text.
+    """
+
+    POLICY_SCRIPT = REPO_ROOT / ".trellis" / "scripts" / "common" / "subagent_prompt_policy.py"
+    PLUGIN = REPO_ROOT / ".opencode" / "plugins" / "inject-subagent-context.js"
+    SESSION_UTILS = REPO_ROOT / ".opencode" / "lib" / "session-utils.js"
+
+    def _run_bridge(self, payload, extra_args=("--json",)):
+        return subprocess.run(
+            [sys.executable, "-B", str(self.POLICY_SCRIPT), *extra_args],
+            input=payload,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=30,
+            env={k: v for k, v in os.environ.items() if k != "PYTHONHOME"},
+        )
+
+    def test_bridge_matches_import_api(self):
+        policy = load_module(
+            ".trellis/scripts/common/subagent_prompt_policy.py", "prompt_policy_bridge"
+        )
+        sample = (
+            "目标：删除无关 handler。\n"
+            "验收条件：逐个 grep 全工程验证，每项单独构建。\n"
+            "验证命令：\n"
+            "```bash\n"
+            "grep -R handler .\n"
+            "```\n"
+            "执行策略：逐个 grep handler；每项单独构建。"
+        )
+        result = self._run_bridge(json.dumps({"prompt": sample, "injected_context": "ctx"}))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        data = json.loads(result.stdout)
+        self.assertEqual(
+            data["normalized_prompt"],
+            policy.normalize_implement_prompt(sample, "ctx"),
+        )
+        self.assertEqual(data["execution_contract"], policy.execution_contract())
+        self.assertEqual(data["policy_marker"], policy.policy_marker())
+        self.assertIn("使用一次批量扫描全部目标", data["normalized_prompt"])
+        self.assertIn("grep -R handler .", data["normalized_prompt"])
+
+    def test_bridge_rejects_invalid_inputs(self):
+        for payload in (
+            '"just a string"',
+            "[1, 2]",
+            '{"injected_context": "only"}',
+            '{"prompt": 42}',
+            '{"prompt": "x", "injected_context": null}',
+            "not json at all",
+        ):
+            result = self._run_bridge(payload)
+            self.assertNotEqual(result.returncode, 0, f"bridge accepted {payload!r}")
+            self.assertIn("subagent_prompt_policy", result.stderr)
+
+    def test_bridge_without_json_flag_prints_usage(self):
+        result = self._run_bridge("{}", extra_args=())
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("usage:", result.stderr)
+
+    def test_import_semantics_unchanged_for_hook_callers(self):
+        # The in-process API the Claude/Codex hooks use must keep working.
+        policy = load_module(
+            ".trellis/scripts/common/subagent_prompt_policy.py", "prompt_policy_import"
+        )
+        self.assertIn(
+            policy.policy_marker(),
+            policy.normalize_implement_prompt("目标：X。\n执行步骤：每个符号逐个 grep", ""),
+        )
+
+    def test_js_static_fallback_strings_equal_python_canonical(self):
+        policy = load_module(
+            ".trellis/scripts/common/subagent_prompt_policy.py", "prompt_policy_static"
+        )
+        js = self.SESSION_UTILS.read_text(encoding="utf-8")
+        marker_m = re.search(r'export const STATIC_POLICY_MARKER = "(.*)"', js)
+        self.assertIsNotNone(marker_m, "STATIC_POLICY_MARKER constant not found")
+        self.assertEqual(policy.policy_marker(), marker_m.group(1))
+        contract_m = re.search(
+            r"export const STATIC_EXECUTION_CONTRACT =\n((?:[ \t]+.*\n?)+)", js
+        )
+        self.assertIsNotNone(contract_m, "STATIC_EXECUTION_CONTRACT constant not found")
+        parts = re.findall(r'"((?:[^"\\]|\\.)*)"', contract_m.group(1))
+        js_contract = "".join(parts)
+        self.assertEqual(policy.execution_contract(), js_contract)
+
+    def test_plugin_uses_python_bridge_and_keeps_business_text(self):
+        plugin = self.PLUGIN.read_text(encoding="utf-8")
+        self.assertIn("normalizePromptViaPython", plugin)
+        self.assertIn("## Task requirements (normalized from the dispatch request)", plugin)
+        self.assertIn("## Trellis execution contract (applies to the task below)", plugin)
+        self.assertIn("- Do NOT execute git commit, only code modifications", plugin)
+        self.assertIn("The context above was prepared by Trellis", plugin)
+        # The degradation path keeps the raw prompt + static contract, and the
+        # plugin must say so explicitly instead of silently normalizing.
+        self.assertIn("prompt normalization degraded", plugin)
+
+    def test_js_check_prompt_section_matches_python_hook_builders(self):
+        claude = load_module(
+            ".claude/hooks/inject-subagent-context.py", "claude_check_shape"
+        )
+        codex = load_module(
+            ".codex/hooks/inject-subagent-context.py", "codex_check_shape"
+        )
+        sections = []
+        for hook in (claude, codex):
+            prompt = hook.build_check_prompt("task facts", "curated context")
+            body = prompt.split("## Finding handling", 1)[1].split("## Important Constraints", 1)[0]
+            sections.append(re.sub(r"\s+", " ", body).strip())
+        self.assertEqual(sections[0], sections[1])
+        plugin = self.PLUGIN.read_text(encoding="utf-8")
+        js_body = plugin.split("## Finding handling", 1)[1].split("## Important Constraints", 1)[0]
+        js_norm = re.sub(r"\$\{[^}]*\}", "", js_body)
+        js_norm = re.sub(r"\s+", " ", js_norm).strip()
+        self.assertEqual(sections[0], js_norm,
+                         "OpenCode check prompt must carry the same Finding-handling contract")
 
 
 if __name__ == "__main__":

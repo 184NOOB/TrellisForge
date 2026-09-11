@@ -101,7 +101,8 @@ python ./.trellis/scripts/get_context.py --mode phase --step <X.Y>  # detailed g
 
   The [workflow-state:STATUS] blocks embedded in the ## Phase Index section
   below are the SINGLE source of truth for the per-turn `<workflow-state>`
-  breadcrumb that the supported Claude Code and Codex hooks read.
+  breadcrumb that the supported Claude Code and Codex hooks and the OpenCode
+  plugins read.
   The project hook parsers only parse them — there is no
   fallback dict baked into the scripts after v0.5.0-rc.0.
 
@@ -182,7 +183,7 @@ Complex task: ask the user if you can create a Trellis task and enter the planni
 - 1.0 Create task `[required · once]` (only after task-creation consent)
 - 1.1 Requirement exploration and Grill Me `[required · repeatable]` (`prd.md`; complex tasks also need `design.md` + `implement.md`)
 - 1.2 Research `[optional · repeatable]`
-- 1.3 Configure context `[required · once]` — Claude Code and Codex sub-agent mode only; Codex inline mode skips curation
+- 1.3 Configure context `[required · once]` — Claude Code, Codex sub-agent mode, and OpenCode native sub-agent mode; Codex inline mode skips curation
 - 1.4 Activate task `[required · once]` (review gate, then `task.py start`; status → in_progress)
 - 1.5 Completion criteria
 
@@ -221,11 +222,18 @@ Inline mode: skip jsonl curation; Phase 2 reads artifacts/specs via `trellis-bef
      therefore must cover every required step from implementation through
      commit, including Phase 3.3 spec update and Phase 3.4 commit. -->
 
-Sub-agent dispatch protocol in this project applies only to Claude Code and Codex:
-every dispatch prompt starts with `Active task: <task path from task.py current>`
-before role-specific instructions. Claude uses project `.claude/agents/` and
-hooks. Codex uses `.codex/agents/` and native `SubagentStart` context injection
-with child-side pull fallback. Upstream examples for other platforms are outside
+Sub-agent dispatch protocol in this project applies to Claude Code, Codex, and
+OpenCode: every dispatch prompt starts with `Active task: <task path from
+task.py current>` before role-specific instructions. Claude uses project
+`.claude/agents/` and hooks. Codex uses `.codex/agents/` and native
+`SubagentStart` context injection with child-side pull fallback. OpenCode uses
+`.opencode/agents/` (`mode: subagent`) dispatched through its native Task tool;
+the `.opencode/plugins/` inject the same context on `tool.execute.before`,
+bridge shell session identity via `TRELLIS_CONTEXT_ID`, and fail closed (block
+injection with a stop-and-report notice) when no task can be resolved. OpenCode
+runs the main workflow with native sub-agents only: `trellis channel` managed
+workers remain `--provider claude|codex`, and `--provider opencode` is not
+supported. Upstream examples for other platforms are outside
 this template's supported scope and must not trigger extra files or dispatch work.
 
 [workflow-state:in_progress]
@@ -318,6 +326,23 @@ When a user request matches one of these intents inside an active task, route fi
 - Repeated debugging -> `trellis-break-loop`; spec updates -> `trellis-update-spec`.
 
 [/Codex]
+
+[OpenCode]
+
+- Planning -> `trellis-brainstorm` + mandatory upstream `grill-me` + `PROJECT_PREFIX-trellis-grill-adapter`.
+- `in_progress` implementation -> dispatch `trellis-implement` through the
+  native Task tool (prompt starts with `Active task: <path>`); review ->
+  load `PROJECT_PREFIX-trellis-review`, keep `light` in the main session, and
+  dispatch `trellis-check` for `standard` / `reinforced` / `comprehensive` /
+  `strict`. Before editing -> `trellis-before-dev`.
+- Shell commands receive this session's `TRELLIS_CONTEXT_ID` automatically from
+  the OpenCode plugin; `task.py` / `plan.py` must run through the shell so they
+  hit this session's pointer. Missing or ambiguous session state is a
+  stop-and-report condition.
+- Repeated debugging -> `trellis-break-loop`; spec updates -> `trellis-update-spec`;
+  session wrap-up -> `trellis-finish-work` Skill via `/trellis:finish-work`.
+
+[/OpenCode]
 
 ### Guardrails
 
@@ -433,7 +458,7 @@ Return to this step whenever requirements change and revise the relevant artifac
 
 Research can happen at any time during requirement exploration. It isn't limited to local code — you can use any available tool (MCP servers, skills, web search, etc.) to look up external information, including third-party library docs, industry practices, API references, etc.
 
-[Claude Code, codex-sub-agent]
+[Claude Code, codex-sub-agent, OpenCode]
 
 Spawn the research sub-agent:
 
@@ -441,7 +466,7 @@ Spawn the research sub-agent:
 - **Task description**: Research <specific question>
 - **Key requirement**: Research output MUST be persisted to `{TASK_DIR}/research/`
 
-[/Claude Code, codex-sub-agent]
+[/Claude Code, codex-sub-agent, OpenCode]
 
 [codex-inline]
 
@@ -460,7 +485,7 @@ Brainstorm and research can interleave freely — pause to research a technical 
 
 #### 1.3 Configure context `[required · once]`
 
-[Claude Code, codex-sub-agent]
+[Claude Code, codex-sub-agent, OpenCode]
 
 Curate `implement.jsonl` and `check.jsonl` so the Phase 2 sub-agents get the right spec/research context. These files were seeded on `task create` with a single self-describing `_example` line; your job here is to fill in real entries.
 
@@ -505,7 +530,7 @@ Ready gate: both `implement.jsonl` and `check.jsonl` must contain at least one r
 
 Skip this step only when both files already have real curated entries.
 
-[/Claude Code, codex-sub-agent]
+[/Claude Code, codex-sub-agent, OpenCode]
 
 [codex-inline]
 
@@ -550,11 +575,11 @@ If `task.py start` errors with a session-identity message (no context key from h
 | `design.md` exists (complex tasks) | ✅ |
 | `implement.md` exists (complex tasks) | ✅ |
 
-[Claude Code, codex-sub-agent]
+[Claude Code, codex-sub-agent, OpenCode]
 
 | `implement.jsonl` and `check.jsonl` each contain at least one real curated entry (seed row does not count) | ✅ |
 
-[/Claude Code, codex-sub-agent]
+[/Claude Code, codex-sub-agent, OpenCode]
 
 ---
 
@@ -572,14 +597,14 @@ Implementation progress is driven by the execution plan in the active task direc
 - `required_checks` cannot be bypassed by an empty list: only a pure read-only/analysis phase (empty `scope.write`) may declare none, and then it must state a non-empty `no_check_reason`. Any file-modifying/build/test phase needs ≥ 1 declared check, and `done` refuses missing or non-pass records. A recorded `fail` is permanent for the revision. Check ids are declarative, so `plan.py` can only verify presence/pass — the 2.2 review must additionally re-check the declared check list itself against `prd.md` acceptance criteria: renaming, dropping, or trivializing a declared check between revisions is a verification downgrade that only the independent review catches.
 - State advances only through `plan.py` (`start` / `record` / `done` / `block` / `revise`). Hand-edited task statuses, revisions, verification result maps, guarded task content, and completed-task history are rejected — statuses and managed maps are cross-checked against the audit replay. Consistent forgery of the plan JSON and the audit log together is outside this mechanism's defense envelope; the independent 2.2 review remains the real verification.
 - `plan.py record <id> --check <declared-check-id> --result pass|fail --command <command-id> --exit-code <number> --summary "<short text>" [--artifact <task-relative-path>]` is the implementer's attestation of a check it actually ran (plan.py never executes builds or tests); `--artifact` is an optional task-directory-local reference, never required for `minimal`. Independent verification belongs to the 2.2 quality-check review, which must rerun or otherwise confirm the declared checks. A failed phase is audited through `plan.py block <id> --reason "..."` — there is no separate `task_failed` event; `blocked` + reason + `plan_revised` history carry failure semantics.
-- The phase loop is batch-shaped: `start` → batch read / batch edit / batch check → `record` every declared check → `done`. Hooks are display-only aids: the UserPromptSubmit hook shows an `<execution-plan>` breadcrumb, the sub-agent injection hooks carry the protocol + current state, and the PreToolUse edit counter only warns (it never feeds `done`). The CLI flow must work completely with every hook disabled or unavailable (Codex `SubagentStart` has no PreToolUse equivalent).
+- The phase loop is batch-shaped: `start` → batch read / batch edit / batch check → `record` every declared check → `done`. Hooks/plugins are display-only aids: the UserPromptSubmit hook (Claude/Codex) and the OpenCode per-turn plugin show an `<execution-plan>` breadcrumb, the sub-agent injection hooks/plugin carry the protocol + current state, and the PreToolUse edit counter only warns (it never feeds `done`). The CLI flow must work completely with every hook or plugin disabled or unavailable (Codex `SubagentStart` has no PreToolUse equivalent; OpenCode plugins are context carriers, never gates).
 - Between implement rounds the main session runs `plan.py --task "<task-path>" status`: runnable tasks → re-dispatch (or continue inline); all completed → 2.2 quality check; `blocked` or `plan_revised` history → review the reason before proceeding.
 - Crash recovery depends on task-directory files only: re-read `execution-plan.json`, resume the `in_progress` phase (its recorded checks are already in the plan) or the first dependency-ready `pending` phase. Session ids, hooks, and sidechain/bg state must never be load-bearing.
 - When a damaged `execution-events.jsonl` is reported, fix the audit log before any further state change; never bypass `plan.py`.
 
 #### 2.1 Implement `[required · repeatable]`
 
-[Claude Code, codex-sub-agent]
+[Claude Code, codex-sub-agent, OpenCode]
 
 Spawn the implement sub-agent:
 
@@ -591,9 +616,10 @@ The platform hook/plugin auto-handles:
 - Reads `implement.jsonl` and injects referenced spec/research files into the agent prompt
 - Injects `prd.md`, `design.md` if present, and `implement.md` if present
 - For Codex, `SubagentStart` supplies native context injection; the agent profile keeps child-side loading as the fallback
+- For OpenCode, the `inject-subagent-context` plugin injects the same context on the parent's `tool.execute.before` Task call (dispatch prompts must keep the `Active task:` first line so the child can self-load if injection is blocked)
 - Injects the execution-plan protocol block and the current plan state (round-1 plan creation or the live task loop from the plan gate above)
 
-[/Claude Code, codex-sub-agent]
+[/Claude Code, codex-sub-agent, OpenCode]
 
 [codex-inline]
 
@@ -655,7 +681,7 @@ Load `PROJECT_PREFIX-trellis-review` before choosing the review route. Read `prd
 and accept only `light`, `standard`, `reinforced`, `comprehensive`, or `strict`;
 if missing or invalid, write and use `standard`.
 
-[Claude Code, codex-sub-agent]
+[Claude Code, codex-sub-agent, OpenCode]
 
 Apply the selected profile:
 
@@ -738,7 +764,7 @@ The check agent's job:
   target builds, and hardware validation separately as pass/fail/not run/not applicable
   with reasons, and never invent generic checks for the project type
 
-[/Claude Code, codex-sub-agent]
+[/Claude Code, codex-sub-agent, OpenCode]
 
 [codex-inline]
 

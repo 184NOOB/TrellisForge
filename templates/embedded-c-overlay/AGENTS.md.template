@@ -34,8 +34,12 @@
 # Trellis Instructions
 
 本项目使用 Trellis。工作流、Spec、任务和会话记录位于 `.trellis/`；项目级
-Skills 位于 `.agents/skills/`；Codex/Claude 子代理定义位于 `.codex/agents/`
-与 `.claude/agents/`。
+Skills 位于 `.agents/skills/`；Claude/Codex 子代理定义位于 `.claude/agents/`
+与 `.codex/agents/`；OpenCode 平台闭包位于 `.opencode/`——原生子代理定义在
+`.opencode/agents/`，主工作流可直接发现的 Skills 在 `.opencode/skills/`，
+插件与共享运行库在 `.opencode/plugins/` 与 `.opencode/lib/`。OpenCode 主会话
+通过原生 Task 派发 `trellis-research` / `trellis-implement` / `trellis-check`
+子代理；`trellis channel` 受管 worker 仅支持 `--provider claude|codex`。
 
 优先遵循 `.trellis/workflow.md`。任务在 `planning` 或 `planning-inline` 时，
 必须使用 `trellis-brainstorm`、`grill-me` 和

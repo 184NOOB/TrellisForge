@@ -8,6 +8,20 @@ is not presented as a mandatory tool sequence.
 
 from __future__ import annotations
 
+# Direct-run bootstrap (``python .../common/subagent_prompt_policy.py --json``):
+# Python puts this file's own directory first on sys.path, where sibling
+# modules like ``types.py`` would shadow the standard library. Import the
+# stdlib only, so drop the script directory from sys.path before any other
+# import. This block is inert for normal ``import``/``from ... import`` use
+# (``__name__`` is not ``"__main__"``), keeping the existing in-process API
+# of this module unchanged for the platform hooks.
+if __name__ == "__main__":  # pragma: no cover - path hygiene shim
+    import os as _os
+    import sys as _sys
+
+    _SELF_DIR = _os.path.dirname(_os.path.abspath(__file__))
+    _sys.path[:] = [p for p in _sys.path if p and _os.path.abspath(p) != _SELF_DIR]
+
 import re
 
 
@@ -187,3 +201,62 @@ def execution_contract() -> str:
         "documentation matches. After a real code fix, rerun only affected checks "
         "and stop when scope, evidence, verification, and report are complete."
     )
+
+
+# ---------------------------------------------------------------------------
+# --json stdin/stdout bridge (OpenCode plugin reuses this exact policy; the
+# import-level API above is unchanged for Python callers such as the hooks).
+# Input (stdin, JSON object):  {"prompt": str, "injected_context": str}
+# Output (stdout, JSON object): {"normalized_prompt": str,
+#                                "execution_contract": str,
+#                                "policy_marker": str}
+# Any invalid input exits non-zero with the reason on stderr (fail closed).
+# ---------------------------------------------------------------------------
+
+USAGE = "usage: python subagent_prompt_policy.py --json  (reads {\"prompt\", \"injected_context\"} JSON from stdin)"
+
+
+def _run_json_cli() -> int:
+    import json
+    import sys
+
+    for _stream_name in ("stdin", "stdout", "stderr"):
+        _stream = getattr(sys, _stream_name, None)
+        if _stream is not None and hasattr(_stream, "reconfigure"):
+            try:
+                _stream.reconfigure(encoding="utf-8", errors="replace")
+            except Exception:
+                pass
+
+    raw = sys.stdin.read()
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        print(f"subagent_prompt_policy: invalid JSON input: {exc}", file=sys.stderr)
+        return 2
+    if not isinstance(payload, dict):
+        print("subagent_prompt_policy: input must be a JSON object", file=sys.stderr)
+        return 2
+    if "prompt" not in payload or not isinstance(payload["prompt"], str):
+        print("subagent_prompt_policy: 'prompt' must be a string", file=sys.stderr)
+        return 2
+    if not isinstance(payload.get("injected_context", ""), str):
+        print("subagent_prompt_policy: 'injected_context' must be a string", file=sys.stderr)
+        return 2
+
+    result = {
+        "normalized_prompt": normalize_implement_prompt(payload["prompt"], payload.get("injected_context", "")),
+        "execution_contract": execution_contract(),
+        "policy_marker": policy_marker(),
+    }
+    print(json.dumps(result, ensure_ascii=False))
+    return 0
+
+
+if __name__ == "__main__":
+    import sys
+
+    if "--json" in sys.argv[1:]:
+        raise SystemExit(_run_json_cli())
+    print(USAGE, file=sys.stderr)
+    raise SystemExit(2)

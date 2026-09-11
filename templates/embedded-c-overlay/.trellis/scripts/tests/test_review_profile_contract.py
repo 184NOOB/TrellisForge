@@ -55,6 +55,14 @@ CLAUDE_CHECK = TEMPLATE_ROOT / ".claude" / "agents" / "trellis-check.md"
 CODEX_CHECK = TEMPLATE_ROOT / ".codex" / "agents" / "trellis-check.toml"
 CODEX_HOOK = TEMPLATE_ROOT / ".codex" / "hooks" / "inject-workflow-state.py"
 PLANNING_GATE = TEMPLATE_ROOT / ".trellis" / "scripts" / "common" / "planning_gate.py"
+OPENCODE_CHECK = TEMPLATE_ROOT / ".opencode" / "agents" / "trellis-check.md"
+OPENCODE_REVIEW_SKILL = (
+    TEMPLATE_ROOT
+    / ".opencode"
+    / "skills"
+    / "__PROJECT_PREFIX__-trellis-review"
+    / "SKILL.md"
+)
 
 # Files that enumerate the legal review-level values for users or agents.
 LEVEL_CONSUMERS = (
@@ -67,7 +75,12 @@ LEVEL_CONSUMERS = (
     CODEX_CHECK,
     CODEX_HOOK,
     PLANNING_GATE,
+    OPENCODE_CHECK,
+    OPENCODE_REVIEW_SKILL,
 )
+
+# The independent reviewer definitions across every dispatch-capable path.
+CHECK_AGENTS = (CHANNEL_CHECK, CLAUDE_CHECK, CODEX_CHECK, OPENCODE_CHECK)
 
 REPORT_FIELDS = (
     "Review level",
@@ -202,6 +215,24 @@ class ReviewProfileContractTests(unittest.TestCase):
         self.assertIn("use `standard` and must be reported", _read(CHANNEL_CHECK))
         self.assertIn("use `standard` and must be reported", _read(CODEX_CHECK))
         self.assertIn("use `standard` and must be", _read(CLAUDE_CHECK))
+        self.assertIn("use `standard` and must be", _read(OPENCODE_CHECK))
+
+    def test_opencode_review_skill_mirror_is_byte_identical(self) -> None:
+        self.assertEqual(
+            _read(REVIEW_SKILL),
+            _read(OPENCODE_REVIEW_SKILL),
+            "the OpenCode review Skill mirror must not drift from the "
+            "authoritative .agents/skills copy",
+        )
+
+    def test_opencode_check_agent_carries_five_level_profile_matrix(self) -> None:
+        text = _read(OPENCODE_CHECK)
+        self.assertIn("## Review Profile", text)
+        self.assertIn("`reinforced`: one affected-scope round", text)
+        self.assertIn("comprehensive`:", text)
+        self.assertIn("commit-ready-final", text)
+        # OpenCode must not offer an opencode channel worker as a review path.
+        self.assertNotIn("provider opencode", text)
 
     def test_evidence_invalidation_contract(self) -> None:
         skill = _section(_read(REVIEW_SKILL), "## Evidence Invalidation")
@@ -212,7 +243,7 @@ class ReviewProfileContractTests(unittest.TestCase):
         self.assertIn("re-trigger the current profile's review", workflow)
 
     def test_check_agents_share_report_fields(self) -> None:
-        for path in (CHANNEL_CHECK, CLAUDE_CHECK, CODEX_CHECK):
+        for path in CHECK_AGENTS:
             text = _read(path)
             for field in REPORT_FIELDS:
                 self.assertIn(
@@ -222,7 +253,7 @@ class ReviewProfileContractTests(unittest.TestCase):
                 )
 
     def test_report_stage_values_present_in_agents(self) -> None:
-        for path in (CHANNEL_CHECK, CLAUDE_CHECK, CODEX_CHECK):
+        for path in CHECK_AGENTS:
             text = _read(path)
             self.assertIn(
                 "implementation-loop",

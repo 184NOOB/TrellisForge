@@ -2,9 +2,10 @@
 
 The fix-ownership contract answers only *who fixes a finding* and must never
 schedule review rounds. It is replicated across the template workflow, the
-authoritative review Skill, the Channel/Claude/Codex Check Agents, and the
-Claude/Codex context-injection Hook check prompts. These files cannot share one
-Python constant at the prose layer, so this test locks the R1-R4 contract:
+authoritative review Skill, the Channel/Claude/Codex/OpenCode Check Agents, the
+OpenCode context-injection plugin, and the Claude/Codex context-injection Hook
+check prompts. These files cannot share one Python constant at the prose layer,
+so this test locks the R1-R4 contract:
 
 - the Check Agent may directly fix only issues that are simultaneously local,
   mechanical, small, determinate, and inside the current task scope, and must
@@ -55,6 +56,8 @@ REVIEW_SKILL = (
 CHANNEL_CHECK = TEMPLATE_ROOT / ".trellis" / "agents" / "check.md"
 CLAUDE_CHECK = TEMPLATE_ROOT / ".claude" / "agents" / "trellis-check.md"
 CODEX_CHECK = TEMPLATE_ROOT / ".codex" / "agents" / "trellis-check.toml"
+OPENCODE_CHECK = TEMPLATE_ROOT / ".opencode" / "agents" / "trellis-check.md"
+OPENCODE_PLUGIN = TEMPLATE_ROOT / ".opencode" / "plugins" / "inject-subagent-context.js"
 CLAUDE_HOOK = TEMPLATE_ROOT / ".claude" / "hooks" / "inject-subagent-context.py"
 CODEX_HOOK = TEMPLATE_ROOT / ".codex" / "hooks" / "inject-subagent-context.py"
 
@@ -64,11 +67,13 @@ MANAGED_FILES = (
     CHANNEL_CHECK,
     CLAUDE_CHECK,
     CODEX_CHECK,
+    OPENCODE_CHECK,
+    OPENCODE_PLUGIN,
     CLAUDE_HOOK,
     CODEX_HOOK,
 )
 
-THREE_AGENTS = (CHANNEL_CHECK, CLAUDE_CHECK, CODEX_CHECK)
+THREE_AGENTS = (CHANNEL_CHECK, CLAUDE_CHECK, CODEX_CHECK, OPENCODE_CHECK)
 
 # Canonical anchors the implementation must introduce everywhere. They double
 # as the drift detectors: if a managed entry drops or widens any of them, the

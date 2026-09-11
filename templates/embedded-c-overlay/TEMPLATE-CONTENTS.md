@@ -4,11 +4,12 @@
 
 | 路径 | 安装策略 | 说明 |
 | --- | --- | --- |
-| `.trellis/workflow.md` | `-Force` 覆盖前备份 | 规划、实施、审查路由、Channel 派发与唯一等待、子代理效率规则 |
+| `.trellis/workflow.md` | `-Force` 覆盖前备份 | 规划、实施、审查路由（Claude Code / Codex / OpenCode 三平台）、Channel 派发与唯一等待、子代理效率规则 |
 | `.trellis/config.yaml` | `-Force` 覆盖前备份，随后填写 | 禁用会话自动提交、包和上下文注入配置 |
 | `.trellis/scripts/` | `-Force` 覆盖同名前备份 | 会话隔离、规划/批准门禁、schema 3 两级执行计划状态机与审计 CLI、子代理提示规范化实现及测试 |
 | `.trellis/scripts/common/subagent_prompt_policy.py` | 覆盖前备份 | 保守识别目标/范围/验收/命令/执行策略，仅批量化明确执行策略中的碎片化操作 |
 | `.trellis/scripts/tests/test_trellis_channel_contract.py` | 覆盖前备份（`add`，1.1 新增） | Channel Skill 树完整性、公共镜像一致、Codex 终端术语作用域与唯一等待契约测试 |
+| `.trellis/scripts/tests/test_opencode_platform_contract.py` | 覆盖后新增（1.2 新增） | OpenCode 平台闭包、JS 行为（Node harness）、会话隔离、五级审查与提示规范化跨平台合同测试 |
 | `.trellis/spec/shared/` | 覆盖同名前备份，随后填写 | 嵌入式 C 的仓库、验证和硬件合同骨架 |
 | `.trellis/spec/shared/trellis-maintenance.md` | 覆盖前备份 | 上游更新、受保护定制和升级后验证合同 |
 | `.agents/skills/` | `-Force` 覆盖同名前备份 | Grill Me、规划 adapter、审查 profile、定制 `trellis-finish-work` 与完整 `trellis-channel` Skill |
@@ -17,6 +18,7 @@
 | `.claude/skills/trellis-channel/` | 接管合并（1.0 adoption-baseline → 1.1 managed） | 与 `.agents/` 镜像一致的 Channel Skill 公共文件 |
 | `.claude/commands/trellis/` | `-Force` 覆盖前备份 | Claude `/trellis:finish-work` 与 `/trellis:continue` 路由命令 |
 | `.codex/` | `-Force` 覆盖前备份 | Codex Hook、代理与设置 |
+| `.opencode/` | 新增目录（1.2 起默认交付，`add`） | OpenCode 第三默认平台的完整闭包：`package.json`（`@opencode-ai/plugin` 依赖）、`lib/`（会话键/任务解析/上下文材料化/Shell 桥/计划展示桥）、`plugins/`（session-start、逐轮 workflow-state、subagent 上下文与 Shell 身份桥，各文件仅一个 default export）、`agents/`（`trellis-research|implement|check` 原生子代理）、`commands/trellis/`（start/continue/finish-work 路由命令）、`skills/`（上游通用 Skill 全引用树 + 模板定制 grill-me、`__PROJECT_PREFIX__-trellis-grill-adapter`、`__PROJECT_PREFIX__-trellis-review`、`trellis-finish-work` 与定制 `trellis-channel` 覆盖同名上游）。OpenCode 主工作流使用原生 Task 子代理；Channel worker provider 仍仅 `claude|codex`。安装冲突预检、备份、回滚、canonical 对象与 1.2 manifest 集成由父任务固定收尾子任务完成。 |
 | `AGENTS.md.template` | 人工合并 | 目标项目事实与硬约束，不自动覆盖根 AGENTS.md |
 
 ## 安装收据与升级交付物

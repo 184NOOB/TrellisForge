@@ -1,1 +1,5 @@
-{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/spec/main/tooling/overlay-upgrade.md", "reason": "核查版本链、历史资产不可变和升级失败矩阵"}
+{"file": ".trellis/spec/main/tooling/powershell.md", "reason": "核查目标路径、冲突、备份与异常回滚"}
+{"file": ".trellis/spec/main/tooling/templates-and-docs.md", "reason": "核查发布边界和 README/指南/模板清单一致性"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "核查版本/文件枚举单一事实源与重复升级逻辑"}
+{"file": ".trellis/tasks/09-10-readme-integration-guide-upgrade-patch/research/evidence.md", "reason": "按仓库证据核查 1.2 功能与文档声明"}

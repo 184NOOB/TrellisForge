@@ -29,7 +29,11 @@ def sha256_of(text: str) -> str:
 def render_content(text: str, prefix: str, name: str) -> str:
     if text.startswith("﻿"):
         text = text[1:]
-    return text.replace("PROJECT_PREFIX", prefix).replace("PROJECT_NAME", name)
+    return (
+        text.replace("__PROJECT_PREFIX__", prefix)
+        .replace("PROJECT_PREFIX", prefix)
+        .replace("PROJECT_NAME", name)
+    )
 
 
 def render_path(rel: str, prefix: str) -> str:

@@ -18,7 +18,7 @@
 
 ## 占位符与兼容性
 
-路径中的 `__PROJECT_PREFIX__`、正文中的 `PROJECT_PREFIX` 和 `PROJECT_NAME` 必须完整替换。脚本保持 Windows PowerShell 兼容语法，使用 `-LiteralPath` 处理文件路径。
+路径中的 `__PROJECT_PREFIX__`、正文中的 `PROJECT_PREFIX` 和 `PROJECT_NAME` 必须完整替换；正文引用渲染后路径时也允许使用 `__PROJECT_PREFIX__`，渲染器必须先替换该长 token，避免产生 `__<prefix>__` 残留。脚本保持 Windows PowerShell 兼容语法，使用 `-LiteralPath` 处理文件路径。
 
 ## 验证
 

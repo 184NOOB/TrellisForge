@@ -98,7 +98,11 @@ def render_path(rel: str, prefix: str) -> str:
 def render_content(text: str, prefix: str, name: str) -> str:
     if text.startswith("\ufeff"):
         text = text[1:]
-    return text.replace("PROJECT_PREFIX", prefix).replace("PROJECT_NAME", name)
+    return (
+        text.replace("__PROJECT_PREFIX__", prefix)
+        .replace("PROJECT_PREFIX", prefix)
+        .replace("PROJECT_NAME", name)
+    )
 
 
 def read_no_bom(path: Path) -> bytes:
@@ -346,7 +350,7 @@ class InstallTests(OverlayTestCase):
         for p in self.project.rglob("*"):
             if p.is_file() and p.suffix in {".md", ".yaml", ".py", ".toml", ".json"}:
                 text = p.read_text(encoding="utf-8", errors="replace")
-                if any(tok in text for tok in ("__PROJECT_PREFIX__", "PROJECT_PREFIX", "PROJECT_NAME")):
+                if any(tok in text for tok in ("__PROJECT_PREFIX__", f"__{PREFIX}__", "PROJECT_PREFIX", "PROJECT_NAME")):
                     residue.append(str(p.relative_to(self.project)))
         self.assertEqual(residue, [])
 

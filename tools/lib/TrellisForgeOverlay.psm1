@@ -262,13 +262,14 @@ function Get-OverlayRenderRelative {
 }
 
 function Get-OverlayRenderContent {
-    # Replaces content tokens PROJECT_PREFIX and PROJECT_NAME in order.
+    # Replace the longest prefix token first so path literals embedded in
+    # template bodies do not render as __<prefix>__.
     param(
         [Parameter(Mandatory = $true)][AllowEmptyString()][string]$Content,
         [Parameter(Mandatory = $true)][string]$ProjectPrefix,
         [Parameter(Mandatory = $true)][string]$ProjectName
     )
-    return $Content.Replace('PROJECT_PREFIX', $ProjectPrefix).Replace('PROJECT_NAME', $ProjectName)
+    return $Content.Replace('__PROJECT_PREFIX__', $ProjectPrefix).Replace('PROJECT_PREFIX', $ProjectPrefix).Replace('PROJECT_NAME', $ProjectName)
 }
 
 function Get-OverlayTextHash {

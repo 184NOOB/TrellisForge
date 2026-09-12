@@ -32,8 +32,8 @@
 - [x] 审查阻塞问题修复责任子任务已挂载到父任务，并排列在固定收尾子任务之前。
 - [x] OpenCode 平台支持子任务已挂载到父任务，并排列在固定收尾子任务之前。
 - [x] 当前 `children` 列表以 `09-10-readme-integration-guide-upgrade-patch` 结尾。
-- [ ] 后续每次新增子任务后，固定收尾子任务仍保持为最后一项。
-- [ ] 所有子任务完成后执行父任务级最终集成检查。
+- [x] 后续每次新增子任务后，固定收尾子任务仍保持为最后一项（本次收尾确认 `children` 末位即固定收尾子任务）。
+- [x] 所有子任务完成后执行父任务级最终集成检查（5 个子任务均已归档 completed；`VERSION=1.2`、1.2 manifest 与相邻结构链齐备、五级审查序列落地）。
 
 ## Out Of Scope For Current Planning Turn
 
@@ -43,7 +43,7 @@
 
 ## Planning Convergence
 
-- Status: pending
-- Blocking user decisions: deferred until subsequent child tasks are supplied
-- Blocking technical decisions: deferred until child-task planning
-- Final summary ready: no
+- Status: ready
+- Blocking user decisions: 0
+- Blocking technical decisions: 0
+- Final summary ready: yes

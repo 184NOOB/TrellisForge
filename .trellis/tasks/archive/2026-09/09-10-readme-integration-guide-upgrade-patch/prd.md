@@ -2,7 +2,8 @@
 
 ## Workflow Settings
 
-- Review level: standard
+- Review level: strict
+- Task-specific review exception: strict review applies to significant implementation batches, but this task does not require a final full-scope review before commit.
 
 ## Goal
 
@@ -57,7 +58,7 @@
 - [ ] 非重叠用户定制得到保留；新增 OpenCode 路径已存在且内容不同时报告冲突；任何冲突、非法 manifest/对象/结构链或写入故障都不会留下部分 1.2 工作树或虚假收据。
 - [ ] README、中文接入指南和模板内容清单准确覆盖五级审查、Channel 主动读取与预检、阻塞修复责任、OpenCode 能力/限制及 Windows PowerShell 可执行命令。
 - [ ] 工具回归测试、根/模板 Trellis Python 单测、Python 语法检查、PowerShell 解析、资产校验、占位符/缓存扫描和 `git diff --check` 全部通过；构建、部署、硬件验证报告为 `not applicable`。
-- [ ] standard affected-scope 独立审查完成，阻塞问题为 0；未执行提交、推送、tag 或发布。
+- [ ] 按本任务的 `strict` 配置完成实施批次审查并清零阻塞问题；提交前不执行全盘终审；未执行提交、推送、tag 或发布。
 
 ## Out Of Scope
 
@@ -73,7 +74,7 @@
 - 继续采用“最新目标 + 历史 canonical + 相邻结构链 + 三方合并 + fail closed”的既有电梯模型，不恢复逐对 `baseline/new` 快照。
 - 支持来源为 1.0 无收据入场和 1.1 有收据升级；文件正文始终从来源 canonical 直接三方合并到 1.2，只有结构迁移按相邻步骤组合，不新增 `1.0-to-1.2` 直连快照、正文或结构文件。
 - 1.2 保持 receipt schema 1；`1.1-to-1.2` 只声明 schema 保持与空结构动作。
-- Review level 保持项目默认 `standard`。
+- 本任务审查级别定制为 `strict`；提交前跳过全盘终审仅适用于本任务，不修改项目默认审查配置或 Spec。
 
 ## Planning Convergence
 

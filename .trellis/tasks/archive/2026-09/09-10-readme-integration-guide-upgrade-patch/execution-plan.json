@@ -1,0 +1,290 @@
+{
+  "schema": 3,
+  "task": ".trellis/tasks/09-10-readme-integration-guide-upgrade-patch",
+  "revision": 1,
+  "status": "approved",
+  "audit": {
+    "required": true,
+    "file": "execution-events.jsonl"
+  },
+  "created_by": "trellis-implement",
+  "goal": "把已完成的 TrellisForge 1.2 模板功能整理为可安装、可升级、可说明的正式交付（版本事实、工具链、测试、Spec 与发布文档），并完成 strict 审查。",
+  "constraints": {
+    "forbidden_git_operations": [
+      "commit",
+      "push",
+      "tag",
+      "reset",
+      "restore-modified-source"
+    ],
+    "max_tasks": 8,
+    "max_edits_per_file": 12,
+    "allow_parallel_tasks": false
+  },
+  "tasks": [
+    {
+      "id": "discover-baseline",
+      "title": "建立 1.2 版本资产前的基线盘点",
+      "status": "completed",
+      "objective": "记录实施前事实：VERSION 当前值、1.0/1.1 manifest 字节、canonical 对象哈希清单、既有 structural/1.0-to-1.1 步骤，并勘察 tools/tests/docs 以锁定变更面。",
+      "depends_on": [],
+      "scope": {
+        "read": [
+          "VERSION",
+          "history/**",
+          "migrations/**",
+          "tools/**",
+          "tests/**",
+          "templates/embedded-c-overlay/**",
+          "docs/**",
+          "README.md",
+          ".trellis/spec/main/tooling/**"
+        ],
+        "write": []
+      },
+      "verification": {
+        "level": "minimal",
+        "required_checks": []
+      },
+      "no_check_reason": "纯只读基线盘点与分析阶段，仅建立编辑前哈希与变更面，不写入任何文件。"
+    },
+    {
+      "id": "assets-1.2",
+      "title": "建立 1.2 版本资产与相邻结构步骤",
+      "status": "completed",
+      "objective": "将 VERSION 提升为 1.2；在任务目录新增 gen_migration.py 与 verify_assets.py；生成 versions/1.2/manifest.json 与缺失 canonical 对象；新增 migrations/embedded-c-overlay/structural/1.1-to-1.2.json（actions=[], receipt schema 1）。校验 1.0/1.1 资产字节不变。",
+      "depends_on": [
+        "discover-baseline"
+      ],
+      "scope": {
+        "read": [
+          "VERSION",
+          "history/**",
+          "migrations/**",
+          "templates/embedded-c-overlay/**"
+        ],
+        "write": [
+          "VERSION",
+          "history/embedded-c-overlay/versions/1.2/**",
+          "migrations/embedded-c-overlay/structural/1.1-to-1.2.json",
+          ".trellis/tasks/09-10-readme-integration-guide-upgrade-patch/gen_migration.py",
+          ".trellis/tasks/09-10-readme-integration-guide-upgrade-patch/verify_assets.py"
+        ]
+      },
+      "verification": {
+        "level": "minimal",
+        "required_checks": [
+          "asset-verify"
+        ]
+      },
+      "verification_results": {
+        "asset-verify": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-12T07:48:47Z",
+          "command": "python -B .trellis/tasks/09-10-readme-integration-guide-upgrade-patch/verify_assets.py",
+          "summary": "VERSION=1.2; 1.0/1.1/structural 字节不变; 3 代 manifest 引用完整、对象自哈希、无孤儿; v12==live==HEAD(151 files); 相邻链 1.0->1.1->1.2 合法; git diff --check OK"
+        }
+      }
+    },
+    {
+      "id": "chain-compose",
+      "title": "让结构链支持相邻步骤组合",
+      "status": "completed",
+      "objective": "修改 tools/lib/TrellisForgeOverlay.psm1 的 Get-OverlayStructuralChain，按 manifest 版本序列组合相邻结构步骤；修改 tools/update-embedded-c-overlay.ps1 使用聚合结构链、修复来源独有路径动作匹配的 $_ 遮蔽、把硬编码 1.1/1.0 诊断替换为动态来源/目标版本；正文仍只做一次 1.2 三方合并。",
+      "depends_on": [
+        "assets-1.2"
+      ],
+      "scope": {
+        "read": [
+          "tools/**",
+          "migrations/**",
+          "history/**",
+          ".trellis/spec/main/tooling/powershell.md"
+        ],
+        "write": [
+          "tools/lib/TrellisForgeOverlay.psm1",
+          "tools/update-embedded-c-overlay.ps1"
+        ]
+      },
+      "verification": {
+        "level": "minimal",
+        "required_checks": [
+          "powershell-parse"
+        ]
+      },
+      "verification_results": {
+        "powershell-parse": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-12T08:01:39Z",
+          "command": "powershell Parser::ParseFile x3 + Get-OverlayStructuralChain smoke (via python driver)",
+          "summary": "3 文件解析 OK; 1.0->1.2 组合 2 步, 1.1->1.2 组合 1 步; 倒序/等序/缺清单均拒绝"
+        }
+      }
+    },
+    {
+      "id": "tests-upgrade",
+      "title": "扩展安装/升级回归测试",
+      "status": "completed",
+      "objective": "更新 tests/test_overlay_tools.py 到 1.2 目标并新增由不可变 1.1 manifest/receipt 构建的旧版夹具；覆盖首次安装 1.2、1.1->1.2、1.0 无收据直达 1.2、1.2 幂等、链路断裂/非法、OpenCode 新路径冲突、用户定制合并、预检零写入与回滚；断言 1.0->1.2 正文只从 1.0 canonical 合并一次且结构迁移加载两步、1.1->1.2 只加载后一步。",
+      "depends_on": [
+        "chain-compose"
+      ],
+      "scope": {
+        "read": [
+          "tests/**",
+          "tools/**",
+          "templates/embedded-c-overlay/**",
+          "history/**",
+          "migrations/**"
+        ],
+        "write": [
+          "tests/test_overlay_tools.py",
+          "tests/fixtures/**"
+        ]
+      },
+      "verification": {
+        "level": "minimal",
+        "required_checks": [
+          "unit-tests-tools"
+        ]
+      },
+      "verification_results": {
+        "unit-tests-tools": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-12T08:19:23Z",
+          "command": "python -B -m unittest discover -s tests -p \"test_*.py\"",
+          "summary": "47 项通过: 首装1.2/1.1->1.2/1.0直达1.2/幂等/链断裂与非法内容/OpenCode新路径冲突/用户定制合并/预检零写入/回滚; 正文直达合并与相邻链步数(2/1)均有断言"
+        }
+      }
+    },
+    {
+      "id": "docs-spec",
+      "title": "更新 Spec 与发布文档",
+      "status": "completed",
+      "objective": "更新 .trellis/spec/main/tooling/overlay-upgrade.md 为版本无关合同；更新 templates/embedded-c-overlay/TEMPLATE-CONTENTS.md 的 1.2 事实；最后更新 README.md 与 docs/接入指南.md，说明五级审查、Channel 主动读取、阻塞修复责任、OpenCode 能力/限制与 1.0/1.1->1.2 命令。",
+      "depends_on": [
+        "tests-upgrade"
+      ],
+      "scope": {
+        "read": [
+          "README.md",
+          "docs/**",
+          "templates/embedded-c-overlay/TEMPLATE-CONTENTS.md",
+          ".trellis/spec/main/tooling/**",
+          "tools/**",
+          "tests/**"
+        ],
+        "write": [
+          "README.md",
+          "docs/接入指南.md",
+          "templates/embedded-c-overlay/TEMPLATE-CONTENTS.md",
+          ".trellis/spec/main/tooling/overlay-upgrade.md"
+        ]
+      },
+      "verification": {
+        "level": "minimal",
+        "required_checks": [
+          "docs-scan"
+        ]
+      },
+      "verification_results": {
+        "docs-scan": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-12T08:25:00Z",
+          "command": "Grep/rg 禁则扫描: 1.1 模板|1.0 -> 1.1|1.0→1.1|只支持 Claude Code 和 Codex",
+          "summary": "6 个扫描面 0 命中; 剩余 1.1 提法均为历史 manifest/来源识别/步骤名合法上下文; README/指南/spec/TEMPLATE-CONTENTS 一致指向 1.2 与三平台"
+        }
+      }
+    },
+    {
+      "id": "verify-final",
+      "title": "最终验收",
+      "status": "completed",
+      "objective": "运行全量验证（三套 Python 单测、verify_assets.py、py_compile 语法检查、PowerShell 解析、占位符/缓存/硬编码扫描、git diff --check）并撰写 final-report.md。",
+      "depends_on": [
+        "docs-spec"
+      ],
+      "scope": {
+        "read": [
+          "VERSION",
+          "history/**",
+          "migrations/**",
+          "tools/**",
+          "tests/**",
+          "templates/embedded-c-overlay/**",
+          "docs/**",
+          "README.md",
+          ".trellis/spec/main/tooling/**",
+          ".trellis/scripts/**",
+          ".claude/agents/**",
+          ".codex/**"
+        ],
+        "write": [
+          "final-report.md"
+        ]
+      },
+      "verification": {
+        "level": "report",
+        "required_checks": [
+          "test",
+          "asset-verify",
+          "python-syntax",
+          "powershell-parse",
+          "docs-scan",
+          "diff-check"
+        ],
+        "report_path": "final-report.md"
+      },
+      "verification_results": {
+        "test": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-12T08:32:30Z",
+          "command": "python -B -m unittest discover (root scripts 99 / template scripts 154 / tools 47)",
+          "summary": "三套 Python 单测共 300 项全部 OK"
+        },
+        "asset-verify": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-12T08:33:08Z",
+          "command": "python -B .trellis/tasks/09-10-readme-integration-guide-upgrade-patch/verify_assets.py",
+          "summary": "最终验收报告登记；资产校验复跑全 OK",
+          "artifact": ".trellis/tasks/09-10-readme-integration-guide-upgrade-patch/final-report.md"
+        },
+        "python-syntax": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-12T08:32:30Z",
+          "command": "python -m py_compile (93 controlled files + 2 task scripts)",
+          "summary": "全部编译通过; 15 个生成 __pycache__ 目录已列出并清理"
+        },
+        "powershell-parse": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-12T08:32:30Z",
+          "command": "powershell Parser::ParseFile x3 + structural chain smoke",
+          "summary": "模块+两入口解析无错误; 链组合 2/1 步与 4 类拒绝一致"
+        },
+        "docs-scan": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-12T08:32:30Z",
+          "command": "grep -E 禁则模式 + 模板缓存/占位符扫描",
+          "summary": "禁则零命中; 模板无缓存文件; 1296 处尖括号均为设计内模板占位符"
+        },
+        "diff-check": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-12T08:32:30Z",
+          "command": "git diff --check -- VERSION history migrations tools tests README.md docs .trellis/spec templates",
+          "summary": "交付路径干净; 会话前主会话 CRLF 规划文件告警已另行注明"
+        }
+      }
+    }
+  ],
+  "approved_fingerprint": "0026758e7717cd58956eb7beebce8eee6760ffd5b64964147df08bb7625c8b59"
+}

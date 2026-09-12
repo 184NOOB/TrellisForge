@@ -14,9 +14,9 @@ param(
     [switch]$Force
 )
 
-# TrellisForge 1.1 首次接入安装器（电梯模型）。
-# 安装前校验 live 模板与 1.1 版本 manifest / canonical 对象一致，然后安装
-# 当前完整 1.1 覆盖层并写 schema 1 三类哈希收据（canonical/baseline/installed）。
+# TrellisForge 首次接入安装器（电梯模型，目标为当前 VERSION）。
+# 安装前校验 live 模板与当前版本 manifest / canonical 对象一致，然后安装
+# 当前完整覆盖层并写 schema 1 三类哈希收据（canonical/baseline/installed）。
 
 $ErrorActionPreference = 'Stop'
 
@@ -43,10 +43,10 @@ if ($cacheFiles.Count -gt 0) {
     throw "模板目录包含 Python 缓存，拒绝安装。请先清理: $($cacheFiles[0].FullName)"
 }
 
-# ---------------------------------------------------------------- 1.1 manifest
+# ---------------------------------------------------------------- 当前版本 manifest
 $manifest = Get-OverlayVersionManifest -Overlay $overlay -Version $forgeVersion
 
-# live 模板与 1.1 manifest / canonical 对象一致性（同一版本内漂移 fail closed）
+# live 模板与当前版本 manifest / canonical 对象一致性（同一版本内漂移 fail closed）
 Assert-OverlayLiveTemplateMatchesManifest `
     -Overlay $overlay `
     -Version $forgeVersion `

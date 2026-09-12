@@ -18,24 +18,27 @@
 | `.claude/skills/trellis-channel/` | 接管合并（1.0 adoption-baseline → 1.1 managed） | 与 `.agents/` 镜像一致的 Channel Skill 公共文件 |
 | `.claude/commands/trellis/` | `-Force` 覆盖前备份 | Claude `/trellis:finish-work` 与 `/trellis:continue` 路由命令 |
 | `.codex/` | `-Force` 覆盖前备份 | Codex Hook、代理与设置 |
-| `.opencode/` | 新增目录（1.2 起默认交付，`add`） | OpenCode 第三默认平台的完整闭包：`package.json`（`@opencode-ai/plugin` 依赖）、`lib/`（会话键/任务解析/上下文材料化/Shell 桥/计划展示桥）、`plugins/`（session-start、逐轮 workflow-state、subagent 上下文与 Shell 身份桥，各文件仅一个 default export）、`agents/`（`trellis-research|implement|check` 原生子代理）、`commands/trellis/`（start/continue/finish-work 路由命令）、`skills/`（上游通用 Skill 全引用树 + 模板定制 grill-me、`__PROJECT_PREFIX__-trellis-grill-adapter`、`__PROJECT_PREFIX__-trellis-review`、`trellis-finish-work` 与定制 `trellis-channel` 覆盖同名上游）。OpenCode 主工作流使用原生 Task 子代理；Channel worker provider 仍仅 `claude|codex`。安装冲突预检、备份、回滚、canonical 对象与 1.2 manifest 集成由父任务固定收尾子任务完成。 |
+| `.opencode/` | 新增目录（1.2 起默认交付，`add`） | OpenCode 第三默认平台的完整闭包：`package.json`（`@opencode-ai/plugin` 依赖）、`lib/`（会话键/任务解析/上下文材料化/Shell 桥/计划展示桥）、`plugins/`（session-start、逐轮 workflow-state、subagent 上下文与 Shell 身份桥，各文件仅一个 default export）、`agents/`（`trellis-research|implement|check` 原生子代理）、`commands/trellis/`（start/continue/finish-work 路由命令）、`skills/`（上游通用 Skill 全引用树 + 模板定制 grill-me、`__PROJECT_PREFIX__-trellis-grill-adapter`、`__PROJECT_PREFIX__-trellis-review`、`trellis-finish-work` 与定制 `trellis-channel` 覆盖同名上游）。OpenCode 主工作流使用原生 Task 子代理；Channel worker provider 仍仅 `claude|codex`。安装冲突预检、备份、回滚、canonical 对象与 1.2 manifest 集成已由 1.2 发布收尾完成并纳入 `tests/test_overlay_tools.py` 回归。 |
 | `AGENTS.md.template` | 人工合并 | 目标项目事实与硬约束，不自动覆盖根 AGENTS.md |
 
 ## 安装收据与升级交付物
 
 - 首次安装成功后会写入目标仓库的 `.trellis/trellisforge.json` 安装收据，
-  记录 schema 版本、TrellisForge 版本（`1.1`）、覆盖层类型、项目名称/前缀和
-  受管文件摘要；每个文件记录三类哈希：`canonical_sha256`（渲染前 canonical
-  对象哈希）、`baseline_sha256`（按项目参数渲染后的基线）和
+  记录 schema 版本、TrellisForge 版本（当前 `VERSION`，即 `1.2`）、覆盖层类型、
+  项目名称/前缀和受管文件摘要；每个文件记录三类哈希：`canonical_sha256`
+  （渲染前 canonical 对象哈希）、`baseline_sha256`（按项目参数渲染后的基线）和
   `installed_sha256`（实际安装结果）。收据由安装器脚本在事务最后一步生成，
   不是本目录的静态模板；本目录不复制该文件。
 - 覆盖层的电梯模型升级交付物位于仓库级 `history/embedded-c-overlay/`
-  （canonical 对象库 + `versions/1.0`、`versions/1.1` 版本 manifest）与
-  `migrations/embedded-c-overlay/structural/1.0-to-1.1.json`（线性结构迁移链），
-  配合 `tests/test_overlay_tools.py`（临时 Git 仓库自动化测试）；这些都不属于
+  （canonical 对象库 + `versions/1.0`、`versions/1.1`、`versions/1.2` 版本
+  manifest）与 `migrations/embedded-c-overlay/structural/`（相邻结构迁移步骤
+  `1.0-to-1.1.json`、`1.1-to-1.2.json`），配合
+  `tests/test_overlay_tools.py`（临时 Git 仓库自动化测试）；这些都不属于
   发布模板本身，不会安装到目标仓库。
-- 升级成功后同样写入 `.trellis/trellisforge.json` 1.1 三类哈希收据；已有
-  1.1 收据时，重复升级识别为 `already-current` 并安全退出。
+- 升级成功后同样写入 `.trellis/trellisforge.json` 1.2 三类哈希收据；来源可以是
+  1.0（无收据入场，须显式项目参数）或带有效 1.1 收据的项目，文件正文一律从
+  来源 canonical 一步三方合并到 1.2 模板，仅结构迁移按相邻步骤组合；已有
+  1.2 收据时，重复升级识别为 `already-current` 并安全退出。
 
 ## 边界与安全检查
 

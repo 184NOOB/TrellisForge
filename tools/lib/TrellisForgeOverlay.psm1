@@ -1,7 +1,7 @@
 ﻿# TrellisForgeOverlay.psm1
 # Shared safety/mechanism layer used by BOTH first-time installation
-# (install-embedded-c-overlay.ps1) and 1.0->1.1 elevator-model upgrades
-# (update-embedded-c-overlay.ps1).
+# (install-embedded-c-overlay.ps1) and elevator-model upgrades to the current
+# TrellisForge version (update-embedded-c-overlay.ps1).
 #
 # Contract (tools spec `tooling/powershell.md`):
 #   - Target root must be a real Git worktree root that ran `trellis init`.
@@ -20,9 +20,12 @@
 # plus a SHA-256-keyed canonical object library under
 # history/embedded-c-overlay/objects/. A manifest entry references its canonical
 # body by `canonical_sha256`; the object file path is derived as
-# objects/<canonical_sha256>. Two manifests (1.0, 1.1) plus the 1.0->1.1
-# structural chain drive the upgrade; installers load the 1.1 manifest to prove
-# the live template equals the published target before writing.
+# objects/<canonical_sha256>. Upgrades compose the ADJACENT structural steps
+# (migrations/embedded-c-overlay/structural/<from>-to-<to>.json) across the
+# ordered manifest-version range, while file bodies always merge directly from
+# the source canonical to the live template. Installers load the current
+# VERSION manifest to prove the live template equals the published target
+# before writing.
 #
 # The module keeps a deliberately narrow export surface; entry scripts own
 # parameter parsing and user-facing output.
@@ -451,36 +454,102 @@ function Get-OverlayCanonicalText {
 }
 
 function Get-OverlayStructuralChain {
-    # Loads and validates the linear structural chain step for
-    # from_version -> to_version. The 1.0->1.1 chain is the first and only
-    # entry: empty actions + receipt bootstrap. Rejects unknown actions and a
-    # non-contiguous chain.
+    # Loads and validates the adjacent-step structural chain from
+    # FromVersion up to ToVersion. The walkable version set is the published
+    # manifests under history/<overlay>/versions/; between the source and the
+    # target the chain composes every adjacent step file
+    # "<left>-to-<right>.json" in order. Each step must match schema 1, its
+    # own from/to pair, a whitelisted receipt_transition and whitelisted
+    # actions. A missing source/target manifest, reversed or equal versions,
+    # a broken/duplicate step or an illegal action/transition throws
+    # (unsupported) - the caller never proceeds on a partial chain.
+    # Returns: { FromVersion; ToVersion; Steps; Actions; ReceiptTransition }
+    #   Steps           - the raw step objects in chain order
+    #   Actions         - order-aggregated structural actions from all steps
+    #   ReceiptTransition - the step transitions joined for reporting
     param(
         [Parameter(Mandatory = $true)][string]$Overlay,
         [Parameter(Mandatory = $true)][string]$FromVersion,
         [Parameter(Mandatory = $true)][string]$ToVersion
     )
+    if ($FromVersion -notmatch '^\d+\.\d+(?:\.\d+)?$' -or
+        $ToVersion -notmatch '^\d+\.\d+(?:\.\d+)?$') {
+        throw "结构迁移链版本无效: from=$FromVersion to=$ToVersion"
+    }
+    $historyRoot = Get-OverlayHistoryRoot -Overlay $Overlay
+    $versionsDir = Join-Path $historyRoot 'versions'
+    if (-not (Test-Path -LiteralPath $versionsDir -PathType Container)) {
+        throw "版本清单目录缺失: $versionsDir"
+    }
+    $manifestedVersions = @(
+        Get-ChildItem -LiteralPath $versionsDir -Directory |
+            Where-Object {
+                $_.Name -match '^\d+\.\d+(?:\.\d+)?$' -and
+                (Test-Path -LiteralPath (Join-Path $_.FullName 'manifest.json') -PathType Leaf)
+            } |
+            ForEach-Object { $_.Name } |
+            Sort-Object { [version]$_ }
+    )
+    if ($manifestedVersions -notcontains $FromVersion) {
+        throw "unsupported: 来源版本缺少可校验的版本清单: $FromVersion"
+    }
+    if ($manifestedVersions -notcontains $ToVersion) {
+        throw "unsupported: 目标版本缺少可校验的版本清单: $ToVersion"
+    }
+    $fromIndex = [Array]::IndexOf($manifestedVersions, $FromVersion)
+    $toIndex = [Array]::IndexOf($manifestedVersions, $ToVersion)
+    if ($fromIndex -ge $toIndex) {
+        throw "unsupported: 版本顺序非法，无法构成结构迁移链: $FromVersion -> $ToVersion"
+    }
+
     $structuralDir = Get-OverlayStructuralDir -Overlay $Overlay
-    $stepPath = Join-Path $structuralDir "$FromVersion-to-$ToVersion.json"
-    $chain = Read-OverlayJsonFile -Path $stepPath -What "结构迁移链 ($FromVersion->$ToVersion)"
-    if ([int]$chain.schema_version -ne 1) {
-        throw "结构迁移链 schema 不受支持: schema_version=$($chain.schema_version)"
-    }
-    if ([string]$chain.from_version -ne $FromVersion -or
-        [string]$chain.to_version -ne $ToVersion) {
-        throw "结构迁移链版本不匹配: from=$($chain.from_version) to=$($chain.to_version)"
-    }
     $allowedActions = @('rename', 'remove', 'receipt')
-    foreach ($action in $chain.actions) {
-        $kind = [string]$action.action
-        if ($kind -notin $allowedActions) {
-            throw "结构迁移动作不受支持: action=$kind（白名单: $($allowedActions -join ', ')）"
+    $allowedTransitions = @('bootstrap-schema-1', 'preserve-schema-1')
+    $steps = @()
+    $aggregatedActions = @()
+    $transitions = @()
+    $seenSteps = @{}
+    for ($i = $fromIndex; $i -lt $toIndex; $i++) {
+        $left = $manifestedVersions[$i]
+        $right = $manifestedVersions[$i + 1]
+        $stepKey = "$left->$right"
+        if ($seenSteps.ContainsKey($stepKey)) {
+            throw "unsupported: 结构迁移链包含重复步骤: $stepKey"
         }
+        $seenSteps[$stepKey] = $true
+        $stepPath = Join-Path $structuralDir "$left-to-$right.json"
+        $step = Read-OverlayJsonFile -Path $stepPath -What "结构迁移步骤 ($stepKey)"
+        if ([int]$step.schema_version -ne 1) {
+            throw "结构迁移链 schema 不受支持: schema_version=$($step.schema_version)（$stepKey）"
+        }
+        if ([string]$step.from_version -ne $left -or
+            [string]$step.to_version -ne $right) {
+            throw "结构迁移链版本不匹配: $stepKey（文件声明 from=$($step.from_version) to=$($step.to_version)）"
+        }
+        foreach ($action in @($step.actions)) {
+            $kind = [string]$action.action
+            if ($kind -notin $allowedActions) {
+                throw "结构迁移动作不受支持: action=$kind（$stepKey，白名单: $($allowedActions -join ', ')）"
+            }
+            $aggregatedActions += $action
+        }
+        $transition = [string]$step.receipt_transition
+        if ([string]::IsNullOrWhiteSpace($transition)) {
+            throw "结构迁移链缺少 receipt_transition: $stepKey"
+        }
+        if ($transition -notin $allowedTransitions) {
+            throw "unsupported: 收据转换不受支持: receipt_transition=$transition（$stepKey，白名单: $($allowedTransitions -join ', ')）"
+        }
+        $transitions += $transition
+        $steps += $step
     }
-    if ([string]::IsNullOrWhiteSpace([string]$chain.receipt_transition)) {
-        throw "结构迁移链缺少 receipt_transition"
+    return [pscustomobject]@{
+        FromVersion       = $FromVersion
+        ToVersion         = $ToVersion
+        Steps             = @($steps)
+        Actions           = @($aggregatedActions)
+        ReceiptTransition = ($transitions -join ' + ')
     }
-    return $chain
 }
 
 function Assert-OverlayLiveTemplateMatchesManifest {

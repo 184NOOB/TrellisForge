@@ -15,7 +15,7 @@ param(
     [switch]$Apply
 )
 
-# TrellisForge 1.0 -> 1.1 电梯模型升级器。
+# TrellisForge 电梯模型升级器（来源版本 -> 当前 VERSION 直达）。
 #
 # 默认只做预检；只有显式 -Apply 才会写入目标项目。升级目标永远是当前
 # TrellisForge 版本的完整覆盖层（最新版本直达），历史版本正文从 Forge 侧
@@ -38,7 +38,7 @@ $overlay = 'embedded-c'
 $targetRootFull = Assert-OverlayTargetRoot -TargetRoot $TargetRoot
 $forgeVersion = Get-OverlayForgeVersion
 
-# live 1.1 模板根目录（与首次安装器相同的包含/排除规则来源）
+# live 当前版本模板根目录（与首次安装器相同的包含/排除规则来源）
 $sourceRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\templates\embedded-c-overlay'))
 if (-not (Test-Path -LiteralPath $sourceRoot -PathType Container)) {
     throw "模板目录不存在: $sourceRoot"
@@ -89,7 +89,7 @@ else {
         $from = [string]$FromVersion
     }
     if ($from -ne '1.0') {
-        throw "unsupported: 来源版本 $from 不在支持范围。无收据目标只支持 TrellisForge 1.0 入场适配；目标缺少可验证收据并且无法按 1.0 基线预检时拒绝写入。"
+        throw "unsupported: 来源版本 $from 不在支持范围。无收据目标只支持 TrellisForge 1.0 入场适配（升级到 $forgeVersion）；目标缺少可验证收据并且无法按 1.0 基线预检时拒绝写入。"
     }
     if (-not $prefixProvided -or -not $nameProvided) {
         throw "没有安装收据时必须显式传入 -ProjectPrefix 和 -ProjectName（原安装使用的项目参数），不得猜测。"
@@ -104,16 +104,17 @@ Write-Host "预检来源版本: $from -> 目标版本 $forgeVersion（overlay=$o
 $srcManifest = Get-OverlayVersionManifest -Overlay $overlay -Version $from
 $dstManifest = Get-OverlayVersionManifest -Overlay $overlay -Version $forgeVersion
 
-# live 模板与目标 1.1 manifest / canonical 对象一致性（同一版本内漂移 fail closed）
+# live 模板与目标当前版本 manifest / canonical 对象一致性（同一版本内漂移 fail closed）
 Assert-OverlayLiveTemplateMatchesManifest `
     -Overlay $overlay `
     -Version $forgeVersion `
     -TemplateRoot $sourceRoot `
     -Manifest $dstManifest | Out-Null
 
-# 结构迁移链预演（1.0->1.1 线性链，actions 为空 = 签收 bootstrap）
+# 结构迁移链预演（按相邻版本步骤组合 $from -> $forgeVersion；actions 为空 =
+# 无结构变化，仅校验收据转换定义）
 $chain = Get-OverlayStructuralChain -Overlay $overlay -FromVersion $from -ToVersion $forgeVersion
-if ([string]::IsNullOrWhiteSpace([string]$chain.receipt_transition)) {
+if ([string]::IsNullOrWhiteSpace([string]$chain.ReceiptTransition)) {
     throw "unsupported: 结构迁移链缺少收据转换定义（$from -> $forgeVersion）。"
 }
 
@@ -125,10 +126,17 @@ foreach ($e in $dstManifest.Files) { $dstByPath[$e.Path] = $e }
 
 $allPaths = @(($srcByPath.Keys + $dstByPath.Keys | Sort-Object -Unique))
 
-# 来源有目标无 = 结构迁移必须显式处理；当前 1.0->1.1 无删除
+# 来源有目标无 = 结构迁移必须显式处理（聚合相邻步骤的全部动作）
 $srcOnly = @($allPaths | Where-Object { $srcByPath.ContainsKey($_) -and -not $dstByPath.ContainsKey($_) })
 if ($srcOnly.Count -gt 0) {
-    $missing = @($srcOnly | Where-Object { -not ($chain.actions | Where-Object { $_.path -eq $_ }) })
+    $structuralActions = @($chain.Actions)
+    $missing = @()
+    foreach ($srcOnlyPath in $srcOnly) {
+        $covered = @($structuralActions | Where-Object { ([string]$_.path) -eq $srcOnlyPath }).Count -gt 0
+        if (-not $covered) {
+            $missing += $srcOnlyPath
+        }
+    }
     if ($missing.Count -gt 0) {
         throw "unsupported: 来源路径在目标版本缺失且缺少显式结构迁移动作: $($missing -join ', ')"
     }
@@ -207,13 +215,13 @@ function Invoke-OverlayUpgradePreflight {
         if ($null -eq $srcEntry) {
             # add：目标版本新增且没有来源 canonical old
             if (-not $currentExists) {
-                Add-OverlayClassification -List $classifications -Path $relative -Action 'add' -Status 'add' -Content $dstRendered -Candidate $null -Suggestion '1.1 新增文件，写入模板内容。' -UseCrLf $false
+                Add-OverlayClassification -List $classifications -Path $relative -Action 'add' -Status 'add' -Content $dstRendered -Candidate $null -Suggestion "$forgeVersion 新增文件，写入模板内容。" -UseCrLf $false
             }
             elseif ((Get-OverlayStatusText -Text $currentText) -eq (Get-OverlayStatusText -Text $dstRendered)) {
-                Add-OverlayClassification -List $classifications -Path $relative -Action 'add' -Status 'already-current' -Content $null -Candidate $null -Suggestion '新增文件内容已等于 1.1 模板，视为已满足。' -UseCrLf $useCrlf
+                Add-OverlayClassification -List $classifications -Path $relative -Action 'add' -Status 'already-current' -Content $null -Candidate $null -Suggestion "新增文件内容已等于 $forgeVersion 模板，视为已满足。" -UseCrLf $useCrlf
             }
             else {
-                Add-OverlayClassification -List $classifications -Path $relative -Action 'add' -Status 'conflict' -Content $dstRendered -Candidate $relative -Suggestion '新增路径已存在且内容与 1.1 模板不同；保留 1.1 候选到 candidates/ 供人工处理，不静默覆盖。' -UseCrLf $false
+                Add-OverlayClassification -List $classifications -Path $relative -Action 'add' -Status 'conflict' -Content $dstRendered -Candidate $relative -Suggestion "新增路径已存在且内容与 $forgeVersion 模板不同；保留 $forgeVersion 候选到 candidates/ 供人工处理，不静默覆盖。" -UseCrLf $false
             }
             continue
         }
@@ -225,7 +233,7 @@ function Invoke-OverlayUpgradePreflight {
         if ($srcEntry.CanonicalSha256 -eq $dstEntry.CanonicalSha256) {
             # canonical 相同：保持工作树不变，仅记录收据
             if (-not $currentExists) {
-                Add-OverlayClassification -List $classifications -Path $relative -Action 'managed' -Status 'add' -Content $dstRendered -Candidate $null -Suggestion 'canonical 未变但目标缺少该文件，写入 1.1 渲染内容。' -UseCrLf $false
+                Add-OverlayClassification -List $classifications -Path $relative -Action 'managed' -Status 'add' -Content $dstRendered -Candidate $null -Suggestion "canonical 未变但目标缺少该文件，写入 $forgeVersion 渲染内容。" -UseCrLf $false
             }
             else {
                 Add-OverlayClassification -List $classifications -Path $relative -Action 'managed' -Status 'already-current' -Content $null -Candidate $null -Suggestion 'canonical 对象相同，保持工作树不变。' -UseCrLf $useCrlf
@@ -236,7 +244,7 @@ function Invoke-OverlayUpgradePreflight {
         # canonical 变化：managed（Forge 双方管理）或 adoption-baseline（接管合并）
         $mergeAction = if ($srcEntry.Ownership -eq 'adoption-baseline') { 'adopt' } else { 'merge' }
         if (-not $currentExists) {
-            Add-OverlayClassification -List $classifications -Path $relative -Action $mergeAction -Status 'add' -Content $dstRendered -Candidate $null -Suggestion '目标缺少由 1.0/上游生成的文件，直接写入 1.1 模板内容。' -UseCrLf $false
+            Add-OverlayClassification -List $classifications -Path $relative -Action $mergeAction -Status 'add' -Content $dstRendered -Candidate $null -Suggestion "目标缺少由 $from/上游生成的文件，直接写入 $forgeVersion 模板内容。" -UseCrLf $false
             continue
         }
         $merge = Invoke-OverlayThreeWayMerge -OldText $srcRendered -CurrentText $currentText -NewText $dstRendered
@@ -253,16 +261,16 @@ function Invoke-OverlayUpgradePreflight {
         $currentNorm = Get-OverlayStatusText -Text $currentText
         $dstNorm = Get-OverlayStatusText -Text $dstRendered
         if ($mergedNorm -eq $currentNorm -and $srcRendered -eq $currentText) {
-            Add-OverlayClassification -List $classifications -Path $relative -Action $mergeAction -Status 'already-current' -Content $null -Candidate $null -Suggestion '当前文件已等于是 1.0 来源渲染内容。' -UseCrLf $useCrlf
+            Add-OverlayClassification -List $classifications -Path $relative -Action $mergeAction -Status 'already-current' -Content $null -Candidate $null -Suggestion "当前文件已等于是 $from 来源渲染内容。" -UseCrLf $useCrlf
         }
         elseif ($mergedNorm -eq $currentNorm) {
             Add-OverlayClassification -List $classifications -Path $relative -Action $mergeAction -Status 'already-current' -Content $null -Candidate $null -Suggestion '当前内容已等于三方合并结果，无需修改。' -UseCrLf $useCrlf
         }
         elseif ($mergedNorm -eq $dstNorm) {
-            Add-OverlayClassification -List $classifications -Path $relative -Action $mergeAction -Status 'update' -Content (ConvertTo-OverlayLineEndings -Text $merged -UseCrLf $useCrlf) -Candidate $null -Suggestion '无用户差异，按 1.1 模板更新。' -UseCrLf $useCrlf
+            Add-OverlayClassification -List $classifications -Path $relative -Action $mergeAction -Status 'update' -Content (ConvertTo-OverlayLineEndings -Text $merged -UseCrLf $useCrlf) -Candidate $null -Suggestion "无用户差异，按 $forgeVersion 模板更新。" -UseCrLf $useCrlf
         }
         else {
-            Add-OverlayClassification -List $classifications -Path $relative -Action $mergeAction -Status 'user-merged' -Content (ConvertTo-OverlayLineEndings -Text $merged -UseCrLf $useCrlf) -Candidate $null -Suggestion '已在 1.1 更新基础上保留非重叠用户定制。' -UseCrLf $useCrlf
+            Add-OverlayClassification -List $classifications -Path $relative -Action $mergeAction -Status 'user-merged' -Content (ConvertTo-OverlayLineEndings -Text $merged -UseCrLf $useCrlf) -Candidate $null -Suggestion "已在 $forgeVersion 更新基础上保留非重叠用户定制。" -UseCrLf $useCrlf
         }
     }
     return @($classifications)
@@ -360,7 +368,7 @@ if ($blocked.Count -gt 0) {
     foreach ($b in $blocked) {
         Write-Host ("  [{0}] {1} ({2})" -f $b.Status.ToUpper(), $b.Path, $b.Action)
     }
-    Write-Host '本次预检未修改目标工作树，也没有写入或更新 1.1 安装收据。'
+    Write-Host "本次预检未修改目标工作树，也没有写入或更新 $forgeVersion 安装收据。"
     exit 1
 }
 
@@ -429,4 +437,4 @@ if ($applyResult.BackupRoot) {
     Write-Host "备份清单: $($applyResult.BackupManifestPath)"
 }
 Write-Host "安装收据: .trellis/trellisforge.json（canonical_sha256/baseline_sha256/installed_sha256）"
-Write-Host '请提交迁移结果前审查 git diff，并按 docs/接入指南.md 的“从 1.0 升级到 1.1”章节执行升级后验证。'
+Write-Host "请提交迁移结果前审查 git diff，并按 docs/接入指南.md 的升级章节执行 $forgeVersion 升级后验证。"

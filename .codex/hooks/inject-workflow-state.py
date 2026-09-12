@@ -301,14 +301,16 @@ def _codex_mode_banner(config: dict) -> str:
     if mode == "auto":
         meaning = (
             "auto: implementation defaults to a Trellis implement sub-agent; review "
-            "dispatch follows the task's light/standard/strict profile. Native Codex "
+            "dispatch follows the task's light/standard/reinforced/comprehensive/strict "
+            "profile. Native Codex "
             "context injection is preferred and child-side loading is the fallback. "
             "The main session still coordinates, clarifies, updates specs, commits, and finishes."
         )
     else:
         meaning = (
             "inline: the main session implements directly; review dispatch "
-            "still follows the task's light/standard/strict Trellis profile."
+            "still follows the task's light/standard/reinforced/comprehensive/"
+            "strict Trellis profile."
         )
     return f"<codex-mode>{meaning}</codex-mode>"
 

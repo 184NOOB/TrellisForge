@@ -60,8 +60,12 @@ provider: claude
 
 Frontmatter fields populate `spawn` defaults (provider, model, `as`); the
 markdown body becomes the worker's system-prompt role. Cards do **not**
-auto-attach task files — context must be injected explicitly per spawn (see
-below).
+auto-attach task files. For standard shared-workspace Implement/Check work
+units the worker pulls the task manifest and the required task docs by itself
+after reading an `Active task:` brief (see the agent cards). `--file` /
+`--jsonl` remain first-class explicit-injection flags for workers that cannot
+read the source files or that need an immutable spawn-time snapshot (see
+Context Injection).
 
 Always inspect project cards before spawning a named agent:
 
@@ -88,7 +92,22 @@ Limits enforced by the loader:
 - 500 KB total assembled-context warning to stderr.
 - Path-traversal jail: all resolved paths must stay under `--cwd`.
 
-Example spawning a check agent against a task directory:
+**Explicit snapshot vs. shared-workspace active read.** `--file` / `--jsonl`
+assemble the task and Spec/Research bodies into the system prompt at spawn
+time — a fixed snapshot of what the model was shown. That is the right tool
+when the worker cannot access the source files, when an immutable snapshot is
+required, or in brainstorm / one-shot / forum scenarios that have no task
+manifest. Standard shared-workspace Implement/Check work units default to the
+opposite: the `spawn` stays lean, the brief names the active task and its
+manifest (`implement.jsonl` / `check.jsonl`), and the worker batch-reads the
+required files from the shared workspace before its first work. Treat
+`--file` / `--jsonl` on a spawned Implement/Check worker as an explicit
+snapshot override, not the default sync path.
+
+Explicit snapshot injection (immutable spawn-time copy). Shared-workspace
+Implement/Check default to the worker pulling the task manifest and docs from
+its brief; reserve `--file` / `--jsonl` for workers that cannot reach the
+source files:
 
 ```bash
 TASK=.trellis/tasks/05-13-example

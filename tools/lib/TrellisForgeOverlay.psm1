@@ -670,9 +670,10 @@ function Invoke-OverlayThreeWayMerge {
     # Text three-way merge via `git merge-file`. Inputs may be CRLF or LF;
     # the merge runs on LF-normalized text and returns LF-normalized text.
     #
-    # Returns: { ExitCode = 0|1|other; MergedText; Error }
-    #   ExitCode 0 = clean result; 1 = conflicts (MergedText has markers);
-    #   any other value is a tool error and must be treated as `unsupported`.
+    # Returns: { ExitCode; MergedText; Error }
+    #   ExitCode 0 = clean result; 1..127 = conflict count (MergedText has
+    #   markers); values outside that range are tool errors and must be
+    #   treated as `unsupported`.
     param(
         [Parameter(Mandatory = $true)][AllowEmptyString()][string]$OldText,
         [Parameter(Mandatory = $true)][AllowEmptyString()][string]$CurrentText,
@@ -706,7 +707,9 @@ function Invoke-OverlayThreeWayMerge {
         else {
             $merged = ''
         }
-        if ($exit -gt 1) {
+        # `git merge-file` returns the number of conflicts, capped at 127.
+        # Do not discard a multi-conflict result as a tool failure.
+        if ($exit -lt 0 -or $exit -gt 127) {
             return [pscustomobject]@{
                 ExitCode   = $exit
                 MergedText = $null

@@ -110,6 +110,9 @@ from/to 与相邻对匹配、动作白名单与转换白名单；未知动作/�
    - `adoption-baseline` → 接管合并（old 取自来源对象）；
    - 目标新增且无 adoption baseline → `add`/`already-current`/`conflict`；
    - 来源独有路径 → 必须由聚合结构动作显式覆盖，否则 `unsupported`。
+   - `git merge-file` 返回 `0` 表示干净合并，返回 `1..127` 表示冲突块数量
+     （超过 127 时截断为 127）；所有冲突结果都必须保留带冲突标记的候选文件，
+     不得把多冲突块返回码误判为工具错误。
 5. 任一 `conflict`/`unsupported` → 工作树零写入，只在
    `.git/trellisforge-upgrade/<时间戳>-<GUID>/` 写 `report.json`/`report.txt`/
    `candidates/`。全部通过才 `-Apply`。

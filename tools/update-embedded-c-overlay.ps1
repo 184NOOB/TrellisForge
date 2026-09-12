@@ -248,11 +248,11 @@ function Invoke-OverlayUpgradePreflight {
             continue
         }
         $merge = Invoke-OverlayThreeWayMerge -OldText $srcRendered -CurrentText $currentText -NewText $dstRendered
-        if ($merge.ExitCode -gt 1) {
+        if ($merge.ExitCode -lt 0 -or $merge.ExitCode -gt 127) {
             Add-OverlayClassification -List $classifications -Path $relative -Action $mergeAction -Status 'unsupported' -Content $null -Candidate $null -Suggestion "git merge-file 工具错误(exit=$($merge.ExitCode)): $($merge.Error)" -UseCrLf $false
             continue
         }
-        if ($merge.ExitCode -eq 1) {
+        if ($merge.ExitCode -gt 0) {
             Add-OverlayClassification -List $classifications -Path $relative -Action $mergeAction -Status 'conflict' -Content $merge.MergedText -Candidate $relative -Suggestion '三方合并产生冲突。请根据 .git/trellisforge-upgrade/<时间戳>-<GUID>/candidates/ 候选与 report.txt 手工解决目标文件后重新预检。' -UseCrLf $useCrlf
             continue
         }

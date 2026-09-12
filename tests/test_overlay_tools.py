@@ -763,6 +763,32 @@ class UpgradeFrom11Tests(OverlayTestCase):
                          "conflict must leave the worktree unchanged")
         self.assertIn("(team fork)", chk.read_text(encoding="utf-8"))
 
+    def test_11_upgrade_multiple_conflicts_are_reported_with_candidate(self):
+        self.make_11_project()
+        chk = self.project / CHECK_MD
+        text = chk.read_text(encoding="utf-8")
+        context_anchor = "Before reviewing, read in this order:"
+        self.assertIn(DESC_ANCHOR, text)
+        self.assertIn(context_anchor, text)
+        text = text.replace(DESC_ANCHOR, DESC_ANCHOR + " (team fork)", 1)
+        text = text.replace(context_anchor, context_anchor + " (team fork)", 1)
+        write_text_bytes(chk, text)
+
+        _, out = self.upgrade(expect=1)
+        self.assertIn(f"[CONFLICT] {CHECK_MD}", out)
+        self.assertNotIn(f"[UNSUPPORTED] {CHECK_MD}", out)
+
+        report_dirs = list((self.project / ".git/trellisforge-upgrade").glob("*"))
+        self.assertEqual(len(report_dirs), 1)
+        report = json.loads((report_dirs[0] / "report.json").read_text(encoding="utf-8"))
+        entry = next(p for p in report["paths"] if p["path"] == CHECK_MD)
+        self.assertEqual(entry["status"], "conflict")
+        candidate = report_dirs[0] / entry["candidate"]
+        self.assertTrue(candidate.is_file(), "multi-conflict merge must retain its candidate")
+        candidate_text = candidate.read_text(encoding="utf-8")
+        self.assertGreaterEqual(candidate_text.count("<<<<<<< target"), 2)
+        self.assertEqual(self.read_receipt_version(), "1.1")
+
     def test_11_receipt_upgrade_does_not_touch_state_or_user_files(self):
         self.make_11_project()
         before = self.add_sentinel_state()

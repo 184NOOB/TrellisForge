@@ -1,0 +1,33 @@
+{
+  "id": "trellisforge-1-3-upgrade",
+  "name": "trellisforge-1-3-upgrade",
+  "title": "TrellisForge 1.3 Upgrade",
+  "description": "TrellisForge 1.3 版本更新父任务；后续子任务将逐步加入。",
+  "status": "planning",
+  "dev_type": null,
+  "scope": null,
+  "package": "main",
+  "priority": "P2",
+  "creator": "Noob184",
+  "assignee": "Noob184",
+  "createdAt": "2026-09-17",
+  "completedAt": null,
+  "branch": "v1.3-development",
+  "base_branch": "master",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "09-17-readme-integration-guide-upgrade-patch"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "child_order_policy": "terminal-child-last",
+    "planning_ready": "true",
+    "plan_approved": false,
+    "terminal_child": "09-17-readme-integration-guide-upgrade-patch"
+  }
+}

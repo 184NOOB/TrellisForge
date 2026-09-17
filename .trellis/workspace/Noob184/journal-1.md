@@ -197,3 +197,39 @@ trellis-implement(sonnet) 8/8 阶段交付 templates/embedded-c-overlay/.opencod
 ### Status
 
 [OK] **Completed**
+
+
+## Session 7: 实施模板小修绕过与同一任务 sequel
+
+**Date**: 2026-09-17
+**Task**: 实施模板小修绕过与同一任务 sequel
+**Package**: main
+**Branch**: `v1.3-development`
+
+### Summary
+
+在 v1.3-development 落地小修退出 plan.py 与 plan.py sequel；reinforced 审查零阻塞后提交并归档功能子任务。
+
+### Main Changes
+
+- 模板增加 live 计划指针、sequel CLI、小修硬规则与跨平台 Agent/Hook 合同
+- Codex check TOML 补 live-plan 解析句
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `6265741` | (see git log) |
+| `1f135ed` | (see git log) |
+
+### Testing
+
+- [OK] 模板单测 177 项与根目录只读回归 154 项通过
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- 父任务 09-17-trellisforge-1-3-upgrade 仍在规划，可继续挂下一项 1.3 功能子任务

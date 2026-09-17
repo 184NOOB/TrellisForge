@@ -127,6 +127,15 @@ After implementation:
 
 In Trellis, command templates (e.g., `record-session.md`) exist in **multiple platforms** with identical or near-identical content. This is a cross-layer boundary.
 
+### Checklist: After Changing Execution-Plan Paths
+
+- [ ] `plan.py` CLI、`execution_plan.py` 路径助手、workflow、各平台 implement/check Agent、Claude PreToolUse reminder 是否都走 live 解析，而不是写死任务根 `execution-plan.json`
+- [ ] OpenCode `session-utils.js` 是否仍只桥接 Python，没有复制 `plans/<n>` 路径常量
+- [ ] 旧单文件布局与 sequel 指针布局是否由同一组助手解析
+- [ ] Hook 关闭时 CLI 是否仍独立正确
+
+**Real-world example**: 已完成 report 后的小修被模型拿去 `revise` 并改写终端 report。修复是模板增加 live 指针 + `plan.py sequel`，并把小修出口写进 workflow/Agent，而不是挖开旧账本。
+
 ### Checklist: After Modifying Any Command Template
 
 - [ ] Find all platforms with the same command: `find src/templates/*/commands/trellis/ -name "<command>.*"`

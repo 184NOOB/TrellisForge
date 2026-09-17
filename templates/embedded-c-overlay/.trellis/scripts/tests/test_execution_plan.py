@@ -73,6 +73,57 @@ def report_task(**overrides) -> dict:
     return task
 
 
+SEQ_PLAN = {
+    "schema": 3,
+    "task": ".trellis/tasks/demo",
+    "revision": 1,
+    "status": "proposed",
+    "audit": {"required": True, "file": "execution-events.jsonl"},
+    "created_by": "trellis-implement",
+    "goal": "sequel goal",
+    "constraints": {
+        "forbidden_git_operations": ["commit"],
+        "max_tasks": 8,
+        "max_edits_per_file": 2,
+        "allow_parallel_tasks": False,
+    },
+    "tasks": [
+        {
+            "id": "discover-x",
+            "title": "read code",
+            "status": "pending",
+            "objective": "map symbols",
+            "depends_on": [],
+            "scope": {"read": ["src/**/*.c"], "write": []},
+            "verification": {"level": "minimal", "required_checks": []},
+            "no_check_reason": "pure read-only discovery; no files are touched",
+        },
+        {
+            "id": "edit-x",
+            "title": "edit code",
+            "status": "pending",
+            "objective": "change code",
+            "depends_on": ["discover-x"],
+            "scope": {"read": ["src/a.c"], "write": ["src/a.c"]},
+            "verification": {"level": "minimal", "required_checks": ["app-build"]},
+        },
+        {
+            "id": "verify-final-x",
+            "title": "final acceptance",
+            "status": "pending",
+            "objective": "prove the task",
+            "depends_on": ["edit-x"],
+            "scope": {"read": ["src/"], "write": ["final-report.md"]},
+            "verification": {
+                "level": "report",
+                "required_checks": ["build"],
+                "report_path": "final-report.md",
+            },
+        },
+    ],
+}
+
+
 class ExecutionPlanTests(unittest.TestCase):
     def setUp(self) -> None:
         self._tmp = tempfile.TemporaryDirectory()
@@ -124,6 +175,46 @@ class ExecutionPlanTests(unittest.TestCase):
         self.approve()
         self.complete_discover()
         ep.cmd_start(self.root, self.task_dir, "edit")
+
+    def complete_report_plan(self) -> None:
+        """Drive BASE_PLAN + report task through full completion."""
+        self.setup_report_plan()
+        ep.cmd_start(self.root, self.task_dir, "verify-final")
+        (self.task_dir / "final-report.md").write_text(
+            "# Final report\n", encoding="utf-8"
+        )
+        self.record("verify-final", "build", command="keil-build-all")
+        self.record("verify-final", "test", command="unit-tests")
+        self.record("verify-final", "diff-check", command="git-diff-check",
+                    artifact="final-report.md")
+        ep.cmd_done(self.root, self.task_dir, "verify-final")
+
+    def live_dir(self) -> Path:
+        return ep.resolve_live_plan(self.task_dir)[1]
+
+    def read_live_plan(self) -> dict:
+        return json.loads(ep.plan_path(self.task_dir).read_text(encoding="utf-8"))
+
+    def frozen_plan_path(self, number: int) -> Path:
+        return self.task_dir / ep.PLANS_DIR / str(number) / ep.PLAN_FILE
+
+    def sequel_to(self, reason: str = "requirement continues") -> str:
+        return ep.cmd_sequel(self.root, self.task_dir, reason)
+
+    def complete_seq_plan(self) -> None:
+        """Drive SEQ_PLAN (live plan 2+) through full completion."""
+        ep.cmd_start(self.root, self.task_dir, "discover-x")
+        ep.cmd_done(self.root, self.task_dir, "discover-x")
+        ep.cmd_start(self.root, self.task_dir, "edit-x")
+        self.record("edit-x", "app-build")
+        ep.cmd_done(self.root, self.task_dir, "edit-x")
+        ep.cmd_start(self.root, self.task_dir, "verify-final-x")
+        (self.live_dir() / "final-report.md").write_text(
+            "# Sequel report\n", encoding="utf-8"
+        )
+        self.record("verify-final-x", "build", command="keil-build-all",
+                    artifact="final-report.md")
+        ep.cmd_done(self.root, self.task_dir, "verify-final-x")
 
     # -- validate / AC1: only two levels --------------------------------
 
@@ -874,6 +965,260 @@ class ExecutionPlanTests(unittest.TestCase):
         self.assertTrue(ep.scope_match("src/a.c", "src/a.c"))
         self.assertFalse(ep.scope_match("src/a.c", "src/b.c"))
         self.assertTrue(ep.scope_match("src/Function", "src/Function/APP/x.c"))
+
+    # -- completion-state exit / sequel layout ------------------------------
+
+    def test_legacy_single_file_layout_needs_no_migration(self) -> None:
+        self.assertFalse((self.task_dir / ep.PLANS_DIR).exists())
+        self.approve()
+        self.assertEqual(ep.resolve_live_plan(self.task_dir)[0], 1)
+        self.assertEqual(ep.plan_path(self.task_dir), self.task_dir / ep.PLAN_FILE)
+        text = ep.format_status(self.task_dir, self.root)
+        self.assertIn("execution plan:", text)
+        self.assertNotIn("frozen plans:", text)
+
+    def test_protocol_block_offers_small_patch_and_sequel_when_complete(self) -> None:
+        self.complete_report_plan()
+        text = ep.plan_protocol_block(self.root, self.task_dir)
+        self.assertIn("fully completed", text)
+        self.assertIn("Small patch (hard rule)", text)
+        self.assertIn("touch any execution-plan file", text)
+        self.assertIn("sequel --reason", text)
+        self.assertIn("new Trellis task", text)
+        self.assertNotIn("Per phase loop", text)
+
+    def test_sequel_freezes_completed_plan_and_opens_live_two(self) -> None:
+        self.complete_report_plan()
+        frozen_events = (self.task_dir / ep.EVENTS_FILE).read_text(encoding="utf-8")
+        out = self.sequel_to()
+        self.assertIn("live plan is now 2", out)
+        pointer = json.loads((self.task_dir / ep.PLAN_FILE).read_text(encoding="utf-8"))
+        self.assertEqual(pointer, {"schema": 3, "live": 2})
+        self.assertEqual(ep.resolve_live_plan(self.task_dir)[0], 2)
+        self.assertEqual(self.live_dir(), self.task_dir / ep.PLANS_DIR / "2")
+        frozen = json.loads(self.frozen_plan_path(1).read_text(encoding="utf-8"))
+        self.assertTrue(all(t["status"] == "completed" for t in frozen["tasks"]))
+        self.assertEqual(
+            (self.task_dir / ep.PLANS_DIR / "1" / ep.EVENTS_FILE).read_text(
+                encoding="utf-8"
+            ),
+            frozen_events,
+        )
+        self.assertTrue(
+            (self.task_dir / ep.PLANS_DIR / "1" / "final-report.md").is_file()
+        )
+        self.assertFalse((self.task_dir / "final-report.md").exists())
+        live = self.read_live_plan()
+        self.assertEqual(live["status"], "proposed")
+        sequel_events = [
+            json.loads(line)
+            for line in (
+                self.task_dir / ep.PLANS_DIR / "2" / ep.EVENTS_FILE
+            ).read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        self.assertEqual(sequel_events[0]["event"], "plan_sequel")
+        self.assertEqual((sequel_events[0]["from"], sequel_events[0]["to"]), (1, 2))
+        self.assertEqual(sequel_events[0]["reason"], "requirement continues")
+
+    def test_sequel_rollback_clears_empty_freeze_dir_so_retry_works(self) -> None:
+        self.complete_report_plan()
+        original_plan = (self.task_dir / ep.PLAN_FILE).read_text(encoding="utf-8")
+        original_events = (self.task_dir / ep.EVENTS_FILE).read_text(encoding="utf-8")
+        original_report = (self.task_dir / "final-report.md").read_text(encoding="utf-8")
+        real_atomic = ep._atomic_write
+
+        def boom(path, text):
+            raise OSError("disk full")
+
+        with patch.object(ep, "_atomic_write", boom):
+            with self.assertRaises(ep.PlanError) as ctx:
+                self.sequel_to()
+        self.assertIn("sequel failed", str(ctx.exception))
+        self.assertFalse((self.task_dir / ep.PLANS_DIR).exists())
+        self.assertEqual(
+            (self.task_dir / ep.PLAN_FILE).read_text(encoding="utf-8"), original_plan
+        )
+        self.assertEqual(
+            (self.task_dir / ep.EVENTS_FILE).read_text(encoding="utf-8"),
+            original_events,
+        )
+        self.assertEqual(
+            (self.task_dir / "final-report.md").read_text(encoding="utf-8"),
+            original_report,
+        )
+        out = self.sequel_to()
+        self.assertIn("live plan is now 2", out)
+        self.assertIsNotNone(real_atomic)
+
+    def test_sequel_refused_while_phases_open(self) -> None:
+        self.approve()
+        ep.cmd_start(self.root, self.task_dir, "discover")
+        with self.assertRaises(ep.PlanError) as ctx:
+            self.sequel_to()
+        self.assertIn("open phase", str(ctx.exception))
+        self.assertFalse((self.task_dir / ep.PLANS_DIR).exists())
+
+    def test_sequel_requires_terminal_report_phase(self) -> None:
+        # BASE_PLAN has no report phase; a fully completed plan without one
+        # cannot open a sequel.
+        self.start_edit()
+        self.record("edit", "app-build")
+        ep.cmd_done(self.root, self.task_dir, "edit")
+        with self.assertRaises(ep.PlanError) as ctx:
+            self.sequel_to()
+        self.assertIn("terminal report", str(ctx.exception))
+        self.assertFalse((self.task_dir / ep.PLANS_DIR).exists())
+
+    def test_third_sequel_yields_live_three_with_frozen_history(self) -> None:
+        # No hard-coded limit of two plans: the third sequel is just as legal.
+        self.complete_report_plan()
+        self.sequel_to("second plan")
+        frozen_one_events = (
+            self.task_dir / ep.PLANS_DIR / "1" / ep.EVENTS_FILE
+        ).read_text(encoding="utf-8")
+        (self.task_dir / ep.PLANS_DIR / "2" / ep.PLAN_FILE).write_text(
+            json.dumps(copy.deepcopy(SEQ_PLAN), ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        self.approve()
+        self.complete_seq_plan()
+        out = self.sequel_to("third plan")
+        self.assertIn("live plan is now 3", out)
+        pointer = json.loads((self.task_dir / ep.PLAN_FILE).read_text(encoding="utf-8"))
+        self.assertEqual(pointer["live"], 3)
+        self.assertTrue(
+            (self.task_dir / ep.PLANS_DIR / "2" / "final-report.md").is_file()
+        )
+        self.assertTrue(
+            (self.task_dir / ep.PLANS_DIR / "3" / ep.PLAN_FILE).is_file()
+        )
+        self.assertEqual(
+            (self.task_dir / ep.PLANS_DIR / "1" / ep.EVENTS_FILE).read_text(
+                encoding="utf-8"
+            ),
+            frozen_one_events,
+        )
+        self.assertEqual(self.read_live_plan()["status"], "proposed")
+
+    def test_status_and_protocol_show_only_the_live_plan(self) -> None:
+        self.complete_report_plan()
+        self.sequel_to()
+        text = ep.format_status(self.task_dir, self.root)
+        self.assertIn("(live 2)", text)
+        self.assertIn("frozen plans:", text)
+        self.assertIn("plan 1: 3/3 completed", text)
+        self.assertNotIn("[   completed] discover", text)
+        self.assertIn("discover-x", text)
+        protocol = ep.plan_protocol_block(self.root, self.task_dir)
+        self.assertIn("Live plan 2 files:", protocol)
+        self.assertIn("live pointer", protocol)
+        self.assertIn("frozen read-only history", protocol)
+
+    def test_frozen_plan_directories_refuse_mutations(self) -> None:
+        self.complete_report_plan()
+        self.sequel_to()
+        frozen_dir = self.task_dir / ep.PLANS_DIR / "1"
+        self.assertTrue(ep.is_plan_history_dir(frozen_dir))
+        calls = (
+            lambda: ep.cmd_start(self.root, frozen_dir, "edit"),
+            lambda: ep.cmd_record(self.root, frozen_dir, "edit", "pass",
+                                  "cmd", 0, None, "ok", "app-build"),
+            lambda: ep.cmd_done(self.root, frozen_dir, "edit"),
+            lambda: ep.cmd_block(self.root, frozen_dir, "edit", "reason"),
+            lambda: ep.cmd_revise(self.root, frozen_dir, "reopen"),
+            lambda: ep.cmd_validate(self.root, frozen_dir),
+            lambda: ep.cmd_sequel(self.root, frozen_dir, "next"),
+        )
+        for call in calls:
+            with self.subTest(call=call), self.assertRaises(ep.PlanError) as ctx:
+                call()
+            self.assertIn("plan history", str(ctx.exception))
+        frozen = json.loads(self.frozen_plan_path(1).read_text(encoding="utf-8"))
+        self.assertEqual(frozen["status"], "approved")
+        self.assertEqual(frozen["revision"], 1)
+        self.assertEqual(self.read_live_plan()["status"], "proposed")
+
+    def test_pointer_fail_closed_variants(self) -> None:
+        self.complete_report_plan()
+        self.sequel_to()
+        pointer_file = self.task_dir / ep.PLAN_FILE
+        cases = [
+            ({"schema": 3, "live": 9}, "plans/9"),
+            ({"schema": 3, "live": "2"}, "integer"),
+            ({"schema": 3, "live": 2, "tasks": []}, "mixes"),
+            ("[1, 2]", "JSON object"),
+            ("{not json", "not valid JSON"),
+        ]
+        for payload, needle in cases:
+            text = payload if isinstance(payload, str) else json.dumps(payload)
+            pointer_file.write_text(text, encoding="utf-8")
+            with self.subTest(payload=payload):
+                with self.assertRaises(ep.PlanError) as ctx:
+                    ep.load_plan(self.task_dir)
+                self.assertIn(needle, str(ctx.exception))
+                with self.assertRaises(ep.PlanError):
+                    ep.cmd_start(self.root, self.task_dir, "discover-x")
+        pointer_file.write_text(
+            json.dumps({"schema": 3, "live": 2}), encoding="utf-8"
+        )
+        live_plan = self.task_dir / ep.PLANS_DIR / "2" / ep.PLAN_FILE
+        live_plan.write_text(json.dumps({"schema": 3, "live": 3}), encoding="utf-8")
+        with self.assertRaises(ep.PlanError) as ctx:
+            ep.resolve_live_plan(self.task_dir)
+        self.assertIn("itself a pointer", str(ctx.exception))
+        live_plan.write_text(json.dumps({"schema": 3, "goal": "x"}), encoding="utf-8")
+        with self.assertRaises(ep.PlanError) as ctx:
+            ep.resolve_live_plan(self.task_dir)
+        self.assertIn("not a real plan", str(ctx.exception))
+
+    def test_ambiguous_or_missing_pointer_fails_closed(self) -> None:
+        self.complete_report_plan()
+        self.sequel_to()
+        original = (self.task_dir / ep.PLAN_FILE).read_text(encoding="utf-8")
+        root_plan = copy.deepcopy(BASE_PLAN)
+        root_plan["status"] = "approved"
+        (self.task_dir / ep.PLAN_FILE).write_text(
+            json.dumps(root_plan, indent=2), encoding="utf-8"
+        )
+        with self.assertRaises(ep.PlanError) as ctx:
+            ep.resolve_live_plan(self.task_dir)
+        self.assertIn("ambiguous", str(ctx.exception))
+        (self.task_dir / ep.PLAN_FILE).unlink()
+        with self.assertRaises(ep.PlanError) as ctx:
+            ep.resolve_live_plan(self.task_dir)
+        self.assertIn("pointer is missing", str(ctx.exception))
+        (self.task_dir / ep.PLAN_FILE).write_text(original, encoding="utf-8")
+        self.assertEqual(ep.resolve_live_plan(self.task_dir)[0], 2)
+
+    def test_revise_never_creates_a_sequel_and_report_stays_terminal(self) -> None:
+        self.complete_report_plan()
+        ep.cmd_revise(self.root, self.task_dir, "reopen the live plan")
+        self.assertFalse((self.task_dir / ep.PLANS_DIR).exists())
+        plan = self.read_live_plan()
+        self.assertEqual(plan["revision"], 2)
+        self.assertEqual(plan["status"], "proposed")
+        # Rewriting the completed report phase into a normal phase is refused.
+        report = next(t for t in plan["tasks"] if t["id"] == "verify-final")
+        report["verification"] = {"level": "minimal", "required_checks": ["build"]}
+        ep.plan_path(self.task_dir).write_text(
+            json.dumps(plan, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+        with self.assertRaises(ep.PlanError) as ctx:
+            ep.cmd_validate(self.root, self.task_dir)
+        self.assertIn("rewritten after completion", str(ctx.exception))
+
+    def test_sequel_cli_flow(self) -> None:
+        self.complete_report_plan()
+        with patch.object(plan_cli, "get_repo_root", return_value=self.root), \
+             patch.object(plan_cli, "resolve_task_dir", return_value=self.task_dir):
+            exit_code = plan_cli.main([
+                "--task", str(self.task_dir), "sequel",
+                "--reason", "next live plan",
+            ])
+        self.assertEqual(exit_code, 0)
+        pointer = json.loads((self.task_dir / ep.PLAN_FILE).read_text(encoding="utf-8"))
+        self.assertEqual(pointer["live"], 2)
 
     # -- template -----------------------------------------------------------
 

@@ -7,8 +7,15 @@ verification model by the Trellis two-level verification PRD
 
 Per task directory two persisted files exist:
 
-    <task-path>/execution-plan.json      current plan + state (single source of truth)
+    <task-path>/execution-plan.json      live plan + state (single source of truth)
     <task-path>/execution-events.jsonl   append-only audit log (written via this module only)
+
+A task may hold several sequentially closed plans. The first (and, for legacy
+tasks, only) plan keeps the task-root layout above. ``plan.py sequel`` freezes a
+completed plan into ``<task-path>/plans/<n>/`` and turns the task-root
+``execution-plan.json`` into a live pointer ``{"schema": 3, "live": N}``; exactly
+one plan is live at a time and frozen plans are read-only. All path helpers
+below resolve to the live plan, so every existing consumer follows it for free.
 
 Core correctness (dependency checks, verification checks, state transitions, audit
 append) lives here so the CLI flow works identically on Claude Code, Codex,
@@ -23,6 +30,7 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -32,6 +40,8 @@ PLAN_FILE = "execution-plan.json"
 EVENTS_FILE = "execution-events.jsonl"
 SCHEMA_VERSION = 3
 REPORT_FILE = "final-report.md"
+PLANS_DIR = "plans"
+POINTER_LIVE_KEY = "live"
 
 PLAN_STATUSES = ("proposed", "approved")
 TASK_STATUSES = ("pending", "in_progress", "completed", "blocked")
@@ -184,16 +194,167 @@ def task_rel_path(repo_root: Path, task_dir: Path) -> str:
 # Plan / event IO
 # ---------------------------------------------------------------------------
 
+def plans_root(task_dir: Path) -> Path:
+    return task_dir / PLANS_DIR
+
+
+def _plan_number_dirs(task_dir: Path) -> list[int]:
+    """Numbers ``n`` whose ``plans/<n>/execution-plan.json`` exists."""
+    root = plans_root(task_dir)
+    if not root.is_dir():
+        return []
+    try:
+        entries = sorted(root.iterdir())
+    except OSError as exc:
+        raise PlanError(f"cannot read {PLANS_DIR}/: {exc}") from exc
+    numbers: list[int] = []
+    for entry in entries:
+        if not entry.is_dir():
+            continue
+        if (
+            entry.name.isdigit()
+            and int(entry.name) >= 1
+            and (entry / PLAN_FILE).is_file()
+        ):
+            numbers.append(int(entry.name))
+    return sorted(numbers)
+
+
+def resolve_live_plan(task_dir: Path) -> tuple[int, Path]:
+    """Resolve the live plan as ``(number, directory)``; refuse corrupt state.
+
+    Two sanctioned layouts exist:
+
+    * legacy single-file: ``<task>/execution-plan.json`` is the plan itself
+      -> ``(1, task_dir)``; no migration is ever required to keep using it;
+    * sequel layout: ``<task>/execution-plan.json`` is a live pointer
+      ``{"schema": 3, "live": N}`` -> ``(N, task_dir/plans/N)``. Exactly one
+      plan is live; everything else under ``plans/`` is frozen history.
+
+    Anything ambiguous (pointer without its plan, a full plan at the task root
+    while ``plans/`` holds plans, nested pointers, bad JSON) is refused so no
+    command silently acts on the wrong plan.
+    """
+    root_file = task_dir / PLAN_FILE
+    if root_file.is_file():
+        try:
+            data = json.loads(root_file.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            raise PlanError(f"{PLAN_FILE} is not valid JSON: {exc}") from exc
+        except OSError as exc:
+            raise PlanError(f"cannot read {PLAN_FILE}: {exc}") from exc
+        if not isinstance(data, dict):
+            raise PlanError(f"{PLAN_FILE} must contain a JSON object")
+        if POINTER_LIVE_KEY not in data:
+            numbers = _plan_number_dirs(task_dir)
+            if numbers:
+                raise PlanError(
+                    f"ambiguous plan state: the task-root {PLAN_FILE} is a full "
+                    f"plan while {PLANS_DIR}/ also holds plan(s) "
+                    + ", ".join(str(n) for n in numbers),
+                    hint="state is ambiguous: the sequel pointer was likely "
+                         "overwritten; restore the pointer "
+                         '(`{"schema": 3, "live": <number>}`) or move the stray '
+                         f"{PLANS_DIR}/ directories away before continuing",
+                )
+            return 1, task_dir
+        if "tasks" in data:
+            raise PlanError(
+                f"{PLAN_FILE} mixes the live pointer with plan content",
+                hint='the pointer carries only {"schema": 3, "live": N}; plan '
+                     f"content belongs in {PLANS_DIR}/<N>/{PLAN_FILE}",
+            )
+        live = data.get(POINTER_LIVE_KEY)
+        if isinstance(live, bool) or not isinstance(live, int) or live < 1:
+            raise PlanError(
+                f"{PLAN_FILE} live pointer must be an integer >= 1",
+                hint='expected `{"schema": 3, "live": <number>}`',
+            )
+        live_dir = plans_root(task_dir) / str(live)
+        live_file = live_dir / PLAN_FILE
+        if not live_file.is_file():
+            raise PlanError(
+                f"live pointer says plan {live}, but "
+                f"{PLANS_DIR}/{live}/{PLAN_FILE} is missing",
+                hint="restore the missing plan directory or repair the pointer "
+                     "by hand; no automatic rollback command exists",
+            )
+        try:
+            live_data = json.loads(live_file.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            raise PlanError(
+                f"{PLANS_DIR}/{live}/{PLAN_FILE} is not valid JSON: {exc}"
+            ) from exc
+        except OSError as exc:
+            raise PlanError(
+                f"cannot read {PLANS_DIR}/{live}/{PLAN_FILE}: {exc}"
+            ) from exc
+        if POINTER_LIVE_KEY in live_data:
+            raise PlanError(
+                f"{PLANS_DIR}/{live}/{PLAN_FILE} is itself a pointer; only the "
+                f"task-root {PLAN_FILE} may point at a live plan"
+            )
+        if not isinstance(live_data, dict) or "tasks" not in live_data:
+            raise PlanError(
+                f"{PLANS_DIR}/{live}/{PLAN_FILE} is not a real plan",
+                hint="a live plan entry must be a schema-3 plan with tasks; "
+                     "nested pointers are refused",
+            )
+        return live, live_dir
+    numbers = _plan_number_dirs(task_dir)
+    if numbers:
+        raise PlanError(
+            f"the task-root {PLAN_FILE} pointer is missing while {PLANS_DIR}/ "
+            "holds plan(s) " + ", ".join(str(n) for n in numbers),
+            hint="restore the pointer "
+                 '(`{"schema": 3, "live": <number>}`); without it every mutation '
+                 "is refused",
+        )
+    return 1, task_dir
+
+
 def plan_path(task_dir: Path) -> Path:
-    return task_dir / PLAN_FILE
+    return resolve_live_plan(task_dir)[1] / PLAN_FILE
 
 
 def events_path(task_dir: Path) -> Path:
-    return task_dir / EVENTS_FILE
+    return resolve_live_plan(task_dir)[1] / EVENTS_FILE
 
 
 def plan_exists(task_dir: Path) -> bool:
-    return plan_path(task_dir).is_file()
+    """True when any plan state exists (legacy plan, pointer, or plans/)."""
+    try:
+        if (task_dir / PLAN_FILE).is_file():
+            return True
+        return bool(_plan_number_dirs(task_dir))
+    except (OSError, PlanError):
+        # Let load_plan raise the precise fail-closed error instead of
+        # pretending the task has no plan at all.
+        return True
+
+
+def display_path(repo_root: Path, path: Path) -> str:
+    """Repo-relative posix display for a plan path; absolute when outside."""
+    try:
+        return path.resolve().relative_to(Path(repo_root).resolve()).as_posix()
+    except ValueError:
+        return path.as_posix()
+
+
+def is_plan_history_dir(task_dir: Path) -> bool:
+    """True when the path is a ``plans/<n>`` directory (frozen history)."""
+    return task_dir.parent.name == PLANS_DIR and task_dir.name.isdigit()
+
+
+def _require_live_task_dir(task_dir: Path) -> None:
+    """Mutations must address the task root; plans/<n> is never writable."""
+    if is_plan_history_dir(task_dir):
+        raise PlanError(
+            f"'{task_dir.name}' under {PLANS_DIR}/ is plan history, not a task directory",
+            hint="run plan.py against the task root (the directory holding "
+                 "task.json); frozen plans are read-only and only plan.py "
+                 "sequel moves the live pointer",
+        )
 
 
 def load_plan_raw(task_dir: Path) -> str:
@@ -276,10 +437,15 @@ def require_clean_audit(task_dir: Path) -> list[dict[str, Any]]:
 
 
 def append_event(task_dir: Path, event: dict[str, Any]) -> None:
+    _append_event_to_dir(events_path(task_dir).parent, event)
+
+
+def _append_event_to_dir(base_dir: Path, event: dict[str, Any]) -> None:
+    """Append to ``base_dir/execution-events.jsonl`` (used before a pointer exists)."""
     payload = dict(event)
     payload.setdefault("time", _utc_now())
     line = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
-    path = events_path(task_dir)
+    path = base_dir / EVENTS_FILE
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8", newline="\n") as fh:
         fh.write(line + "\n")
@@ -709,6 +875,7 @@ def _expected_revision(events: list[dict[str, Any]]) -> int:
 
 
 def cmd_validate(repo_root: Path, task_dir: Path) -> str:
+    _require_live_task_dir(task_dir)
     events, corrupt = read_events(task_dir)
     if corrupt:
         raise PlanError(
@@ -865,6 +1032,7 @@ def cmd_validate(repo_root: Path, task_dir: Path) -> str:
 
 
 def cmd_revise(repo_root: Path, task_dir: Path, reason: str) -> str:
+    _require_live_task_dir(task_dir)
     if not reason.strip():
         raise PlanError("--reason is required for revise")
     events = require_clean_audit(task_dir)
@@ -995,6 +1163,168 @@ def cmd_revise(repo_root: Path, task_dir: Path, reason: str) -> str:
         + (f"; reset to pending: {', '.join(reset)}" if reset else "")
         + note
         + "\nedit execution-plan.json if needed, then run plan.py validate"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Sequel: freeze the completed live plan and open the next live plan
+# ---------------------------------------------------------------------------
+
+def cmd_sequel(repo_root: Path, task_dir: Path, reason: str) -> str:
+    """Freeze the fully completed live plan and open the next live plan.
+
+    Only a completed live plan may be frozen. ``revise`` reopens the current
+    live plan and never creates a sequel; rewriting the completed report phase
+    into a normal phase stays rejected. Frozen plans are read-only history.
+    """
+    if not isinstance(reason, str) or not reason.strip():
+        raise PlanError("--reason is required for sequel")
+    _require_live_task_dir(task_dir)
+    live_number, _live_dir = resolve_live_plan(task_dir)
+    plan = load_plan(task_dir)
+    _require_mutable(task_dir, plan)
+    status = compute_status(plan)
+    open_phases = status["total"] - len(status["completed"])
+    if not status["total"] or open_phases:
+        raise PlanError(
+            f"the live plan still has {open_phases}/{status['total']} open phase(s)",
+            hint="a sequel may only start after every phase, including the "
+                 "terminal report, is completed; `plan.py status` lists what is open",
+        )
+    report_ids = [
+        str(t.get("id"))
+        for t in plan.get("tasks", [])
+        if isinstance(t, dict)
+        and isinstance(t.get("verification"), dict)
+        and t["verification"].get("level") == "report"
+    ]
+    if len(report_ids) != 1:
+        raise PlanError(
+            "the live plan has no single terminal report phase",
+            hint="every plan keeps one terminal level=report phase; `revise` the "
+                 "live plan to add or finish it before opening the next plan",
+        )
+    events = require_clean_audit(task_dir)
+    revision = int(plan.get("revision", -1))
+    if not any(
+        e.get("event") == "plan_completed"
+        and int(e.get("revision", -2)) == revision
+        for e in events
+    ):
+        raise PlanError(
+            "the live plan has no plan_completed event for its current revision",
+            hint="the completion audit is incomplete; finish the remaining "
+                 "phase(s) through plan.py so completion is logged",
+        )
+
+    next_number = live_number + 1
+    next_dir = plans_root(task_dir) / str(next_number)
+    freeze_dir = plans_root(task_dir) / str(live_number)
+    if next_dir.exists():
+        raise PlanError(
+            f"{PLANS_DIR}/{next_number}/ already exists",
+            hint="move the stray directory away first; sequel never overwrites "
+                 "plan history",
+        )
+    if live_number == 1 and freeze_dir.exists():
+        raise PlanError(
+            f"{PLANS_DIR}/1/ already exists while the live plan is still the "
+            "legacy task-root layout",
+            hint="move the stray plans/1/ away first; sequel never overwrites "
+                 "existing history",
+        )
+
+    moved: list[tuple[Path, Path]] = []
+    created_next = False
+    pointer_written = False
+    try:
+        if live_number == 1:
+            freeze_dir.mkdir(parents=True)
+            for name in (PLAN_FILE, EVENTS_FILE, REPORT_FILE):
+                src = task_dir / name
+                if not src.is_file():
+                    continue
+                dst = freeze_dir / name
+                os.replace(src, dst)
+                moved.append((dst, src))
+        next_dir.mkdir(parents=True)
+        created_next = True
+        skeleton = copy.deepcopy(TEMPLATE)
+        skeleton["task"] = task_rel_path(repo_root, task_dir)
+        _atomic_write(
+            next_dir / PLAN_FILE,
+            json.dumps(skeleton, ensure_ascii=False, indent=2) + "\n",
+        )
+        _append_event_to_dir(
+            next_dir,
+            {
+                "event": "plan_sequel",
+                "from": live_number,
+                "to": next_number,
+                "reason": reason.strip(),
+            },
+        )
+        pointer_text = json.dumps(
+            {"schema": SCHEMA_VERSION, POINTER_LIVE_KEY: next_number},
+            ensure_ascii=False,
+            indent=2,
+        ) + "\n"
+        _atomic_write(task_dir / PLAN_FILE, pointer_text)
+        pointer_written = True
+    except Exception as exc:
+        problems: list[str] = []
+        if pointer_written:
+            try:
+                (task_dir / PLAN_FILE).unlink()
+            except OSError as rollback_exc:
+                problems.append(f"pointer removal failed: {rollback_exc}")
+        if created_next:
+            try:
+                shutil.rmtree(next_dir)
+            except OSError as rollback_exc:
+                problems.append(f"new plan dir removal failed: {rollback_exc}")
+        for dst, src in reversed(moved):
+            try:
+                if dst.is_file() and not src.exists():
+                    os.replace(dst, src)
+            except OSError as rollback_exc:
+                problems.append(f"restore {src.name} failed: {rollback_exc}")
+        # After restoring moved files the freeze dir is empty; leaving it
+        # behind would block retry (`plans/1/ already exists` on legacy layout).
+        if live_number == 1:
+            if freeze_dir.exists():
+                try:
+                    freeze_dir.rmdir()
+                except OSError:
+                    pass
+            plans = plans_root(task_dir)
+            if plans.is_dir():
+                try:
+                    plans.rmdir()
+                except OSError:
+                    pass
+        detail = f"sequel failed: {exc}"
+        if problems:
+            detail += " | rollback problems: " + "; ".join(problems)
+        if isinstance(exc, PlanError):
+            raise PlanError(detail, hint=exc.hint) from exc
+        raise PlanError(
+            detail,
+            hint="inspect the task directory before retrying; there is no "
+                 "automatic rollback command (frozen history is never rewritten)",
+        ) from exc
+
+    next_display = display_path(repo_root, next_dir)
+    frozen_note = (
+        f"plan {live_number} frozen under {PLANS_DIR}/{live_number}/"
+        if live_number == 1
+        else f"plan {live_number} stays frozen under {PLANS_DIR}/{live_number}/"
+    )
+    return (
+        f"{frozen_note}; live plan is now {next_number} (proposed) at "
+        f"{next_display}/{PLAN_FILE}\n"
+        "edit it into the new plan, then run plan.py validate before any "
+        "further source edit"
     )
 
 
@@ -1152,6 +1482,7 @@ def managed_drift(plan: dict[str, Any], events: list[dict[str, Any]]) -> list[st
 
 def _require_mutable(task_dir: Path, plan: dict[str, Any]) -> list[dict[str, Any]]:
     """Common preconditions for every state-changing task command."""
+    _require_live_task_dir(task_dir)
     events = require_clean_audit(task_dir)
     verification_drift = managed_drift(plan, events)
     if verification_drift:
@@ -1327,7 +1658,8 @@ def _record_result(
                  "in the new revision",
         )
     command_fields = _command_record_fields(command, summary)
-    stored = _resolve_artifact_path(repo_root, task_dir, artifact_path) if artifact_path else None
+    live_dir = resolve_live_plan(task_dir)[1]
+    stored = _resolve_artifact_path(repo_root, live_dir, artifact_path) if artifact_path else None
     entry: dict[str, Any] = {
         "result": result,
         "exit_code": exit_code,
@@ -1417,25 +1749,26 @@ def cmd_done(repo_root: Path, task_dir: Path, task_id: str) -> str:
         for entry in results.values()
         if isinstance(entry, dict) and entry.get("artifact")
     }
+    live_dir = resolve_live_plan(task_dir)[1]
     for artifact in registered_artifacts:
         try:
-            current = _resolve_artifact_path(repo_root, task_dir, str(repo_root / artifact))
+            current = _resolve_artifact_path(repo_root, live_dir, str(repo_root / artifact))
         except PlanError as exc:
             raise PlanError(f"artifact file is no longer valid: {artifact}: {exc}") from exc
         if current != artifact:
             raise PlanError(f"artifact path changed after registration: {artifact}")
     if level == "report":
-        # PRD 8.2: the single final acceptance report must exist in the task
-        # directory and be registered through record --artifact.
-        if not (task_dir / REPORT_FILE).is_file():
+        # PRD 8.2: the single final acceptance report must exist in the live
+        # plan directory and be registered through record --artifact.
+        if not (live_dir / REPORT_FILE).is_file():
             raise PlanError(
-                f"task {task_id} report verification requires the task-directory "
-                f"file {REPORT_FILE}",
+                f"task {task_id} report verification requires the live-plan "
+                f"directory file {REPORT_FILE}",
                 hint=f"write {REPORT_FILE}, then: plan.py record {task_id} "
                      f"--check <check-id> --result pass --command <id> "
                      f"--exit-code 0 --summary \"...\" --artifact {REPORT_FILE}",
             )
-        report_key = _artifact_requirement_key(repo_root, task_dir, REPORT_FILE)
+        report_key = _artifact_requirement_key(repo_root, live_dir, REPORT_FILE)
         if report_key not in registered_artifacts:
             raise PlanError(
                 f"task {task_id} must register {REPORT_FILE} through plan.py "
@@ -1520,10 +1853,39 @@ def compute_status(plan: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _frozen_plan_summaries(task_dir: Path) -> list[str]:
+    """One compact line per frozen plan; best-effort (never breaks status)."""
+    try:
+        live_number, _live_dir = resolve_live_plan(task_dir)
+        if live_number == 1:
+            return []
+        numbers = _plan_number_dirs(task_dir)
+    except PlanError:
+        return []
+    lines: list[str] = []
+    for number in numbers:
+        if number == live_number:
+            continue
+        base = plans_root(task_dir) / str(number)
+        try:
+            data = json.loads((base / PLAN_FILE).read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            lines.append(f"plan {number}: unreadable (frozen)")
+            continue
+        tasks = [t for t in data.get("tasks", []) if isinstance(t, dict)]
+        done = sum(1 for t in tasks if t.get("status") == "completed")
+        lines.append(
+            f"plan {number}: {done}/{len(tasks)} completed, "
+            f"status={data.get('status')} (frozen, read-only)"
+        )
+    return lines
+
+
 def format_status(task_dir: Path, repo_root: Path | None = None, *, verbose: bool = True) -> str:
     if not plan_exists(task_dir):
         return "no execution plan yet — create execution-plan.json, then run plan.py validate"
     plan = load_plan(task_dir)
+    live_number, live_dir = resolve_live_plan(task_dir)
     events, corrupt = read_events(task_dir)
     audit_note = (
         f"audit OK ({len(events)} events)"
@@ -1531,11 +1893,15 @@ def format_status(task_dir: Path, repo_root: Path | None = None, *, verbose: boo
         else f"AUDIT DAMAGED at lines {', '.join(map(str, corrupt))} — mutations paused"
     )
     status = compute_status(plan)
+    live_marker = f" (live {live_number})" if live_number > 1 else ""
     lines = [
-        f"execution plan: revision={status['revision']} status={status['plan_status']} "
+        f"execution plan{live_marker}: revision={status['revision']} status={status['plan_status']} "
         f"tasks={len(status['completed'])}/{status['total']} completed | {audit_note}",
         f"goal: {plan.get('goal', '')}",
     ]
+    frozen = _frozen_plan_summaries(task_dir)
+    if frozen:
+        lines.append("frozen plans: " + " | ".join(frozen))
     if not corrupt:
         # Display-only preview of the rejections that _require_mutable will
         # enforce on the next mutation (statuses and managed maps alike), so a
@@ -1583,9 +1949,9 @@ def format_status(task_dir: Path, repo_root: Path | None = None, *, verbose: boo
                     if isinstance(entry, dict) and entry.get("artifact")
                 }
                 report_key = _artifact_requirement_key(
-                    repo_root or task_dir, task_dir, REPORT_FILE
+                    repo_root or live_dir, live_dir, REPORT_FILE
                 )
-                if not (task_dir / REPORT_FILE).is_file():
+                if not (live_dir / REPORT_FILE).is_file():
                     marks.append(f"missing {REPORT_FILE} file")
                 elif report_key not in registered:
                     marks.append(f"{REPORT_FILE} not registered via record --artifact")
@@ -1690,18 +2056,42 @@ def plan_protocol_block(repo_root: Path, task_dir: Path) -> str:
     head = "## Trellis execution plan protocol\n"
     task_display = task_rel_dir(task_dir)
     if repo_root is not None:
-        try:
-            task_display = task_dir.resolve().relative_to(repo_root.resolve()).as_posix()
-        except ValueError:
-            pass
+        task_display = display_path(repo_root, task_dir)
+    try:
+        live_number, live_dir = resolve_live_plan(task_dir)
+    except PlanError as exc:
+        return head + f"\nPlan state error: {exc}\nResolve it before editing source code.\n"
+    live_display = (
+        display_path(repo_root, live_dir) if repo_root is not None else live_dir.as_posix()
+    )
+    if live_number > 1:
+        state_line = (
+            f"- Live plan {live_number} files: `{live_display}/{PLAN_FILE}` + "
+            f"`{live_display}/{EVENTS_FILE}`; the task-root "
+            f"`{task_display}/{PLAN_FILE}` is only the live pointer, and every "
+            f"other `{task_display}/{PLANS_DIR}/<n>/` directory is frozen "
+            "read-only history.\n"
+        )
+    else:
+        state_line = (
+            f"- State files: `{live_display}/{PLAN_FILE}` + "
+            f"`{live_display}/{EVENTS_FILE}`.\n"
+        )
     base = (
-        f"- State files: `{task_display}/{PLAN_FILE}` + "
-        f"`{task_display}/{EVENTS_FILE}`.\n"
-        f"- plan.py is the ONLY sanctioned state advancer; never hand-edit task statuses.\n"
-        f"- Advance with: `{cli} --task \"<task-path>\" <command>` (validate/status/start/record/done/block/revise).\n"
-        f"- Verification is two-level: `minimal` = record every declared `required_checks` result "
-        f"(no phase Markdown, no mandatory raw logs); `report` = the single terminal acceptance "
-        f"phase that also writes `{REPORT_FILE}` and registers it via `record --artifact`.\n"
+        state_line
+        + "- plan.py is the ONLY sanctioned state advancer; never hand-edit task statuses.\n"
+        + f"- Advance with: `{cli} --task \"<task-path>\" <command>` "
+          "(validate/status/start/record/done/block/revise/sequel).\n"
+        + "- Verification is two-level: `minimal` = record every declared `required_checks` result "
+          "(no phase Markdown, no mandatory raw logs); `report` = the single terminal acceptance "
+          f"phase that also writes `{REPORT_FILE}` and registers it via `record --artifact`.\n"
+        + "- Small patch (hard rule): the user explicitly calling this a small patch (小修) or "
+          "saying not to use plan.py wins; otherwise all four objective gates must hold — "
+          "acceptance unchanged (or only user-confirmed-obsolete limits removed), small and "
+          "single-module without architecture change, no new phase split, and PRD/design not "
+          "synced by default (a Spec is written only for a convention that will recur). A small "
+          "patch edits code, runs the affected checks, and never runs `revise`, adds a phase, or "
+          "opens a task.\n"
     )
     try:
         if not plan_exists(task_dir):
@@ -1728,6 +2118,33 @@ def plan_protocol_block(repo_root: Path, task_dir: Path) -> str:
             )
         status = compute_status(plan)
         active = ", ".join(status["in_progress"]) or "(none)"
+        completed = bool(status["total"]) and len(status["completed"]) == status["total"]
+        if completed:
+            next_display = display_path(
+                repo_root, plans_root(task_dir) / str(live_number + 1)
+            ) if repo_root is not None else f"{task_display}/{PLANS_DIR}/{live_number + 1}"
+            return (
+                head
+                + base
+                + f"\nLive plan {live_number} is fully completed (every phase, including the "
+                  "terminal report). Choose the exit that matches the change:\n"
+                  "- **Small patch:** edit the code directly, run the affected checks, and write a "
+                  "Spec only when the convention will recur. Do NOT run `revise`, do NOT add a "
+                  "phase, and do NOT touch any execution-plan file — a completed plan is closed "
+                  "history.\n"
+                  "- **Same requirement, but it needs new phases/checks/report** (or blocking fixes "
+                  "are too many, messy and complex for a small patch): freeze this plan and open "
+                  f"the next one with `{cli} --task \"<task-path>\" sequel --reason \"...\"`, then "
+                  f"edit `{next_display}/{PLAN_FILE}` and `validate` before any further source "
+                  "edit.\n"
+                  "- **Different requirement, or an archived task:** open a new Trellis task "
+                  "instead of a sequel.\n"
+                  "`revise` only reopens the current live plan; rewriting the completed report "
+                  "phase into a normal phase is rejected by validation.\n"
+                + "\n"
+                + format_status(task_dir, repo_root, verbose=True)
+                + "\n"
+            )
         return (
             head
             + base
@@ -1739,13 +2156,17 @@ def plan_protocol_block(repo_root: Path, task_dir: Path) -> str:
               "for every declared required check → `done <id>`. "
               "Do not write per-phase Markdown and do not reformat full command output; record results only.\n"
               "The terminal level=report phase additionally: confirm all dependencies completed, run and "
-              f"record every declared final check, write `{task_display}/{REPORT_FILE}` summarizing changed "
+              f"record every declared final check, write `{live_display}/{REPORT_FILE}` summarizing changed "
               f"files, phase results, check results, skipped items, and known risks, then `record` it with "
               f"`--artifact {REPORT_FILE}` before `done`.\n"
               "A recorded fail is permanent for the revision — done refuses; recover with "
               "`block <id> --reason \"...\"` (this is also how failures are audited; there is no separate "
               "failed state) → `revise --reason \"...\"` → edit → `validate`. "
               "Read-only work (search/analysis) needs no task lock, but each edit-bearing phase does.\n"
+              "A small in-scope fix stays in the current phase (batch edit → record → done); do not "
+              "`revise` and do not open a sequel for it. Blocking review/implementation fixes default "
+              "to this small-patch path; only work too large, messy and complex to fit it justifies a "
+              "sequel.\n"
               f"Note: `record --result pass` is your attestation of a run you actually performed; plan.py never executes "
               "checks, and independent verification stays with the Phase 2.2 review/check stage.\n"
             + "\n"

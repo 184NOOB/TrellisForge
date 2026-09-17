@@ -18,6 +18,13 @@ Usage (from the repo root):
     python .trellis/scripts/plan.py [--task <path>] done <task-id>
     python .trellis/scripts/plan.py [--task <path>] block <task-id> --reason "..."
     python .trellis/scripts/plan.py [--task <path>] revise --reason "..."
+    python .trellis/scripts/plan.py [--task <path>] sequel --reason "..."
+
+A task may hold several sequentially closed plans: the live one resolves from
+the task-root execution-plan.json (legacy single file, or a
+{"schema": 3, "live": N} pointer into plans/<N>/). `sequel` freezes the fully
+completed live plan and opens the next one; every other command acts on the
+live plan only, and frozen plans stay read-only.
 
 Exit codes: 0 = success, 1 = rejected or invalid state (reason printed to
 stderr), 2 = argparse usage error (bad/missing flags). `--task` may appear
@@ -42,6 +49,7 @@ from common.execution_plan import (  # noqa: E402
     cmd_done,
     cmd_record,
     cmd_revise,
+    cmd_sequel,
     cmd_start,
     cmd_validate,
     format_status,
@@ -110,6 +118,9 @@ def build_parser() -> argparse.ArgumentParser:
     rev_p = sub.add_parser("revise", parents=[task_parent],
                            help="open an approved plan for revision")
     rev_p.add_argument("--reason", required=True)
+    seq_p = sub.add_parser("sequel", parents=[task_parent],
+                           help="freeze the completed live plan and open the next live plan")
+    seq_p.add_argument("--reason", required=True)
     return parser
 
 
@@ -145,6 +156,8 @@ def main(argv: list[str] | None = None) -> int:
             print(cmd_block(repo_root, task_dir, args.task_id, args.reason))
         elif args.subcommand == "revise":
             print(cmd_revise(repo_root, task_dir, args.reason))
+        elif args.subcommand == "sequel":
+            print(cmd_sequel(repo_root, task_dir, args.reason))
         else:  # argparse keeps this unreachable
             return 2
     except PlanError as exc:

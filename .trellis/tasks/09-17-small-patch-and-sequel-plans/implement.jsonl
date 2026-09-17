@@ -1,0 +1,4 @@
+{"file":".trellis/spec/main/tooling/templates-and-docs.md","reason":"约束下游功能只修改 embedded-c-overlay 模板，禁止反向同步根目录自用 Trellis，并界定版本收尾职责。"}
+{"file":".trellis/spec/main/tooling/python.md","reason":"约束执行计划状态机、plan.py CLI、Hook 展示层与模板单测分层。"}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"workflow、plan.py、Hook 与各平台 implement/check Agent 共同消费执行计划路径，必须按跨层契约同步。"}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"live 计划路径会进入多个消费者，需先搜索全部旧文件名并用合约测试防漂移。"}

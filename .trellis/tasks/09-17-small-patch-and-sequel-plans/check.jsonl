@@ -1,0 +1,4 @@
+{"file":".trellis/spec/main/tooling/templates-and-docs.md","reason":"审查功能变更是否仅落在下游发布模板，并确认未越界修改版本收尾交付物或根目录自用 Trellis。"}
+{"file":".trellis/spec/main/tooling/python.md","reason":"审查 plan.py/execution_plan.py、Hook 和单测是否符合仓库 Python 规范。"}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"审查 workflow、CLI、协议注入和各平台 Agent 对 live plan 的语义是否一致。"}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"审查旧 execution-plan.json 硬编码消费者是否已全部改为 live 解析。"}

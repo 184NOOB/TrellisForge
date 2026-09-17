@@ -10,6 +10,7 @@
 
 ## Task Map
 
+- 功能子任务：`09-17-small-patch-and-sequel-plans`，负责小修绕过执行计划，以及同一任务在计划闭环后另开后续计划。
 - 固定收尾子任务：`09-17-readme-integration-guide-upgrade-patch`。
 - 后续功能子任务由用户逐步补充，均排列在固定收尾子任务之前。
 
@@ -25,7 +26,7 @@
 
 - [x] 父任务已创建，并关联固定收尾子任务。
 - [x] 当前 `children` 列表以 `09-17-readme-integration-guide-upgrade-patch` 结尾。
-- [ ] 后续每次新增子任务后，固定收尾子任务仍保持为最后一项。
+- [x] 后续每次新增子任务后，固定收尾子任务仍保持为最后一项（已挂载 `09-17-small-patch-and-sequel-plans` 并保持收尾在末位）。
 - [ ] 所有子任务完成后执行父任务级最终集成检查。
 
 ## Out Of Scope For Current Planning Turn

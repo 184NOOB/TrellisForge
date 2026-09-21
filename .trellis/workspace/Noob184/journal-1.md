@@ -233,3 +233,48 @@ trellis-implement(sonnet) 8/8 阶段交付 templates/embedded-c-overlay/.opencod
 ### Next Steps
 
 - 父任务 09-17-trellisforge-1-3-upgrade 仍在规划，可继续挂下一项 1.3 功能子任务
+
+
+## Session 8: Codex 原生静默等待合同与模板等待合同可达性修复
+
+**Date**: 2026-09-22
+**Task**: Codex 原生静默等待合同与模板等待合同可达性修复
+**Package**: main
+**Branch**: `v1.3-development`
+
+### Summary
+
+复核 09-21-codex-native-wait-quiet 规划后把 5 项发现落进 prd/design/implement（rev.2），审查等级改为 reinforced（rev.3）；以 ds-runner 为实施代理、同主会话模型为独立审查代理完成 7 阶段执行计划并归档。
+
+### Main Changes
+
+- 规划复核落地：新增 R4 送达入口、R3 平台别名扩至 Claude 家族、R5 write_json 换行，R1 等待窗口锚点改为实测 timeout_ms=120000 并写入 timed_out 语义（取证自下游 Codex 会话 JSONL）
+- 模板 workflow_phase.py：get_step 标题正则改为捕获完整编号并归并 X.Y.Z 子步骤，_platform_matches 增加 codex 与 claude 两组家族别名；git_context.py 的 --step 帮助补 2.1.1
+- 模板 workflow.md：新增 #### 2.1.2 Codex 主会话原生子代理静默等待合同（[Codex] 作用域，8 条要点），Loading Step Detail 补三平台 --platform 示例；.codex/hooks/session-start.py 提示串补 --platform codex
+- 模板 common/io.py 的 write_json 显式 newline=LF；TEMPLATE-CONTENTS.md 登记两个新测试文件
+- spec：python.md 新增 Scenario「模板等待合同可达性」并改写 CRLF 常见错误条目，index.md 同步覆盖范围
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `e1e6052` | (see git log) |
+| `7f01ce2` | (see git log) |
+| `152a8d1` | (see git log) |
+
+### Testing
+
+- [OK] 新增模板合约测试 24 例（test_codex_native_wait_contract.py 23 例四类 + test_write_json_lf.py 1 例）；模板套件 201 例、根目录回归 154 例全绿
+- [OK] 可重放 CLI 矩阵 research/cli_matrix.py 13/13 PASS；py_compile 6 文件通过；git diff --check 无输出；构建/部署/硬件验证 not applicable
+- [OK] reinforced 独立审查（affected-scope）0 blocking、1 should-fix、3 nit，三项小修已落实、第四项经审查裁定可接受
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- 根级 common/io.py 的 write_json 仍未传 newline，根自用 task.json 每次写盘回到 CRLF
+- 根自用 workflow.md / workflow_phase.py / git_context.py 未同步模板修复，根路径仍有子步骤截断与 --platform claude|codex 丢块缺陷
+- .claude/hooks/session-start.py 与 .opencode/lib/session-utils.js 的 Step detail 提示串未带 --platform；模板 task.py 的 --step 1 文案既存失效
+- 父任务 09-17-trellisforge-1-3-upgrade 余固定收尾子任务 09-17-readme-integration-guide-upgrade-patch（README、接入指南、VERSION、manifest、升级补丁）

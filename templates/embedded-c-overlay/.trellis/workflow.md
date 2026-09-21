@@ -360,6 +360,10 @@ At each step, run this to fetch detailed guidance:
 ```bash
 python ./.trellis/scripts/get_context.py --mode phase --step <step>
 # e.g. python ./.trellis/scripts/get_context.py --mode phase --step 1.1
+# Pass your platform so platform-tagged blocks are filtered:
+#   Claude Code: --platform claude
+#   Codex: --platform codex
+#   OpenCode: --platform opencode
 ```
 
 ---
@@ -674,6 +678,42 @@ wait 终端 session，整段等待期间只处理这一个进程：
 
 以上规则只约束 Codex 主会话；Claude Code 主会话不要求使用 `exec_command`、
 `write_stdin`、`yield_time_ms` 或 `session_id`。
+
+[/Codex]
+
+#### 2.1.2 Codex 主会话：原生子代理派发与静默等待
+
+[Codex]
+
+Codex 主会话通过原生 `spawn_agent` / `wait_agent` 派发实施或审查子代理时
+（`codex-sub-agent` 与 `codex-inline` 两种主会话都适用，inline 模式的审查
+派发同样受本节约束），等待期间保持静默等待：
+
+- 每个工作单元只派发一次：只 `spawn_agent` 一次，等待只对同一 agent/thread
+  连续调用 `wait_agent`；单次 `timeout_ms` 取该工具允许的最大值，正常路径为
+  分钟级且不低于实测可行的 `120000`。30 秒级窗口只允许出现在明确说明原因的
+  诊断场景，正常路径禁用 30000 这类短周期窗口；未实测的更大值不得写成工具
+  上限。
+- `wait_agent` 返回 `{"timed_out":true}`（"Wait timed out."）表示窗口到期而
+  agent 仍在运行，不是失败信号：复用同一 agent/thread 继续等待，不重新
+  `spawn_agent`、不新建等待循环。
+- 等待期间禁止读代码或 diff 正文，包括 `git diff` / `git log`、被改动文件
+  内容、`execution-events.jsonl` 或半成品 `final-report.md` 正文，也不运行
+  `plan.py status`、不反复 `list_agents` 做周期观测。理由：此时读到的是半成品
+  状态，容易误判进度，并把无意义上下文灌入主会话，让实施子代理失去意义。
+- 允许且只允许两种“最小上下文进展确认”，各自最多一次：(1) 派发早期允许一次
+  轻量存活探测，只看“是否有改动”的信号——文件路径、时间戳、大小，或
+  `git status --short` 的路径清单，不得读取文件内容；(2) 长时间没有终态且
+  需要判断时，允许一次 `send_message` 向实施/审查 agent 询问进度，由该 agent
+  用摘要回复。不得重复追问，也不得用询问替代终态等待。
+- 用户在等待期间发来的新指令是交互中断，不算轮询。
+- 收到终态后只读取判断下一步所需的最小最终结果，再回到 Phase 2 正常路径
+  （`plan.py status`、审查派发或报告）；完整 diff 阅读属于审查步骤而非等待。
+- 异常入口：`wait_agent` 报错、agent 明确失败或长时间无进展时，允许一次最小
+  诊断（最多一次 `list_agents` 或一次状态读取），据此决定中止、恢复或重新
+  派发；不得把重复等待写成无条件循环。
+- 以上规则只约束 Codex 主会话；Claude Code / OpenCode 主会话不要求使用
+  `spawn_agent` / `wait_agent`。
 
 [/Codex]
 

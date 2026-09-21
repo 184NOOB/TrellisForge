@@ -10,6 +10,8 @@
 | `.trellis/scripts/common/subagent_prompt_policy.py` | 覆盖前备份 | 保守识别目标/范围/验收/命令/执行策略，仅批量化明确执行策略中的碎片化操作 |
 | `.trellis/scripts/tests/test_trellis_channel_contract.py` | 覆盖前备份（`add`，1.1 新增） | Channel Skill 树完整性、公共镜像一致、Codex 终端术语作用域与唯一等待契约测试 |
 | `.trellis/scripts/tests/test_opencode_platform_contract.py` | 覆盖后新增（1.2 新增） | OpenCode 平台闭包、JS 行为（Node harness）、会话隔离、五级审查与提示规范化跨平台合同测试 |
+| `.trellis/scripts/tests/test_codex_native_wait_contract.py` | 覆盖后新增（1.3 新增） | 等待合同送达链路真实 CLI 考查：编号子步骤归并、Codex / Claude 平台家族别名、Loading Step Detail 与 Codex Hook 平台提示串、2.1.2 原生静默等待合同冻结文本 |
+| `.trellis/scripts/tests/test_write_json_lf.py` | 覆盖后新增（1.3 新增） | `write_json` 原子写换行稳定性：输出保持 LF、不含 CRLF、无 `.tmp` 残留 |
 | `.trellis/spec/shared/` | 覆盖同名前备份，随后填写 | 嵌入式 C 的仓库、验证和硬件合同骨架 |
 | `.trellis/spec/shared/trellis-maintenance.md` | 覆盖前备份 | 上游更新、受保护定制和升级后验证合同 |
 | `.agents/skills/` | `-Force` 覆盖同名前备份 | Grill Me、规划 adapter、审查 profile、定制 `trellis-finish-work` 与完整 `trellis-channel` Skill |

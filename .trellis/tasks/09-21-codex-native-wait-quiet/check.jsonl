@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/main/tooling/python.md", "reason": "审查模板 get_step/filter_platform 合同改动是否与既有 CLI、测试和根目录事实边界一致"}
+{"file": ".trellis/spec/main/tooling/templates-and-docs.md", "reason": "审查功能写入是否越界到根目录自用实现或发布收尾资产"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "审查 workflow 文本—提取器—平台过滤—测试这一跨层送达链是否被完整覆盖"}
+{"file": ".trellis/tasks/09-21-codex-native-wait-quiet/research/codex-wait-agent-timeout-evidence.md", "reason": "审查 2.1.2 的等待窗口锚点与 timed_out 语义是否与实测证据一致，未实测值不得写成工具上限"}

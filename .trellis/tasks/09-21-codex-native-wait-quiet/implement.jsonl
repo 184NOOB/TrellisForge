@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/main/tooling/python.md", "reason": "约束模板 CLI/脚本合同、测试落点与根目录 Python 事实边界；本任务在模板 workflow_phase.py 上新增子步骤归并与平台别名合同"}
+{"file": ".trellis/spec/main/tooling/templates-and-docs.md", "reason": "约束面向下游的功能只改 templates/embedded-c-overlay/，根目录自用 Trellis 与发布收尾资产只读"}
+{"file": ".trellis/spec/shared/validation.md", "reason": "本任务验证命令与 pass/fail/not applicable 报告口径"}
+{"file": ".trellis/tasks/09-21-codex-native-wait-quiet/research/codex-wait-agent-timeout-evidence.md", "reason": "wait_agent 分钟级窗口实测证据：timeout_ms=120000 被接受并等满约122秒、timed_out:true 表示仍在运行，支撑 R1 数值锚点与 2.1.2 合同措辞"}

@@ -144,15 +144,16 @@ python ./.trellis/scripts/get_context.py --mode phase --step <X.Y>  # detailed g
 ## Phase Index
 
 ```
-Phase 1: Plan    → classify, get task-creation consent, run Grill Me, then write planning artifacts
+Phase 1: Plan    → triage; ask task-creation consent only for complex coding work, then run Grill Me and write planning artifacts
 Phase 2: Execute → implement only after task status is in_progress
 Phase 3: Finish  → verify, update spec, commit, and wrap up
 ```
 
 ### Request Triage
 
-- Simple conversation or small task: ask only whether this turn should create a Trellis task. If the user says no, skip Trellis for this session.
-- Complex task: ask whether you may create a Trellis task and enter planning. If the user says no, do not do broad inline implementation; explain, clarify scope, or suggest a smaller split.
+- Default: do the work. Code analysis, Q&A, and single-file local edits proceed directly with no Trellis prompt.
+- Ask about creating a Trellis task only when the user explicitly wants code written AND it is complex (spans multiple files, touches workflow/Hook/contract mechanisms, needs design tradeoffs or multi-step implementation, or affects the published template).
+- If the user says no, do not do broad inline implementation; explain, clarify scope, or suggest a smaller split.
 - User approval to create a task is not approval to start implementation. Planning still happens first.
 
 ### Planning Artifacts
@@ -174,9 +175,8 @@ Create new children with `task.py create "<title>" --slug <name> --parent <paren
 <!-- Per-turn breadcrumb: shown when there is no active task (before Phase 1) -->
 
 [workflow-state:no_task]
-No active task. First classify the current turn and ask for task-creation consent before creating any Trellis task.
-Simple conversation / small task: ask only whether this turn should create a Trellis task. If the user says no, skip Trellis for this session.
-Complex task: ask the user if you can create a Trellis task and enter the planning phase. If the user says no, explain, clarify scope, or suggest a smaller split.
+No active task. Default to doing the work: code analysis, Q&A, and single-file local edits proceed directly with no Trellis prompt.
+Ask about creating a Trellis task only when the user explicitly wants code written AND it is complex (multi-file, workflow/Hook/contract mechanism, design tradeoffs or multi-step, or template-affecting). If the user says no, do not do broad inline implementation; explain, clarify scope, or suggest a smaller split.
 [/workflow-state:no_task]
 
 ### Phase 1: Plan
@@ -925,7 +925,7 @@ This section is for developers who want to modify the Trellis workflow itself. A
 ### Changing what a step means
 
 Edit the corresponding step's walkthrough body in the Phase 1 / 2 / 3 sections above. Critical invariants:
-- No active task must triage first and ask for task-creation consent before creating a Trellis task.
+- No active task must triage first; ask for task-creation consent only for explicitly-requested complex code changes before creating a Trellis task.
 - Planning must distinguish lightweight PRD-only tasks from complex tasks that require `prd.md`, `design.md`, and `implement.md` before start.
 - Every required execution path must keep the Phase 3.4 commit reminder reachable before `/trellis:finish-work`.
 

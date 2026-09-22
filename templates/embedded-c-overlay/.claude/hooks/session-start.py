@@ -343,9 +343,8 @@ def _get_task_status(trellis_dir: Path, input_data: dict) -> str:
     if not active.task_path:
         return (
             "Status: NO ACTIVE TASK\n"
-            "Next-Action: Classify the current turn before creating any Trellis task. "
-            "Simple conversation / small task asks only whether this turn should create a Trellis task. "
-            "Complex task asks whether task creation and planning are allowed."
+            "Next-Action: Default: do the work. Code analysis, Q&A, and single-file local edits proceed directly with no Trellis prompt. "
+            "Ask about creating a Trellis task only when the user explicitly wants code written AND it is complex (multi-file, workflow/Hook/contract mechanism, design tradeoffs or multi-step, or template-affecting)."
         )
 
     task_ref = active.task_path

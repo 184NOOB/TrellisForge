@@ -1,0 +1,5 @@
+ M .opencode/package.json
+ M .trellis/tasks/09-17-readme-integration-guide-upgrade-patch/prd.md
+ M .trellis/tasks/09-17-trellisforge-1-3-upgrade/task.json
+?? .trellis/tasks/09-22-refine-task-triage-consent/
+?? .trellis/tasks/09-22-task-dir-time-prefix/

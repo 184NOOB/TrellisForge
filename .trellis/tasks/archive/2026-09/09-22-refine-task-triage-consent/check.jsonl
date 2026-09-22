@@ -1,0 +1,3 @@
+{"file": ".trellis/spec/main/tooling/templates-and-docs.md", "reason": "复核改动是否严格限于 templates/embedded-c-overlay/，根目录自用工作流文件与 VERSION/manifest/README/接入指南零改动(L14-18/L22)。"}
+{"file": ".trellis/spec/main/tooling/overlay-upgrade.md", "reason": "确认 tests/test_overlay_tools.py 的 live-manifest 红是 1.3 预期中间态而非本任务回归，不应要求本任务修复或改 manifest。"}
+{"file": ".trellis/spec/shared/validation.md", "reason": "核对验证类别报告与 git diff --check / 占位符扫描口径。"}

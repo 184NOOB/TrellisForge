@@ -1,0 +1,345 @@
+{
+  "schema": 3,
+  "task": ".trellis/tasks/09-22-refine-task-triage-consent",
+  "revision": 1,
+  "status": "approved",
+  "audit": {
+    "required": true,
+    "file": "execution-events.jsonl"
+  },
+  "created_by": "trellis-implement",
+  "goal": "仅改 templates/embedded-c-overlay 的 5 个文件，把「无活动任务时是否询问建任务」收紧为「用户明确写代码 AND 复杂才询问」，统一措辞、保留标签，根目录自用工作流与 VERSION/manifest/README/接入指南零改动。",
+  "constraints": {
+    "forbidden_git_operations": [
+      "commit",
+      "push",
+      "tag",
+      "reset",
+      "restore-modified-source"
+    ],
+    "max_tasks": 8,
+    "max_edits_per_file": 5,
+    "allow_parallel_tasks": false
+  },
+  "tasks": [
+    {
+      "id": "p1-baseline-audit-harness",
+      "title": "改动前基线与任务级审计脚本",
+      "status": "completed",
+      "objective": "在模板正文改动前建立可复核基线：创建任务目录内审计脚本 verify_triage.py（pre/post 期望模式按 workflow/hooks/opencode/all 分组校验旧措辞在场或缺席、新措辞缺席或在场；snapshot/scope 模式记录并核对 git status 作用域；report 模式校验 final-report.md 小节），运行改动前模板 201 例与根 154 例全绿，并确认 5 个模板文件旧措辞全部在场、新措辞全部缺席。",
+      "depends_on": [],
+      "scope": {
+        "read": [
+          "templates/embedded-c-overlay/.trellis/workflow.md",
+          "templates/embedded-c-overlay/.claude/hooks/session-start.py",
+          "templates/embedded-c-overlay/.codex/hooks/session-start.py",
+          "templates/embedded-c-overlay/.opencode/lib/session-utils.js",
+          "templates/embedded-c-overlay/.opencode/commands/trellis/start.md",
+          ".trellis/tasks/09-22-refine-task-triage-consent/**"
+        ],
+        "write": [
+          ".trellis/tasks/09-22-refine-task-triage-consent/**"
+        ]
+      },
+      "verification": {
+        "level": "minimal",
+        "required_checks": [
+          "baseline-template-suite",
+          "baseline-root-suite",
+          "pre-edit-audit",
+          "baseline-snapshot"
+        ]
+      },
+      "verification_results": {
+        "baseline-template-suite": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-22T09:47:43Z",
+          "command": "python -B -m unittest discover -s templates/embedded-c-overlay/.trellis/scripts/tests -p test_*.py",
+          "summary": "改动前模板全量 201 tests OK（exit 0）"
+        },
+        "baseline-root-suite": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-22T09:47:43Z",
+          "command": "python -B -m unittest discover -s .trellis/scripts/tests -p test_*.py",
+          "summary": "改动前根回归 154 tests OK（exit 0）"
+        },
+        "pre-edit-audit": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-22T09:47:43Z",
+          "command": "python -B .trellis/tasks/09-22-refine-task-triage-consent/verify_triage.py --expect pre",
+          "summary": "17 项 pre 断言全过：旧措辞在 5 文件在场、新措辞缺席（REJECT/APPROVAL 为保留片段已排除）"
+        },
+        "baseline-snapshot": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-22T09:47:52Z",
+          "command": "python -B .trellis/tasks/09-22-refine-task-triage-consent/verify_triage.py --mode snapshot",
+          "summary": "改动前 git status porcelain 快照写入 baseline-git-status.txt（5 条既有条目：3 修改 + 2 任务目录）",
+          "artifact": ".trellis/tasks/09-22-refine-task-triage-consent/baseline-git-status.txt"
+        }
+      }
+    },
+    {
+      "id": "p2-workflow-md",
+      "title": "模板 workflow.md 四处措辞收紧",
+      "status": "completed",
+      "objective": "按 implement.md 第 1-4 项逐字改写模板 workflow.md：Phase Index 行、### Request Triage 四要点、[workflow-state:no_task] 块正文（保留标签行与块位置）、Customizing Trellis 的自定义不变量行；审计须证明新措辞在场、旧措辞缺席、no_task 标签对完整且其它 [workflow-state:*] 块与 HEAD 字节一致。",
+      "depends_on": [
+        "p1-baseline-audit-harness"
+      ],
+      "scope": {
+        "read": [
+          "templates/embedded-c-overlay/.trellis/workflow.md",
+          ".trellis/tasks/09-22-refine-task-triage-consent/verify_triage.py",
+          ".trellis/tasks/09-22-refine-task-triage-consent/implement.md",
+          ".trellis/tasks/09-22-refine-task-triage-consent/design.md"
+        ],
+        "write": [
+          "templates/embedded-c-overlay/.trellis/workflow.md"
+        ]
+      },
+      "verification": {
+        "level": "minimal",
+        "required_checks": [
+          "workflow-md-audit"
+        ]
+      },
+      "verification_results": {
+        "workflow-md-audit": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-22T09:49:28Z",
+          "command": "python -B .trellis/tasks/09-22-refine-task-triage-consent/verify_triage.py --expect post --group workflow",
+          "summary": "15/15 通过：新四段措辞+不变量在场，3 处旧措辞缺席，no_task 标签对行级恰一次且块体可解析，其它 5 个 workflow-state 块与 HEAD 逐字一致"
+        }
+      }
+    },
+    {
+      "id": "p3-platform-hooks",
+      "title": "模板 claude/codex session-start 分支文案",
+      "status": "completed",
+      "objective": "按 implement.md 第 5-6 项改写模板 .claude/hooks/session-start.py 与 .codex/hooks/session-start.py 的 NO ACTIVE TASK 分支（claude 用 Next-Action 前缀、codex 用 Next 前缀，各为默认句+询问条件句），审计须证明新措辞在场、旧措辞缺席、分支以外代码与 HEAD 逐字一致，并通过 py_compile。",
+      "depends_on": [
+        "p1-baseline-audit-harness"
+      ],
+      "scope": {
+        "read": [
+          "templates/embedded-c-overlay/.claude/hooks/session-start.py",
+          "templates/embedded-c-overlay/.codex/hooks/session-start.py",
+          ".trellis/tasks/09-22-refine-task-triage-consent/verify_triage.py",
+          ".trellis/tasks/09-22-refine-task-triage-consent/implement.md"
+        ],
+        "write": [
+          "templates/embedded-c-overlay/.claude/hooks/session-start.py",
+          "templates/embedded-c-overlay/.codex/hooks/session-start.py"
+        ]
+      },
+      "verification": {
+        "level": "minimal",
+        "required_checks": [
+          "hooks-audit",
+          "py-compile-hooks"
+        ]
+      },
+      "verification_results": {
+        "hooks-audit": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-22T09:50:12Z",
+          "command": "python -B .trellis/tasks/09-22-refine-task-triage-consent/verify_triage.py --expect post --group hooks",
+          "summary": "10/10 通过：claude/codex 分支新措辞在场、旧措辞缺席，Status 行保留，分支以外代码与 HEAD 逐字一致"
+        },
+        "py-compile-hooks": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-22T09:50:12Z",
+          "command": "python -m py_compile templates/embedded-c-overlay/.claude/hooks/session-start.py templates/embedded-c-overlay/.codex/hooks/session-start.py",
+          "summary": "两个模板 session-start Hook py_compile 通过"
+        }
+      }
+    },
+    {
+      "id": "p4-opencode-entry",
+      "title": "模板 opencode session-utils 与 start 命令文案",
+      "status": "completed",
+      "objective": "按 implement.md 第 7-8 项改写模板 .opencode/lib/session-utils.js 的 getTaskStatus base 常量（保留 ambiguous 追加段）与 .opencode/commands/trellis/start.md 的 No active task 款项，审计须证明新措辞在场、旧措辞缺席、base 分支以外代码与 HEAD 逐字一致，并通过 node --check。",
+      "depends_on": [
+        "p1-baseline-audit-harness"
+      ],
+      "scope": {
+        "read": [
+          "templates/embedded-c-overlay/.opencode/lib/session-utils.js",
+          "templates/embedded-c-overlay/.opencode/commands/trellis/start.md",
+          ".trellis/tasks/09-22-refine-task-triage-consent/verify_triage.py",
+          ".trellis/tasks/09-22-refine-task-triage-consent/implement.md"
+        ],
+        "write": [
+          "templates/embedded-c-overlay/.opencode/lib/session-utils.js",
+          "templates/embedded-c-overlay/.opencode/commands/trellis/start.md"
+        ]
+      },
+      "verification": {
+        "level": "minimal",
+        "required_checks": [
+          "opencode-audit",
+          "node-check-session-utils"
+        ]
+      },
+      "verification_results": {
+        "opencode-audit": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-22T09:50:50Z",
+          "command": "python -B .trellis/tasks/09-22-refine-task-triage-consent/verify_triage.py --expect post --group opencode",
+          "summary": "8/8 通过：js base 与 start 命令新措辞在场、旧措辞缺席，AMBIGUOUS 追加段保留，base 分支以外与 HEAD 逐字一致"
+        },
+        "node-check-session-utils": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-22T09:50:50Z",
+          "command": "node --check templates/embedded-c-overlay/.opencode/lib/session-utils.js",
+          "summary": "node v22.16.0 --check 通过（exit 0）"
+        }
+      }
+    },
+    {
+      "id": "p5-full-validation",
+      "title": "全量验证与作用域审计",
+      "status": "completed",
+      "objective": "在 5 个模板文件改动完成后（只读复核）：模板全量套件无回归、根回归套件全绿、5 文件统一新措辞全量审计通过、交付文件 git diff --check 无输出、git status 新增改动只落在 templates/embedded-c-overlay 的 5 个文件与本任务目录（相对改动前快照）。",
+      "depends_on": [
+        "p2-workflow-md",
+        "p3-platform-hooks",
+        "p4-opencode-entry"
+      ],
+      "scope": {
+        "read": [
+          "templates/embedded-c-overlay/**",
+          ".trellis/scripts/tests/**",
+          ".trellis/tasks/09-22-refine-task-triage-consent/**"
+        ],
+        "write": []
+      },
+      "verification": {
+        "level": "minimal",
+        "required_checks": [
+          "unittest-template-all",
+          "unittest-root-all",
+          "triage-full-audit",
+          "git-diff-check",
+          "scope-audit"
+        ]
+      },
+      "verification_results": {
+        "unittest-template-all": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-22T09:51:28Z",
+          "command": "python -B -m unittest discover -s templates/embedded-c-overlay/.trellis/scripts/tests -p test_*.py",
+          "summary": "改动后模板全量 201 tests OK，与改动前基线一致（无回归）"
+        },
+        "unittest-root-all": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-22T09:51:28Z",
+          "command": "python -B -m unittest discover -s .trellis/scripts/tests -p test_*.py",
+          "summary": "根回归 154 tests OK，根自用实现未受牵连"
+        },
+        "triage-full-audit": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-22T09:51:29Z",
+          "command": "python -B .trellis/tasks/09-22-refine-task-triage-consent/verify_triage.py --expect post --group all",
+          "summary": "33/33 通过：5 文件新措辞在场、旧句（ask only whether/Classify the current turn/First classify 等）缺席、no_task 标签对完整、其它 workflow-state 块与分支外代码未动"
+        },
+        "git-diff-check": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-22T09:51:29Z",
+          "command": "git diff --check -- templates/embedded-c-overlay",
+          "summary": "交付的 5 个模板文件 diff --check 无输出；全局 diff --check 另有改动前既存的父任务 task.json CRLF 告警（越界，见 final-report）"
+        },
+        "scope-audit": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-22T09:51:29Z",
+          "command": "python -B .trellis/tasks/09-22-refine-task-triage-consent/verify_triage.py --mode scope",
+          "summary": "新增改动仅 5 个模板文件（name-status 全为 M）；根 .trellis/.claude/.codex/.opencode/.agents、VERSION、history、README、docs 相对快照零新增",
+          "artifact": ".trellis/tasks/09-22-refine-task-triage-consent/baseline-git-status.txt"
+        }
+      }
+    },
+    {
+      "id": "p6-report",
+      "title": "终态验收报告",
+      "status": "completed",
+      "objective": "在冻结的交付修订上复跑终态检查（模板全量、根回归、5 文件全量审计、交付文件 git diff --check、报告小节校验），把改动文件、逐阶段结果、逐项检查结果、not run/not applicable 项（构建/硬件）与已知风险（发布门禁 test_live_template_matches_12_manifest 属收尾任务；全局 git diff --check 的父任务 task.json CRLF 为改动前既有状态）写入任务目录 final-report.md 并用 record --artifact 注册。",
+      "depends_on": [
+        "p5-full-validation"
+      ],
+      "scope": {
+        "read": [
+          "templates/embedded-c-overlay/**",
+          ".trellis/scripts/tests/**",
+          ".trellis/tasks/09-22-refine-task-triage-consent/**"
+        ],
+        "write": [
+          "final-report.md"
+        ]
+      },
+      "verification": {
+        "level": "report",
+        "required_checks": [
+          "unittest-template-all",
+          "unittest-root-all",
+          "triage-full-audit",
+          "git-diff-check",
+          "report-written"
+        ],
+        "report_path": "final-report.md"
+      },
+      "verification_results": {
+        "unittest-template-all": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-22T09:52:10Z",
+          "command": "python -B -m unittest discover -s templates/embedded-c-overlay/.trellis/scripts/tests -p test_*.py",
+          "summary": "终态模板全量 201 tests OK（冻结修订）"
+        },
+        "unittest-root-all": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-22T09:52:10Z",
+          "command": "python -B -m unittest discover -s .trellis/scripts/tests -p test_*.py",
+          "summary": "终态根回归 154 tests OK"
+        },
+        "triage-full-audit": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-22T09:52:10Z",
+          "command": "python -B .trellis/tasks/09-22-refine-task-triage-consent/verify_triage.py --expect post --group all",
+          "summary": "终态全量审计 33/33 PASS（新措辞在场/旧句缺席/标签与块结构完整/分支外未动）"
+        },
+        "git-diff-check": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-22T09:52:10Z",
+          "command": "git diff --check -- templates/embedded-c-overlay",
+          "summary": "交付 5 文件无空白错误；全局 diff --check 的 36 行告警全部来自改动前既存父任务 task.json CRLF（越界，见报告已知风险）"
+        },
+        "report-written": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-22T09:52:53Z",
+          "command": "python -B .trellis/tasks/09-22-refine-task-triage-consent/verify_triage.py --mode report",
+          "summary": "final-report.md 存在且含改动文件/阶段结果/逐项检查结果/未运行/已知风险五个必备小节（7/7）",
+          "artifact": ".trellis/tasks/09-22-refine-task-triage-consent/final-report.md"
+        }
+      }
+    }
+  ],
+  "approved_fingerprint": "038367bf73b7979ebc43c2de3a201a45c2d1dc3e15be5b35303ca21d00b53b72"
+}

@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/main/tooling/templates-and-docs.md", "reason": "模板-only 写入范围与根目录禁改边界(L14-16/L22)，及 VERSION/manifest/README 归发布收尾任务(L18)；本任务必须据此只改 templates/embedded-c-overlay/，根目录自用工作流文件只读。"}
+{"file": ".trellis/spec/main/tooling/overlay-upgrade.md", "reason": "解释 live 模板对 1.2 manifest 的漂移属既定中间态、live-manifest 一致性是发布门禁(L124/L133)，禁止本任务改 manifest/VERSION 去修它。"}
+{"file": ".trellis/spec/shared/validation.md", "reason": "验证命令与 pass/fail/not-run 报告口径；模板/文档检查用 git diff --check 并扫描安装结果中的占位符。"}
+{"file": ".trellis/spec/main/tooling/index.md", "reason": "工具仓库开发前检查与质量检查命令清单(py_compile / unittest discover / git diff --check)。"}

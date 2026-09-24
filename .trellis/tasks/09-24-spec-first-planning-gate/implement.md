@@ -54,7 +54,9 @@ python ./.trellis/scripts/get_context.py --mode phase --step 1.1
 
 ## Review Gate
 
-- Review level: standard → 派发独立 `trellis-check`，范围 = 模板全部改动文件；重点：门禁语义与全部行为描述文案一致（state 块、1.4 枚举、1.5 表、adapter intro、brainstorm :170、start.md :55-60——不得残留 "only verifies" 类失真）、种子骨架含节头且无占位列表项、禁触区零改动（no_task 块、Phase-2 Guardrail 条目、Step detail 提示串、task.py 弃用守卫、session-utils no-task 段、start.md --platform 示例与 triage 段）、adapter 两份正文零差异、hook 无 `validate_planning_gate` 字样、**根目录零改动**、manifest/VERSION 零改动。
+- Review level: **reinforced**（用户明确选择）→ 实施后派发独立 `trellis-check`（affected-scope：完整任务 diff、受影响模块、公开接口、直接调用点、一跳依赖、全部验收项、check.jsonl 所列 spec 起步并按影响证据扩展）。
+- 若最新一轮独立报告存在阻塞发现：按所有权规则批量修复本轮阻塞项后，**派发全新的独立 `trellis-check`** 对完整 affected-scope 重新审查（不是只复查上轮发现），循环直到最新报告零阻塞；每轮报告轮次与阶段。零阻塞后无额外 commit-ready 审查。
+- 审查重点：门禁语义与全部行为描述文案一致（state 块、1.4 枚举、1.5 表、adapter intro、brainstorm :170、start.md :55-60——不得残留 "only verifies" 类失真）、种子骨架含节头且无占位列表项、禁触区零改动（no_task 块、Phase-2 Guardrail 条目、Step detail 提示串、task.py 弃用守卫、session-utils no-task 段、start.md --platform 示例与 triage 段）、adapter 两份正文零差异、hook 无 `validate_planning_gate` 字样、**根目录零改动**、manifest/VERSION 零改动。
 
 ## Rollback Points
 

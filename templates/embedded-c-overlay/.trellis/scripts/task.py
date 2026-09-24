@@ -96,7 +96,7 @@ def cmd_start(args: argparse.Namespace) -> int:
 
     task_json_path = full_path / FILE_TASK_JSON
 
-    gate = validate_planning_gate(full_path)
+    gate = validate_planning_gate(full_path, repo_root)
     if not gate.ok:
         print(colored("Error: planning gate rejected task start", Colors.RED))
         for error in gate.errors:

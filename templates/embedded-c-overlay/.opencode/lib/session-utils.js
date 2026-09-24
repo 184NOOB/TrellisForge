@@ -253,7 +253,7 @@ export function getTaskStatus(ctx, platformInput = null) {
     (!existsSync(checkJsonl) || hasCuratedJsonlEntry(checkJsonl))
 
   if (taskStatus === "planning" && !hasPrd) {
-    return `Status: PLANNING\nTask: ${taskTitle}\nPresent: ${presentLine}\nNext-Action: Load \`trellis-brainstorm\` and write \`prd.md\`. Stay in planning.`
+    return `Status: PLANNING\nTask: ${taskTitle}\nPresent: ${presentLine}\nNext-Action: Load \`trellis-brainstorm\` and write \`prd.md\`. Stay in planning.\nSpecs: Read the relevant .trellis/spec indexes and guideline files before the decision inventory, and persist consulted specs in prd.md under "## Spec References".`
   }
 
   if (taskStatus === "planning") {
@@ -271,7 +271,7 @@ export function getTaskStatus(ctx, platformInput = null) {
     if (!jsonlReady) {
       nextBits.push("curate `implement.jsonl` and `check.jsonl` before sub-agent mode start")
     }
-    return `Status: PLANNING\nTask: ${taskTitle}\nPresent: ${presentLine}\nNext-Action: ${nextBits.join("; ")}. Do not enter implementation until the user confirms start.`
+    return `Status: PLANNING\nTask: ${taskTitle}\nPresent: ${presentLine}\nNext-Action: ${nextBits.join("; ")}. Do not enter implementation until the user confirms start.\nSpecs: Read the relevant .trellis/spec indexes and guideline files before the decision inventory, and persist consulted specs in prd.md under "## Spec References".`
   }
 
   return (

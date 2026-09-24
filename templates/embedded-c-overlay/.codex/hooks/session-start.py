@@ -281,7 +281,10 @@ def _get_task_status(trellis_dir: Path, hook_input: dict) -> str:
     if not has_prd:
         return (
             f"Status: PLANNING\nTask: {task_title}\nPresent: {present_line}\n"
-            "Next: Load trellis-brainstorm and write prd.md. Stay in planning."
+            "Next: Load trellis-brainstorm and write prd.md. Stay in planning.\n"
+            "Specs: Read the relevant .trellis/spec indexes and guideline files "
+            "before the decision inventory, and persist consulted specs in prd.md "
+            'under "## Spec References".'
         )
 
     if task_status == "planning":
@@ -294,7 +297,10 @@ def _get_task_status(trellis_dir: Path, hook_input: dict) -> str:
             )
         return (
             f"Status: PLANNING\nTask: {task_title}\nPresent: {present_line}\n"
-            f"Next: {next_action}"
+            f"Next: {next_action}\n"
+            "Specs: Read the relevant .trellis/spec indexes and guideline files "
+            "before the decision inventory, and persist consulted specs in prd.md "
+            'under "## Spec References".'
         )
 
     return (

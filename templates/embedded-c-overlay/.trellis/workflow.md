@@ -190,7 +190,8 @@ Ask about creating a Trellis task only when the user explicitly wants code writt
 <!-- Per-turn breadcrumb: shown throughout Phase 1 (status='planning') -->
 
 [workflow-state:planning]
-Load `trellis-brainstorm`, the upstream `grill-me`, and `PROJECT_PREFIX-trellis-grill-adapter`; stay in planning. First use repository evidence to separate facts, explicit user decisions, engineering decisions, and unresolved user-owned decisions. Ask one Grill question only when a user-owned product/scope/compatibility/risk/acceptance branch remains; never manufacture a question. Resolve engineering alternatives during planning and do not leave "implementation decides" branches. The project-local `task.py start` blocks unless convergence and subsequent approval markers are present.
+Load `trellis-brainstorm`, the upstream `grill-me`, and `PROJECT_PREFIX-trellis-grill-adapter`; stay in planning. First use repository evidence to separate facts, explicit user decisions, engineering decisions, and unresolved user-owned decisions. Ask one Grill question only when a user-owned product/scope/compatibility/risk/acceptance branch remains; never manufacture a question. Resolve engineering alternatives during planning and do not leave "implementation decides" branches. The project-local `task.py start` blocks unless convergence and subsequent approval markers are present, `prd.md` carries a non-empty `## Spec References` section, and (on sub-agent-dispatch platforms) `implement.jsonl`/`check.jsonl` each hold at least one curated entry.
+First discover and read the relevant `.trellis/spec/` indexes and guideline files (`get_context.py --mode packages`); persist the consulted files in `prd.md` under `## Spec References` (state none-applicable explicitly when nothing applies).
 Persist `## Workflow Settings` with `Review level: light|standard|reinforced|comprehensive|strict` in `prd.md`; use the latest explicit user choice, otherwise default to `standard` and show it in the final planning summary. Complex tasks still need `design.md` and `implement.md`.
 Persist `## Planning Convergence`; it may become `ready` only when blocking user and technical decisions are both zero and the final summary is ready. A final approval request does not count as a Grill clarification question.
 Multi-deliverable scope: consider a parent task plus independently verifiable child tasks; dependencies must be written in child artifacts, not implied by tree position.
@@ -204,7 +205,8 @@ Sub-agent mode: curate `implement.jsonl` and `check.jsonl` as spec/research mani
      into a sub-agent. -->
 
 [workflow-state:planning-inline]
-Load `trellis-brainstorm`, the upstream `grill-me`, and `PROJECT_PREFIX-trellis-grill-adapter`; stay in planning. First use repository evidence to separate facts, explicit user decisions, engineering decisions, and unresolved user-owned decisions. Ask one Grill question only when a user-owned product/scope/compatibility/risk/acceptance branch remains; never manufacture a question. Resolve engineering alternatives during planning and do not leave "implementation decides" branches. The project-local `task.py start` blocks unless convergence and subsequent approval markers are present.
+Load `trellis-brainstorm`, the upstream `grill-me`, and `PROJECT_PREFIX-trellis-grill-adapter`; stay in planning. First use repository evidence to separate facts, explicit user decisions, engineering decisions, and unresolved user-owned decisions. Ask one Grill question only when a user-owned product/scope/compatibility/risk/acceptance branch remains; never manufacture a question. Resolve engineering alternatives during planning and do not leave "implementation decides" branches. The project-local `task.py start` blocks unless convergence and subsequent approval markers are present, `prd.md` carries a non-empty `## Spec References` section, and (on sub-agent-dispatch platforms) `implement.jsonl`/`check.jsonl` each hold at least one curated entry.
+First discover and read the relevant `.trellis/spec/` indexes and guideline files (`get_context.py --mode packages`); persist the consulted files in `prd.md` under `## Spec References` (state none-applicable explicitly when nothing applies).
 Persist `## Workflow Settings` with `Review level: light|standard|reinforced|comprehensive|strict` in `prd.md`; use the latest explicit user choice, otherwise default to `standard` and show it in the final planning summary. Complex tasks still need `design.md` and `implement.md`.
 Persist `## Planning Convergence`; it may become `ready` only when blocking user and technical decisions are both zero and the final summary is ready. A final approval request does not count as a Grill clarification question.
 Multi-deliverable scope: consider a parent task plus independently verifiable child tasks; dependencies must be written in child artifacts, not implied by tree position.
@@ -349,6 +351,7 @@ When a user request matches one of these intents inside an active task, route fi
 - Task creation approval is not implementation approval; implementation waits for `task.py start` after artifact review.
 - PRD-only is valid for lightweight tasks; complex tasks need `design.md` + `implement.md`.
 - Planning must be persisted to task artifacts; checks must run before reporting completion.
+- Before the decision inventory, discover and read the relevant `.trellis/spec/` indexes and guideline files (`get_context.py --mode packages`), and persist the consulted files in `prd.md` under `## Spec References`; an explicit none-applicable entry is valid, a missing or empty section is not.
 - Every Trellis task in `planning` or `planning-inline` must complete the upstream `grill-me` protocol with `PROJECT_PREFIX-trellis-grill-adapter`; task size and risk do not create an exemption.
 - Every task `prd.md` must include `## Workflow Settings` with `Review level: light|standard|reinforced|comprehensive|strict`; missing or invalid values default to `standard`.
 - Phase 2 source edits require an approved live `<task>/execution-plan.json` while the live plan is open: with no plan, create and approve one first; with an unfinished plan, advance through `plan.py`; with a fully completed plan, follow the small-patch / `sequel` exit instead of `revise`. Task state advances only through `plan.py` with its audit log intact — hand-edited statuses, verification result maps, revisions, or guarded plan content are rejected against the audit replay, and no hook is load-bearing for that enforcement.
@@ -407,6 +410,8 @@ Skip when `python ./.trellis/scripts/task.py current --source` already points to
 #### 1.1 Requirement exploration and Grill Me `[required · repeatable]`
 
 Load `trellis-brainstorm`, the upstream `grill-me`, and `PROJECT_PREFIX-trellis-grill-adapter`. `trellis-brainstorm` owns evidence inspection, decision ownership, artifact convergence, and the rule against manufactured questions. `grill-me` supplies the one-question-at-a-time interview format for unresolved user-owned branches. The adapter persists convergence and approval markers. The project-local `task.py start` verifies those markers before changing task state.
+
+**Spec discovery (mandatory first evidence step)**: run `python ./.trellis/scripts/get_context.py --mode packages`, read each relevant spec index (`index.md` per package/layer), then the guideline files those indexes point to plus `.trellis/spec/guides/index.md`. Persist every consulted file with a one-line reason in the `## Spec References` section of `prd.md`. If no spec applies, keep the section and state explicitly that none applies and why; never leave it missing or empty.
 
 The brainstorm skill will guide you to:
 - Ask one question at a time
@@ -557,9 +562,9 @@ python ./.trellis/scripts/task.py set-meta <task-dir> plan_approved true
 python ./.trellis/scripts/task.py start <task-dir>
 ```
 
-For lightweight tasks, `prd.md` can be enough. For complex tasks, `prd.md`, `design.md`, and `implement.md` must exist and be reviewed before start. On sub-agent-dispatch platforms, `implement.jsonl` and `check.jsonl` must both have real curated entries before start. Runtime consumers tolerate missing or seed-only manifests for compatibility, but that tolerance is not a planning-ready state.
+For lightweight tasks, `prd.md` can be enough. For complex tasks, `prd.md`, `design.md`, and `implement.md` must exist and be reviewed before start. On sub-agent-dispatch platforms, `implement.jsonl` and `check.jsonl` must both have real curated entries before start. Runtime consumers tolerate missing or seed-only manifests for compatibility, but that tolerance is not a planning-ready state; the start gate rejects missing or seed-only manifests.
 
-`task.py start` rejects planning tasks unless `prd.md` contains a valid review level and a ready `## Planning Convergence` block, and task metadata contains both `planning_ready=true` and `plan_approved=true`. Rejection happens before active-task or status mutation. After the command succeeds, the breadcrumb auto-switches to `[workflow-state:in_progress]`, and the rest of Phase 2 / 3 follows.
+`task.py start` rejects planning tasks unless `prd.md` contains a valid review level, a `## Spec References` section with at least one entry (or an explicit none-applicable entry), and a ready `## Planning Convergence` block; task metadata contains both `planning_ready=true` and `plan_approved=true`; and, on sub-agent-dispatch platforms, `implement.jsonl` and `check.jsonl` each carry at least one curated entry. Rejection happens before active-task or status mutation. After the command succeeds, the breadcrumb auto-switches to `[workflow-state:in_progress]`, and the rest of Phase 2 / 3 follows.
 
 If `task.py start` errors with a session-identity message (no context key from hook input, `TRELLIS_CONTEXT_ID`, or platform-native session env), follow the hint in the error to set up session identity, then retry.
 
@@ -570,6 +575,7 @@ If `task.py start` errors with a session-identity message (no context key from h
 | `prd.md` exists | ✅ |
 | Evidence/decision inventory converged; Grill questions asked only where user-owned decisions remained | ✅ |
 | `prd.md` contains `## Workflow Settings` and `Review level` | ✅ |
+| `prd.md` contains a `## Spec References` section with at least one entry (or an explicit none-applicable entry) | ✅ |
 | `prd.md` contains a ready `## Planning Convergence` block | ✅ |
 | Task metadata contains `planning_ready=true` | ✅ |
 | User confirms task should enter implementation | ✅ |

@@ -19,6 +19,8 @@ If a question can be answered by exploring the codebase, explore the codebase in
 
 This is mandatory. Before asking the user a question, first check whether the answer is already available in code, tests, configs, docs, existing specs, or task history.
 
+Spec discovery comes first: run `python ./.trellis/scripts/get_context.py --mode packages`, read each relevant spec index (`index.md` per package/layer), then the guideline files those indexes point to plus `.trellis/spec/guides/index.md`, and record every consulted file with a one-line reason in `prd.md` under `## Spec References`. If no spec applies, keep the section and state explicitly that none applies and why.
+
 Do not ask the user to confirm facts that the repository can answer. Ask only for product intent, preference, scope, risk tolerance, acceptance behavior, or decisions that remain ambiguous after inspection.
 
 Repository evidence establishes current behavior and technical constraints. The user's intended behavior, feature scope boundaries, and UX preferences are never answerable by repository evidence alone, even when an existing pattern exists; existing patterns are options and recommendation evidence, not decisions.
@@ -45,8 +47,9 @@ Use a concise title from the user's request. Use a slug without a date prefix. `
 
 1. Capture the user's request and initial known facts in `prd.md`.
 2. Inspect available evidence before asking questions:
+   - `.trellis/spec/` via `python ./.trellis/scripts/get_context.py --mode packages`: read each relevant spec index, then the guideline files it names, plus `.trellis/spec/guides/index.md`; record every consulted file in `prd.md` under `## Spec References`
    - code, tests, fixtures, and configs
-   - README files, docs, existing specs, and domain notes
+   - README files, docs, and domain notes
    - related Trellis tasks, research files, and session history when present
 3. Separate what you found into:
    - confirmed facts
@@ -148,6 +151,7 @@ The final planning summary must show Goal, In Scope, Out of Scope, Acceptance Cr
 - requirements
 - acceptance criteria
 - out of scope
+- `## Spec References`: every consulted spec file with a one-line reason, or an explicit none-applicable statement
 - open questions that still block planning
 
 `design.md` records technical design for complex tasks:
@@ -167,7 +171,7 @@ The final planning summary must show Goal, In Scope, Out of Scope, Acceptance Cr
 
 Lightweight tasks may have only `prd.md`. Complex tasks must have `prd.md`, `design.md`, and `implement.md` before `task.py start`.
 
-`implement.md` is not a replacement for `implement.jsonl`. On sub-agent-dispatch workflows, `implement.jsonl` and `check.jsonl` must each contain at least one real spec/research entry before `task.py start`; the seed `_example` row does not count. Inline workflows skip this JSONL gate because Phase 2 loads context through `trellis-before-dev`.
+`implement.md` is not a replacement for `implement.jsonl`. On sub-agent-dispatch workflows, `implement.jsonl` and `check.jsonl` must each contain at least one real spec/research entry before `task.py start` (enforced by the start gate); the seed `_example` row does not count. Inline workflows skip this JSONL gate because Phase 2 loads context through `trellis-before-dev`.
 
 ## PRD Convergence Pass
 
@@ -189,6 +193,7 @@ After the pass, read `prd.md` top to bottom and verify that no fact is repeated 
 Before declaring planning ready:
 
 - `prd.md` contains testable acceptance criteria.
+- `prd.md` carries a `## Spec References` section with at least one entry (an explicit none-applicable entry counts); the start gate rejects a missing or empty section.
 - `prd.md` has passed the PRD convergence pass: no unresolved temporary brainstorm sections, no duplicate facts across sections, and no lost anchors, decisions, or acceptance mappings.
 - Repository-answerable questions have already been answered through inspection.
 - Blocking open questions are empty.

@@ -208,6 +208,12 @@ def _default_prd_content(title: str, description: str | None = None) -> str:
 
 {goal}
 
+## Spec References
+
+<!-- List the spec files consulted during planning, one per line, each with a
+short reason. If no spec applies, keep this section and state that none
+applies and why. -->
+
 ## Requirements
 
 - TBD

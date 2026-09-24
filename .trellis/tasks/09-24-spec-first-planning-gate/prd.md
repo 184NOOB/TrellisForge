@@ -2,7 +2,7 @@
 
 ## Workflow Settings
 
-- Review level: standard
+- Review level: reinforced
 
 ## Spec References
 
@@ -82,7 +82,9 @@
 - 用户：创建本任务修复"规划不看 spec"问题；规划时必须读取本仓库 spec（本 PRD Spec References 节即执行记录）。
 - 用户：本任务挂载于父任务 `09-17-trellisforge-1-3-upgrade`（1.3 功能子任务，排在固定收尾之前）。
 - **用户（本轮范围决定，覆盖此前"根+模板"方案）**：只改模板、根目录零改动。已知悉并接受其后果：本仓库自身规划缺陷保持原样（同类事故可能在根目录重演）、AGENTS.md 消歧取消、根↔模板新增分叉（见 Risks）。
-- 用户（前序对话）：双机械门禁 + spec 前置的修复机制经两轮解释无异议；Review level 未指定 → 默认 standard。
+- 用户（前序对话）：双机械门禁 + spec 前置的修复机制经两轮解释无异议。
+- **用户（最新明确选择）**：Review level 由默认 standard 升级为 **reinforced**（affected-scope 独立审查；有阻塞发现则批修后派发全新 trellis-check 全范围复审，循环至零阻塞；无额外 commit-ready 审查）。
+- 用户（Phase 3.3，实施+审查完成后）：批准一次**限定性根目录 spec 更新**（仅 `.trellis/spec/main/tooling/python.md` 新增"模板规划门禁 Spec 前置校验"Scenario + `index.md` 描述行；纯文档，不碰根目录任何脚本/Skill/hook/AGENTS.md）——R6"根目录只读"就此文档范围经用户授权豁免。
 - 工程：门禁只做结构校验（节存在 + 非空列表 + jsonl 含 file 字段），内容真实性由 review 兜底（与 adapter"门禁不能证明判断正确"哲学一致）。
 - 工程：planning_gate 直接 import 私有 `_has_subagent_platform`（同包内引用），不改 task_store——比"公开化更名"少一处模板改动面；repo_root 可选参数保证向后兼容。
 - 工程：模板-only 后无跨侧镜像义务，但新增根↔模板分叉（planning_gate.py、test_planning_gate.py、workflow.md 1.1/Guardrails/state 块、brainstorm/adapter SKILL、3 处 hook 文本）——与分支既有"模板领先、根滞后"模式一致（journal Session 8、python.md:19,70,139），根侧回移留给将来单独授权的根级任务。

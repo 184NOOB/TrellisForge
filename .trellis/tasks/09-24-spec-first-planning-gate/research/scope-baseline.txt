@@ -1,0 +1,7 @@
+ M .opencode/package.json
+ M .trellis/tasks/09-24-spec-first-planning-gate/implement.md
+ M .trellis/tasks/09-24-spec-first-planning-gate/prd.md
+ M .trellis/tasks/09-24-spec-first-planning-gate/task.json
+?? .trellis/tasks/09-24-spec-first-planning-gate/execution-events.jsonl
+?? .trellis/tasks/09-24-spec-first-planning-gate/execution-plan.json
+?? .trellis/tasks/09-24-spec-first-planning-gate/research/

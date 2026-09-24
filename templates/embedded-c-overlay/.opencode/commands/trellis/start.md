@@ -54,8 +54,10 @@ From Step 1 you know the current task and status. Check the task directory:
 - **Active task status `planning` + `prd.md` exists** → stay in Phase 1.
   Lightweight tasks can be PRD-only; complex tasks need `design.md` +
   `implement.md`. `prd.md` must carry a `Review level` among `light`,
-  `standard`, `reinforced`, `comprehensive`, `strict` and a ready
-  `## Planning Convergence` block. Load the relevant Phase 1 step detail
+  `standard`, `reinforced`, `comprehensive`, `strict`, a `## Spec References`
+  section with at least one entry, and a ready `## Planning Convergence`
+  block. On sub-agent platforms `implement.jsonl` and `check.jsonl` must each
+  contain a curated entry. Load the relevant Phase 1 step detail
   before `task.py start`; `task.py start` also requires `planning_ready` and
   the user's subsequent explicit approval — never skip those gates.
 - **Active task status `in_progress`** → Phase 2 step 2.1. Load the step

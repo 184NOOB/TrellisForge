@@ -1,0 +1,333 @@
+{
+  "schema": 3,
+  "task": ".trellis/tasks/09-24-spec-first-planning-gate",
+  "revision": 1,
+  "status": "approved",
+  "audit": {
+    "required": true,
+    "file": "execution-events.jsonl"
+  },
+  "created_by": "trellis-implement",
+  "goal": "在 templates/embedded-c-overlay/ 内落地规划 spec 前置与 task.py start 机械门禁（校验 A/B + 种子骨架），并同步全部门禁行为描述文本；根目录零改动。",
+  "constraints": {
+    "forbidden_git_operations": [
+      "commit",
+      "push",
+      "tag",
+      "reset",
+      "restore-modified-source"
+    ],
+    "max_tasks": 8,
+    "max_edits_per_file": 12,
+    "allow_parallel_tasks": false
+  },
+  "tasks": [
+    {
+      "id": "discover",
+      "title": "只读侦察：内容重锚、基线、同胞任务状态",
+      "status": "completed",
+      "objective": "以内容 grep 重锚 10 类模板文件的行号；确认同胞任务 09-24-template-platform-hint-and-step-text 未合入共享模板文件；采集模板/根测试基线与 git status 基线；记录禁触区文本锚点与 hook 红线位置。",
+      "depends_on": [],
+      "scope": {
+        "read": [
+          "templates/embedded-c-overlay/**",
+          ".trellis/tasks/09-24-spec-first-planning-gate/**"
+        ],
+        "write": []
+      },
+      "verification": {
+        "level": "minimal",
+        "required_checks": []
+      },
+      "no_check_reason": "纯只读侦察阶段：无 scope.write，只建立内容锚点、测试基线与禁触区清单，不产生可验证工件。"
+    },
+    {
+      "id": "gate-hard",
+      "title": "硬层：planning_gate 校验 A/B + task.py + 种子骨架 + 单测",
+      "status": "completed",
+      "objective": "实现模板 planning_gate.validate_planning_gate(task_dir, repo_root=None) 校验 A（## Spec References 节 + ≥1 条列表项）与校验 B（子代理平台下 implement/check jsonl 各须 ≥1 条含非空 file 字段的真实条目，文件缺失或解析失败 fail closed，未传 repo_root 跳过 B）；task.py cmd_start 传 repo_root；task_store._default_prd_content 补节头 + 指引注释（不含占位列表项）；test_planning_gate.py 补 READY_PRD fixture 节与全部新增用例。",
+      "depends_on": [
+        "discover"
+      ],
+      "scope": {
+        "read": [
+          "templates/embedded-c-overlay/.trellis/scripts/common/planning_gate.py",
+          "templates/embedded-c-overlay/.trellis/scripts/common/task_store.py",
+          "templates/embedded-c-overlay/.trellis/scripts/common/task_context.py",
+          "templates/embedded-c-overlay/.trellis/scripts/task.py",
+          "templates/embedded-c-overlay/.trellis/scripts/tests/test_planning_gate.py"
+        ],
+        "write": [
+          "templates/embedded-c-overlay/.trellis/scripts/common/planning_gate.py",
+          "templates/embedded-c-overlay/.trellis/scripts/common/task_store.py",
+          "templates/embedded-c-overlay/.trellis/scripts/task.py",
+          "templates/embedded-c-overlay/.trellis/scripts/tests/test_planning_gate.py"
+        ]
+      },
+      "verification": {
+        "level": "minimal",
+        "required_checks": [
+          "gate-module-tests",
+          "py-compile-hard"
+        ]
+      },
+      "verification_results": {
+        "gate-module-tests": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-24T16:37:54Z",
+          "command": "templates/embedded-c-overlay/.trellis/scripts/tests/test_planning_gate.py",
+          "summary": "18 tests OK (7 existing + 11 new gate cases)"
+        },
+        "py-compile-hard": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-24T16:38:00Z",
+          "command": "python -m py_compile planning_gate.py task_store.py task.py test_planning_gate.py",
+          "summary": "py_compile exit 0 for all four hard-layer files"
+        }
+      }
+    },
+    {
+      "id": "workflow-text",
+      "title": "软层：模板 workflow.md + start.md 门禁行为描述同步",
+      "status": "completed",
+      "objective": "workflow.md 1.1 插入 Spec discovery 段、Guardrails 加条目、两个 state 块补 spec 发现与 Spec References/策展 jsonl、1.4 门禁枚举与 1.5 完成标准表同步；.opencode/commands/trellis/start.md planning 分支穷举句补两项新校验；禁触区零改动。",
+      "depends_on": [
+        "discover"
+      ],
+      "scope": {
+        "read": [
+          "templates/embedded-c-overlay/.trellis/workflow.md",
+          "templates/embedded-c-overlay/.opencode/commands/trellis/start.md",
+          "templates/embedded-c-overlay/.trellis/scripts/common/workflow_phase.py"
+        ],
+        "write": [
+          "templates/embedded-c-overlay/.trellis/workflow.md",
+          "templates/embedded-c-overlay/.opencode/commands/trellis/start.md"
+        ]
+      },
+      "verification": {
+        "level": "minimal",
+        "required_checks": [
+          "step-1-1-cli",
+          "gate-text-sync",
+          "forbidden-zones"
+        ]
+      },
+      "verification_results": {
+        "step-1-1-cli": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-24T16:40:38Z",
+          "command": "python -B research/verify_delivery.py step-1-1-cli",
+          "summary": "template root CLI step 1.1 shows Spec discovery paragraph and Spec References",
+          "artifact": ".trellis/tasks/09-24-spec-first-planning-gate/research/verify_delivery.py"
+        },
+        "gate-text-sync": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-24T16:40:38Z",
+          "command": "python -B research/verify_delivery.py gate-text-sync",
+          "summary": "both state blocks, 1.4 enum, 1.5 table and start.md carry Spec References + curated jsonl",
+          "artifact": ".trellis/tasks/09-24-spec-first-planning-gate/research/verify_delivery.py"
+        },
+        "forbidden-zones": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-24T16:40:38Z",
+          "command": "python -B research/verify_delivery.py forbidden-zones",
+          "summary": "no diff hunk touches no_task block, Phase-2 guardrail, Loading Step Detail, step hints, 2.1.x, task.py guard",
+          "artifact": ".trellis/tasks/09-24-spec-first-planning-gate/research/verify_delivery.py"
+        }
+      }
+    },
+    {
+      "id": "skills-text",
+      "title": "软层：brainstorm 与 grill-adapter SKILL 文本",
+      "status": "completed",
+      "objective": "brainstorm SKILL 的 Evidence Rule/Planning Flow/Artifact Rules/Quality Bar/:170 具体化 spec 发现程序与工件要求；两份 adapter SKILL 正文同改（step 1、step 7、intro 门禁表述），frontmatter 不动，改后两份零差异。",
+      "depends_on": [
+        "discover"
+      ],
+      "scope": {
+        "read": [
+          "templates/embedded-c-overlay/.opencode/skills/trellis-brainstorm/SKILL.md",
+          "templates/embedded-c-overlay/.agents/skills/__PROJECT_PREFIX__-trellis-grill-adapter/SKILL.md",
+          "templates/embedded-c-overlay/.opencode/skills/__PROJECT_PREFIX__-trellis-grill-adapter/SKILL.md"
+        ],
+        "write": [
+          "templates/embedded-c-overlay/.opencode/skills/trellis-brainstorm/SKILL.md",
+          "templates/embedded-c-overlay/.agents/skills/__PROJECT_PREFIX__-trellis-grill-adapter/SKILL.md",
+          "templates/embedded-c-overlay/.opencode/skills/__PROJECT_PREFIX__-trellis-grill-adapter/SKILL.md"
+        ]
+      },
+      "verification": {
+        "level": "minimal",
+        "required_checks": [
+          "adapter-parity",
+          "skill-gate-text"
+        ]
+      },
+      "verification_results": {
+        "adapter-parity": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-24T16:42:19Z",
+          "command": "python -B research/verify_delivery.py adapter-parity",
+          "summary": ".agents and .opencode adapter copies byte-identical after edits",
+          "artifact": ".trellis/tasks/09-24-spec-first-planning-gate/research/verify_delivery.py"
+        },
+        "skill-gate-text": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-24T16:42:19Z",
+          "command": "python -B research/verify_delivery.py skill-gate-text",
+          "summary": "brainstorm + both adapters carry discovery program, Spec References and new gate wording; no stale only-verifies text",
+          "artifact": ".trellis/tasks/09-24-spec-first-planning-gate/research/verify_delivery.py"
+        }
+      }
+    },
+    {
+      "id": "hooks-text",
+      "title": "软层：3 处 hook 提示文本 × 2 个 planning 分支",
+      "status": "completed",
+      "objective": ".codex/hooks/session-start.py、.claude/hooks/session-start.py、.opencode/lib/session-utils.js 的 planning 状态无 prd/有 prd 两个 return 分支各追加一句 spec 发现 + Spec References 持久化要求；不出现 validate_planning_gate；禁触 Step detail 提示串与 no-task 段。",
+      "depends_on": [
+        "discover"
+      ],
+      "scope": {
+        "read": [
+          "templates/embedded-c-overlay/.codex/hooks/session-start.py",
+          "templates/embedded-c-overlay/.claude/hooks/session-start.py",
+          "templates/embedded-c-overlay/.opencode/lib/session-utils.js"
+        ],
+        "write": [
+          "templates/embedded-c-overlay/.codex/hooks/session-start.py",
+          "templates/embedded-c-overlay/.claude/hooks/session-start.py",
+          "templates/embedded-c-overlay/.opencode/lib/session-utils.js"
+        ]
+      },
+      "verification": {
+        "level": "minimal",
+        "required_checks": [
+          "py-compile-hooks",
+          "node-check",
+          "hook-redline"
+        ]
+      },
+      "verification_results": {
+        "py-compile-hooks": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-24T16:44:32Z",
+          "command": "python -m py_compile .codex/hooks/session-start.py .claude/hooks/session-start.py",
+          "summary": "both template session-start hooks compile after two-branch edits"
+        },
+        "node-check": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-24T16:44:32Z",
+          "command": "node --check .opencode/lib/session-utils.js",
+          "summary": "session-utils.js syntax OK"
+        },
+        "hook-redline": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-24T16:44:32Z",
+          "command": "python -B research/verify_delivery.py hook-redline",
+          "summary": "3 hooks: no validate_planning_gate leak; spec fragment exactly twice per file (2 branches)",
+          "artifact": ".trellis/tasks/09-24-spec-first-planning-gate/research/verify_delivery.py"
+        }
+      }
+    },
+    {
+      "id": "final-report",
+      "title": "最终验收与报告",
+      "status": "completed",
+      "objective": "运行模板与根全量测试、compile/node 检查、真实 CLI 送达矩阵、git diff --check 与范围自查，全部 record 后写 final-report.md 并注册。",
+      "depends_on": [
+        "discover",
+        "gate-hard",
+        "workflow-text",
+        "skills-text",
+        "hooks-text"
+      ],
+      "scope": {
+        "read": [
+          "templates/embedded-c-overlay/**",
+          ".trellis/tasks/09-24-spec-first-planning-gate/**"
+        ],
+        "write": [
+          "final-report.md"
+        ]
+      },
+      "verification": {
+        "level": "report",
+        "required_checks": [
+          "template-suite",
+          "root-suite",
+          "compile-all",
+          "node-check-final",
+          "delivery-cli-full",
+          "diff-check",
+          "scope-status"
+        ],
+        "report_path": "final-report.md"
+      },
+      "verification_results": {
+        "template-suite": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-24T16:48:38Z",
+          "command": "python -B -m unittest discover -s templates/embedded-c-overlay/.trellis/scripts/tests -p test_*.py",
+          "summary": "212 tests OK (201 baseline + 11 new gate cases), zero existing breakage"
+        },
+        "root-suite": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-24T16:48:39Z",
+          "command": "python -B -m unittest discover -s .trellis/scripts/tests -p test_*.py",
+          "summary": "154 tests OK, matches pre-implementation baseline (root zero-change regression)"
+        },
+        "compile-all": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-24T16:48:39Z",
+          "command": "python -m py_compile (6 changed .py files) + __pycache__ cleanup",
+          "summary": "py_compile exit 0 for planning_gate/task_store/task/test_planning_gate + 2 session-start hooks; caches cleaned to 0"
+        },
+        "node-check-final": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-24T16:48:45Z",
+          "command": "node --check templates/embedded-c-overlay/.opencode/lib/session-utils.js",
+          "summary": "session-utils.js syntax OK after two-branch edits"
+        },
+        "delivery-cli-full": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-24T16:48:45Z",
+          "command": "python -B research/verify_delivery.py (all 8 items)",
+          "summary": "8/8 PASS: step-1-1-cli, gate-text-sync, forbidden-zones, adapter-parity, skill-gate-text, hook-redline, gate-cli-smoke, scope-status",
+          "artifact": ".trellis/tasks/09-24-spec-first-planning-gate/final-report.md"
+        },
+        "diff-check": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-24T16:48:45Z",
+          "command": "git diff --check",
+          "summary": "clean after LF-normalizing tracked task.json"
+        },
+        "scope-status": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-24T16:48:45Z",
+          "command": "python -B research/verify_delivery.py scope-status",
+          "summary": "changes confined to template files + task dir; no bytecode caches in template"
+        }
+      }
+    }
+  ],
+  "approved_fingerprint": "7c6dc8fb2e7e372a59db0170c03c5b0d8735b0cb08851e2b211e9b8e1b6b5320"
+}

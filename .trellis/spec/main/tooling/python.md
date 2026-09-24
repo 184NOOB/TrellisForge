@@ -121,6 +121,59 @@ Python 代码主要位于 `.trellis/scripts/`、`.claude/hooks/` 和 `.codex/hoo
 
 同时验证五环：合同文本在标签块内、`get_step` 能提取到该编号、`filter_platform` 对该平台渲染该标签、平台入口文案真的会传 `--platform`、并有走真实 CLI 子进程的测试锁定送达结果。
 
+## Scenario: 模板规划门禁 Spec 前置校验（Spec References / jsonl 真实条目）
+
+### 1. Scope / Trigger
+
+- Trigger: 下游模板给 `task.py start` 规划门禁新增两项机械校验（Spec References 存在性、jsonl 真实条目），签名、错误消息、种子骨架、平台条件与全套行为描述文本都是跨层合同（CLI / `planning_gate.py` / `task_store` 种子 / workflow.md / SKILL / command 文档 / hook 提示）。
+- 合同目前只存在于 `templates/embedded-c-overlay/`。根目录自用 `.trellis/scripts/common/planning_gate.py` 尚未同步（根 gate 仍只查 meta 标记、Review level 与 Planning Convergence），不得把模板行为写成根目录已经具备的事实；根侧回移属根级工具修复、需单独任务授权。
+
+### 2. Signatures
+
+- `common.planning_gate.validate_planning_gate(task_dir: Path, repo_root: Path | None = None) -> PlanningGateResult`
+- `common.planning_gate._missing_spec_references(prd: str) -> bool`、`_manifest_problem(name: str, path: Path) -> str | None`、`_SPEC_LIST_ITEM = re.compile(r"^[ \t]*-[ \t]+", re.MULTILINE)`（只在节体内匹配）
+- 种子骨架：`common.task_store._default_prd_content` 含 `## Spec References` 节头 + HTML 注释指引，**不含 `- ` 列表项**
+- 接线：模板 `task.py cmd_start` 把已解析的 `repo_root` 传入 gate；平台条件直接 import 私有 `_has_subagent_platform`（同包引用，task_store 不得反向 import planning_gate）
+
+### 3. Contracts
+
+- 校验 A（无条件，仅 `status == "planning"` 生效）：prd.md 须含 `## Spec References` 节且节内 ≥1 条列表项（容忍缩进）。只做结构校验，内容真实性由 review 兜底；HTML 注释内的 `- ` 行也计数，属已接受的可绕过面。
+- 校验 B（仅 `repo_root is not None` 且 `_has_subagent_platform(repo_root)` 为真）：`implement.jsonl` 与 `check.jsonl` 各须 ≥1 条含非空字符串 `file` 字段的真实条目；种子 `_example` 行无 `file` 字段不计（语义同 `task_context.py`）。
+- `repo_root` 缺省 → 校验 B 整体跳过（向后兼容旧调用方与既有测试），校验 A 不受影响。
+- `status != "planning"`（含 `planning-inline`）直通语义不变；新校验追加进 errors 累积列表，不短路。
+- 文本同步合同：workflow.md（1.1 Spec discovery 段、Guardrails、两个 `[workflow-state:planning*]` 块、1.4 门禁枚举、1.5 完成标准表）、`.opencode/commands/trellis/start.md` planning 分支、brainstorm SKILL、adapter SKILL intro（不得残留 "only verifies the persisted convergence and approval markers" 类失真）、3 个 hook 文件的两个 planning 分支，必须与 gate 实际校验集一致；hook/lib 文本不得出现字符串 `validate_planning_gate`（`test_review_profile_contract.py` 锁定）。
+
+### 4. Validation & Error Matrix
+
+- `## Spec References` 节缺失或节内无列表项 -> 拒绝，消息含 `must contain a Spec References section`
+- jsonl 文件缺失 -> 拒绝（提示用 `task.py add-context` 补建；种子行不满足门禁）
+- 非空行 JSON 解析失败 -> 拒绝 fail closed（`contains a line that is not valid JSON`）
+- 种子-only（无真实条目）-> 拒绝（`must contain at least one curated entry; seed _example rows do not count`）
+- `file` 字段为空串/非字符串 -> 不计为真实条目
+- 无任何子代理平台目录，或仅 `.codex` 且显式 inline -> 不因 jsonl 拒绝
+- 未传 `repo_root` -> 校验 B 跳过；task.json 缺失/损坏、非 planning 直通 -> 行为同旧版
+
+### 5. Good/Base/Bad Cases
+
+- Good: 新建任务的种子 prd 自带空 `## Spec References` 节；规划填写清单并策展 jsonl 后 start 通过。
+- Base: 旧调用方不传 `repo_root` 只受校验 A 约束；inline-only 仓库自动豁免校验 B。
+- Bad: 种子骨架写 `- TBD` 占位项骗过校验 A；新增校验后漏改 1.4 枚举 / adapter intro 造成文本失真；hook 文本引用 `validate_planning_gate`。
+
+### 6. Tests Required
+
+- 模板 `test_planning_gate.py`（18 例）：既有 7 例（`READY_PRD` fixture 补节、断言不变）+ 校验 A 3 例（缺节/空节拒绝、有条目通过）+ 种子骨架合同 1 例（`_default_prd_content` 含节头且无占位列表项）+ 校验 B 7 例（种子-only 拒绝、缺文件拒绝、策展通过、无平台跳过、未传 repo_root 跳过、损坏行拒绝、blank file 不计）。
+- 送达验证必须以模板根为 cwd 跑真实 CLI（`get_context.py --mode phase --step 1.1` 输出含 Spec discovery 段），不得只做文本断言（见上一 Scenario 教训）。
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+把新校验只写进 SKILL/workflow 散文（"must contain at least one real entry before start"）而不落 `planning_gate.py`；或为了"新任务顺畅过闸"在种子骨架里写占位列表项。
+
+#### Correct
+
+门禁在 `validate_planning_gate` 机械执行并由 `cmd_start` 传入 `repo_root`；种子骨架只给节头 + 注释指引，未填写的种子被如实拦截；所有描述门禁校验集的文本（workflow/state 块/1.4/1.5/start.md/SKILL/hook）与代码行为同步更新。
+
 ## 测试与示例
 
 - 执行计划状态机的行为测试在 `.trellis/scripts/tests/test_execution_plan.py`。

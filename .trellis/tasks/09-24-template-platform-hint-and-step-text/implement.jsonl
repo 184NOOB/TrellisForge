@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/main/tooling/python.md", "reason": "脚本与 Hook 的边界、UTF-8 与 PowerShell 兼容要求，以及「模板等待合同可达性」Scenario 中的 --platform 送达入口约定与测试写法约定（REPO_ROOT 推导、PYTHONIOENCODING、子进程 cwd）"}
+{"file": ".trellis/spec/main/tooling/templates-and-docs.md", "reason": "发布模板的内容边界与 TEMPLATE-CONTENTS.md 登记要求；根目录自用实现只读、不反向同步"}
+{"file": ".trellis/spec/shared/validation.md", "reason": "本任务验证命令与 pass/fail/not run/not applicable 的报告口径"}
+{"file": ".trellis/tasks/archive/2026-09/09-21-codex-native-wait-quiet/design.md", "reason": "权威参照：§3.4 送达入口（为何 Codex 提示串要带 --platform、为何 Loading Step Detail 用平台中立文本）与 §3.6 测试写法约定"}
+{"file": ".trellis/tasks/archive/2026-09/09-21-codex-native-wait-quiet/final-report.md", "reason": "残余风险 3 与 4 即本任务范围（.claude/.opencode 提示串未带 --platform、task.py --step 1 失效文案），并给出已交付口径以防回退"}

@@ -11,6 +11,7 @@
 ## Task Map
 
 - 功能子任务：`09-17-small-patch-and-sequel-plans`，负责小修绕过执行计划，以及同一任务在计划闭环后另开后续计划。
+- 功能子任务：`09-24-spec-first-planning-gate`，规划阶段 spec 前置读取与 `task.py start` 门禁加固（根目录自用工作流实例修复 + 模板同步）。
 - 固定收尾子任务：`09-17-readme-integration-guide-upgrade-patch`。
 - 后续功能子任务由用户逐步补充，均排列在固定收尾子任务之前。
 

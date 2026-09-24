@@ -1,0 +1,6 @@
+{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/spec/main/tooling/python.md", "reason": "脚本分层、测试写法约定、CLI 真实送达验证教训、根模板分叉边界"}
+{"file": ".trellis/spec/main/tooling/templates-and-docs.md", "reason": "改动归属例外、单向同步约束、发布收尾排除项"}
+{"file": ".trellis/spec/main/tooling/overlay-upgrade.md", "reason": "模板正文改动→live 漂移 fail closed、manifest 归发布收尾"}
+{"file": ".trellis/spec/shared/trellis-maintenance.md", "reason": "planning_gate 受保护定制、改后强制复核命令"}
+{"file": ".trellis/spec/shared/validation.md", "reason": "验证命令全集与四态报告格式"}

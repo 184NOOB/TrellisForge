@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/main/tooling/python.md", "reason": "审查提示串与 task.py 文案改动是否符合已记录的 --platform 送达入口约定、测试写法约定，且未把根目录未同步的事实写成已具备"}
+{"file": ".trellis/spec/main/tooling/templates-and-docs.md", "reason": "审查改动是否越界到根目录自用实现或发布收尾资产（VERSION、manifest、README、接入指南），以及 TEMPLATE-CONTENTS.md 登记是否正确"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "审查 workflow 文本 → 提取器 → 平台过滤 → 入口提示串 → 测试这条跨层送达链在模板侧是否被完整覆盖、有无新的漂移点"}
+{"file": ".trellis/spec/shared/validation.md", "reason": "审查验证命令与 pass/fail/not run/not applicable 报告口径是否符合项目约定"}
+{"file": ".trellis/tasks/archive/2026-09/09-21-codex-native-wait-quiet/prd.md", "reason": "与模板侧已交付的 R4 送达入口与 AC8 对照，确认本任务补齐而非回退 09-21 的修复"}

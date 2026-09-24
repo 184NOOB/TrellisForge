@@ -2,7 +2,7 @@
 
 ## Workflow Settings
 
-- Review level: standard
+- Review level: reinforced
 
 ## Goal
 
@@ -11,7 +11,7 @@
 ## Background And Confirmed Facts
 
 - 本任务是父任务 `09-17-trellisforge-1-3-upgrade` 的固定最后一个子任务。
-- 当前尚未挂载任何 1.3 功能子任务；详细发布范围、版本资产、升级路径和文档清单要等全部功能子任务完成后再规划。
+- 父任务当前已挂载子任务：`09-17-small-patch-and-sequel-plans`（已完成，归档于 `archive/2026-09`）与 `09-21-codex-native-wait-quiet`（planning 中）；后续功能子任务仍可继续加入。详细发布范围、版本资产、升级路径和文档清单要等全部功能子任务完成后再规划。
 - 1.2 的发布收尾合同是参考基线，不作为本轮已冻结的 1.3 验收。
 
 ## Requirements
@@ -38,4 +38,4 @@
 - Blocking technical decisions: 0
 - Final summary ready: no
 
-当前阻塞项：功能子任务尚未提出，无法冻结 1.3 发布收尾的具体验收。
+当前阻塞项：功能子任务尚未全部完成（`09-21-codex-native-wait-quiet` 仍在 planning），无法冻结 1.3 发布收尾的具体验收。

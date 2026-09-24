@@ -278,3 +278,25 @@ trellis-implement(sonnet) 8/8 阶段交付 templates/embedded-c-overlay/.opencod
 - 根自用 workflow.md / workflow_phase.py / git_context.py 未同步模板修复，根路径仍有子步骤截断与 --platform claude|codex 丢块缺陷
 - .claude/hooks/session-start.py 与 .opencode/lib/session-utils.js 的 Step detail 提示串未带 --platform；模板 task.py 的 --step 1 文案既存失效
 - 父任务 09-17-trellisforge-1-3-upgrade 余固定收尾子任务 09-17-readme-integration-guide-upgrade-patch（README、接入指南、VERSION、manifest、升级补丁）
+
+
+## Session 9: 模板规划门禁加固：Spec 前置校验与 jsonl 机械门禁（仅模板）
+
+**Date**: 2026-09-25
+**Task**: 模板规划门禁加固：Spec 前置校验与 jsonl 机械门禁（仅模板）
+**Package**: main
+**Branch**: `v1.3-development`
+
+### Summary
+
+修复'规划不读 spec 也能收敛过闸'的结构缺陷（用户决定仅改模板、根目录零改动）：模板 planning_gate 新增校验 A（prd 须含非空 ## Spec References 节）与校验 B（子代理平台下 implement/check jsonl 各须 ≥1 条真实条目，未传 repo_root 跳过），cmd_start 接线 repo_root，种子 prd 骨架补节头（无占位项）；文本层同步 workflow.md 1.1/Guardrails/state 块/1.4/1.5、start.md、brainstorm/adapter SKILL、hook 3 文件×2 planning 分支。三轮规划自查修正 9 项（fixture 击穿、state 块载体、模板 CLI 验证、start.md 穷举句、种子骨架、hook 双分支等）。reinforced 独立审查 Round 1 零阻塞（审查方修复 EOF 换行 1 处）；模板套件 201→212 OK、根 154 OK、py_compile/node --check/diff --check 全绿；根 spec 新增 python.md Scenario（用户授权 Phase 3.3 文档沉淀）。根侧同源缺陷回移与 manifest 重生成留待将来根级任务与 v1.3 发布收尾。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `6e95dba` | (see git log) |
+
+### Status
+
+[OK] **Completed**

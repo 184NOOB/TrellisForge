@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 8
-- **Last Active**: 2026-09-22
+- **Total Sessions**: 9
+- **Last Active**: 2026-09-25
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~280 | Active |
+| `journal-1.md` | ~302 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 9 | 2026-09-25 | 模板规划门禁加固：Spec 前置校验与 jsonl 机械门禁（仅模板） | `6e95dba` | `v1.3-development` |
 | 8 | 2026-09-22 | Codex 原生静默等待合同与模板等待合同可达性修复 | `e1e6052`, `7f01ce2`, `152a8d1` | `v1.3-development` |
 | 7 | 2026-09-17 | 实施模板小修绕过与同一任务 sequel | `6265741`, `1f135ed` | `v1.3-development` |
 | 6 | 2026-09-12 | 完成 OpenCode 第三默认平台接入（任务 09-11） | `65523cf`, `c3bf86e` | `v1.2-development` |

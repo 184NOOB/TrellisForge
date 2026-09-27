@@ -174,12 +174,61 @@ Python 代码主要位于 `.trellis/scripts/`、`.claude/hooks/` 和 `.codex/hoo
 
 门禁在 `validate_planning_gate` 机械执行并由 `cmd_start` 传入 `repo_root`；种子骨架只给节头 + 注释指引，未填写的种子被如实拦截；所有描述门禁校验集的文本（workflow/state 块/1.4/1.5/start.md/SKILL/hook）与代码行为同步更新。
 
+## Scenario: 模板任务目录时间前缀与同分钟错峰（MM-DD-HHmm）
+
+### 1. Scope / Trigger
+
+- Trigger: 发布模板任务目录前缀由 `MM-DD` 升级为 `MM-DD-HHmm` 并对同分钟创建自动错峰；前缀生成、--slug guard、错峰分配与文档表述是跨层合同（`paths.py` / `task_store.py` / `task.py` help / `workflow.md` / brainstorm SKILL / TEMPLATE-CONTENTS）。
+- **有意分叉声明**:合同只存在于 `templates/embedded-c-overlay/`。根目录自用 Trellis 仍为 `MM-DD`——这是用户明确决定的分叉（任务 `09-22-task-dir-time-prefix`），**不是漂移**；不得以"同步"名义回改任何一侧,根侧升级需单独任务授权。
+
+### 2. Signatures
+
+- `common.paths.generate_task_date_prefix() -> str`:返回 `strftime("%m-%d-%H%M")`,纯函数、真实本地时间、不感知仓库状态。
+- `common.task_store._allocate_task_prefix(tasks_dir, base_prefix) -> str`:同分钟错峰分配。
+- guard 正则:`^(\d{2})-(\d{2})-(?:(\d{4})-)?(.+)$`,group(3)=HHmm(可空)、**group(4)=body**(旧代码 body 是 group(3),改造时两处使用点都要换)。
+
+### 3. Contracts
+
+- 目录名 `MM-DD-HHmm-slug`;guard 对比**真实时间 base 前缀**,错峰发生在 guard 之后、`dir_name` 组装之前。
+- 错峰:占用 = `tasks_dir` 直接子目录(排除 `archive/`)名以 `candidate + "-"` 开头;候选 = `datetime(now.year, MM, DD, HH, mm) + timedelta(minutes=n)` 按 `%m-%d-%H%M` 格式化,n 从 0 取首个空闲;允许跨日(23:59 → 次日 `00:00`);防御上限 n<1440,耗尽回退 base(由既有 exists 警告兜底)。
+- `task.json.createdAt` 保持 `%Y-%m-%d` 真实日期;顺延分钟只是排序记号,不是创建时刻。
+- 排序语义:目录名排序 == 创建顺序 == 父任务 `children` 数组挂接顺序;`task.py list` 树视图本就按 `children` 数组显示子任务,与目录名无关。
+
+### 4. Validation & Error Matrix
+
+- `--slug` 含当日完整前缀(HHmm == 真实 base) -> 剥离 + 警告
+- `--slug` 含当日旧格式 `MM-DD-` -> 剥离 + 警告
+- `--slug` 非当日日期前缀,或 HHmm 合法但 ≠ base(今天另一任务的目录名) -> 报错退出、不建目录
+- `--slug` HHmm 非法(时>23/分>59,如 `09-22-2461-foo`) -> 不拦截,按普通 slug 放行
+- 同一分钟批量创建 -> 前缀依次 +1 分钟;预置占用目录被跳过
+
+### 5. Good/Base/Bad Cases
+
+- Good: 父任务同一分钟批量创建 3 个子任务,目录名顺序即挂接顺序,文件管理器视图与 list 视图一致。
+- Base: 存量旧格式目录(`MM-DD-slug`)不迁移;与新目录同日混排时(字母开头 vs 数字 HHmm)旧目录靠后,已接受。
+- Bad: 把根目录 `MM-DD` 当"漏改"回改;用错峰后的目录名分钟反推真实创建时刻(应读 `createdAt`)。
+
+### 6. Tests Required
+
+- 模板 `test_task_dir_time_prefix.py`:前缀格式(跨分钟容忍)、guard 四分支、错峰(连建 3 次 base/+1/+2、占用跳过、23:59 跨日、exists 防御分支)、排序契约;mock 密闭(patch `task_store.get_repo_root` / `run_git` / `resolve_default_branch` / `generate_task_date_prefix`,args 带 `assignee` 与 `no_start=True`,createdAt 只做格式断言)。
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+发现根目录 `.trellis` 仍是 `MM-DD`,为"消除分叉"把根侧改成 HHmm,或把模板改回 `MM-DD`。
+
+#### Correct
+
+分叉是用户决定:模板侧合同由 `test_task_dir_time_prefix.py` 锁定;根侧升级只能由明确授权的根级任务执行,并各自保持测试与文档同步。
+
 ## 测试与示例
 
 - 执行计划状态机的行为测试在 `.trellis/scripts/tests/test_execution_plan.py`。
 - 规划门禁和会话隔离分别由 `.trellis/scripts/tests/test_planning_gate.py`、`.trellis/scripts/tests/test_active_task_session_isolation.py` 覆盖。
 - 代理提示与 Hook 合同由 `.trellis/scripts/tests/test_subagent_prompt_contract.py` 覆盖。
 - 模板侧的送达链路与换行合同由 `templates/embedded-c-overlay/.trellis/scripts/tests/test_codex_native_wait_contract.py`、`test_write_json_lf.py` 覆盖；运行方式 `python -B -m unittest discover -s templates/embedded-c-overlay/.trellis/scripts/tests -p "test_*.py"`。
+- 模板任务目录时间前缀与同分钟错峰合同由 `templates/embedded-c-overlay/.trellis/scripts/tests/test_task_dir_time_prefix.py` 覆盖。
 
 ## 禁止事项
 

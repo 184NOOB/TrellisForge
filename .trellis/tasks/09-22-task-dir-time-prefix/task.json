@@ -3,7 +3,7 @@
   "name": "task-dir-time-prefix",
   "title": "任务目录前缀升级为 MM-DD-HHmm 以支持同日创建时间排序",
   "description": "任务目录当前仅有 MM-DD 前缀,同日创建的任务按 slug 字母序排列,不符合创建先后体感。将目录前缀升级为 MM-DD-HHmm,同步修改 guard 正则、测试、文档与 templates/embedded-c-overlay 模板副本;存量任务目录不迁移。",
-  "status": "planning",
+  "status": "in_progress",
   "dev_type": null,
   "scope": null,
   "package": "main",
@@ -24,6 +24,6 @@
   "notes": "",
   "meta": {
     "planning_ready": "true",
-    "plan_approved": false
+    "plan_approved": "true"
   }
 }

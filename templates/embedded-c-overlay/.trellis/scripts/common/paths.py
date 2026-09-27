@@ -379,12 +379,15 @@ def has_current_task(repo_root: Path | None = None) -> bool:
 # =============================================================================
 
 def generate_task_date_prefix() -> str:
-    """Generate task ID based on date (MM-DD format).
+    """Generate the task directory date prefix (MM-DD-HHmm format).
+
+    Minute precision keeps filesystem name order equal to creation order;
+    same-minute collisions are resolved by ``task_store._allocate_task_prefix``.
 
     Returns:
-        Date prefix string (e.g., "01-21").
+        Date-time prefix string (e.g., "01-21-1435").
     """
-    return datetime.now().strftime("%m-%d")
+    return datetime.now().strftime("%m-%d-%H%M")
 
 
 # =============================================================================

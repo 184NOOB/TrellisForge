@@ -1,1 +1,4 @@
 {"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/spec/main/tooling/templates-and-docs.md", "reason": "发布边界与下游功能修改默认归属:模板-only 范围红线、测试落点、manifest 归属"}
+{"file": ".trellis/spec/main/tooling/python.md", "reason": "Python 编码与 UTF-8 约定,适用于 paths.py/task_store.py/新测试"}
+{"file": ".trellis/spec/shared/validation.md", "reason": "验证命令与 pass/fail/not run/not applicable 报告契约"}

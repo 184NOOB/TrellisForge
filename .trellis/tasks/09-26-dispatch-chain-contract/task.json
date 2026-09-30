@@ -1,0 +1,29 @@
+{
+  "id": "dispatch-chain-contract",
+  "name": "dispatch-chain-contract",
+  "title": "模板单次派发走完执行计划链合同",
+  "description": "",
+  "status": "planning",
+  "dev_type": null,
+  "scope": null,
+  "package": "main",
+  "priority": "P2",
+  "creator": "Noob184",
+  "assignee": "Noob184",
+  "createdAt": "2026-09-26",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "master",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": "09-17-trellisforge-1-3-upgrade",
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "planning_ready": "true",
+    "plan_approved": false
+  }
+}

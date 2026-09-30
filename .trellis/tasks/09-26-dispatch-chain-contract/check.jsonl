@@ -1,0 +1,10 @@
+{"file": ".trellis/spec/main/tooling/templates-and-docs.md", "reason": "审查写入边界：功能改动只允许出现在 templates/embedded-c-overlay/，根目录唯一例外是 .trellis/spec/main/tooling/python.md 的定点 Scenario；据 14-22 行核对是否误改根自用实现或提前触碰收尾子任务资产（VERSION/history/manifest/README/接入指南）"}
+{"file": ".trellis/spec/main/tooling/python.md", "reason": "审查测试写法约定（111 行）与'送达验证必须走真实 CLI、不得只做文本断言'（105/165 行）；核对禁止事项（不吞异常、不把不可执行检查伪造为 pass、不提交 __pycache__/.pyc）与 R8 新增 Scenario 是否沿用既有 7 段结构且保留'根侧尚未同步'事实表述"}
+{"file": ".trellis/spec/shared/validation.md", "reason": "审查报告口径：三套件命令与 pass/fail/not run/not applicable 的区分，构建与硬件验证为 not applicable，Node harness 不可用时必须报 not run 而非假 pass"}
+{"file": ".trellis/spec/shared/trellis-maintenance.md", "reason": "受保护项目定制清单与更新后必跑检查（test_planning_gate.py、test_active_task_session_isolation.py、py_compile、git diff --check），用于确认本次模板文本改动未破坏 trellis update 的 block-level 合并面"}
+{"file": ".trellis/spec/guides/index.md", "reason": "AI 交叉审查假阳性模式与验证规则（每条 CRITICAL/WARNING 必须对照实际代码核实、约 35% 假阳性预算），以及'改任何值前先搜索'的前置规则"}
+{"file": ".trellis/tasks/09-26-dispatch-chain-contract/research/01-baseline-regression.md", "reason": "三套件基线真实数字与仓库级 26 个失败用例的精确清单，是判定'失败集合前后一致、无新增红项'的唯一依据"}
+{"file": ".trellis/tasks/09-26-dispatch-chain-contract/research/04-workflow-md-dispatch-text-C.md", "reason": "workflow.md 断言雷区逐条清单：FORBIDDEN 8 短语、CODEX_ONLY_TERMS 6 词、assertNotIn 旧句、必留的 'Spawn the implement sub-agent'、2.1.2 标题与 [Codex] 之间的插入禁令、inline 块零 diff 要求"}
+{"file": ".trellis/tasks/09-26-dispatch-chain-contract/research/02-execution-contract-chain-A.md", "reason": "核对 execution_contract() 与 session-utils.js STATIC_EXECUTION_CONTRACT 及 --json bridge 三方是否逐字相等，以及既有批处理效率语义是否被删改"}
+{"file": ".trellis/tasks/09-26-dispatch-chain-contract/research/07-plan-cli-surface-F.md", "reason": "核对 CLI 表面积零变化：未新增 plan.py 子命令（dispatchable 属已放弃的形态二）、argparse 与 main 分派未被触碰、protocol block 命令枚举无需变更"}
+{"file": ".trellis/tasks/09-26-dispatch-chain-contract/research/06-format-status-breadcrumb-E.md", "reason": "核对链行落点是否在 verbose 分支之外（否则进不了面包屑）、是否避开 'frozen plans:' 与 verbose 任务行格式、fail-soft 是否覆盖 legacy/sequel/审计损坏布局"}

@@ -3,7 +3,7 @@
   "name": "template-platform-hint-and-step-text",
   "title": "模板 Step detail 平台提示串与 task.py 步骤文案修复",
   "description": "只改模板：.claude/.opencode 的 Step detail 提示串补各自 --platform（Codex 那份已在 09-21 修好），task.py 的 --step 1 失效文案改为可解析的 step id，并补防漂移断言。不动根目录自用实现。",
-  "status": "planning",
+  "status": "in_progress",
   "dev_type": null,
   "scope": null,
   "package": "main",
@@ -24,6 +24,6 @@
   "notes": "",
   "meta": {
     "planning_ready": "true",
-    "plan_approved": false
+    "plan_approved": "true"
   }
 }

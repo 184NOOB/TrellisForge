@@ -21,6 +21,14 @@
 
 正确做法：只修改 `templates/embedded-c-overlay/.trellis/workflow.md` 及模板内相关 Skill、Agent、门禁和测试；根目录对应文件仅作为只读参考。
 
+## 模板审查循环退出主语
+
+- Check Agent 的 severity 标签与 `Blocking findings count` 是信号，不是最终事实。
+- 主会话先核实 finding 真实且属于本任务，再按安全/正确性/验收绝对门槛复核定级（可升级命中项，也可把未命中的 Agent blocking 降为 residual risk）。
+- 循环 IF/until 与 “zero blocking” 退出判定的主语是主会话复核后的 adjudicated count。必须改写真正驱动循环的句子（Skill 循环正文、`workflow.md` 的 `[workflow-state:in_progress]` / `in_progress-inline` 注入块、权威 profile 区），不得只在远处加声明。
+- `standard` 不因升级自动再派独立审查；`reinforced` / `comprehensive` / `strict` 走该 profile 既有 blocking-fix 循环。
+- 契约测试：`templates/embedded-c-overlay/.trellis/scripts/tests/test_review_severity_adjudication_contract.py`。Ownership 节不得写入派发/加轮次短语（`test_review_fix_ownership_contract.py`）。
+
 ## 文档契约
 
 README 负责说明定位、最短安装命令和覆盖层边界；`docs/接入指南.md` 负责逐步接入、合并规则、验证命令和升级维护。新增或改变模板目录时同步更新这两处目录说明。

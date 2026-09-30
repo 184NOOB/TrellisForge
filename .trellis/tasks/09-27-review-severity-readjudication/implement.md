@@ -33,8 +33,8 @@
 - [ ] 5. 新增 `.trellis/scripts/tests/test_review_severity_adjudication_contract.py`
       （design.md §5 共 9 组断言）。
 - [ ] 6. 验证（见下）。
-- [ ] 7. 按 `standard` 派发一次独立 `trellis-check`；主会话按新规则复核定级；
-      不因升级自动再派（除非 Evidence Invalidation）。
+- [ ] 7. 按本任务 `reinforced` profile 派发独立 `trellis-check`；主会话按新规则
+      复核定级；adjudicated blocking 修完后再派新一轮，直到复核后计数为零。
 
 ## 验证命令
 

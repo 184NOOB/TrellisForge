@@ -2,7 +2,7 @@
 
 ## Workflow Settings
 
-- Review level: standard
+- Review level: reinforced
 
 ## Spec References
 

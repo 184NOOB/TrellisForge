@@ -103,14 +103,15 @@ the signal the dispatcher waits on:
 1. Read `Review level: <level>` from the task PRD; missing or invalid values use `standard` and must be reported
 2. Build the complete task change set from the manifest, Git status, tracked diff, and listed untracked task files
 3. Read the task artifacts, every acceptance criterion, the project review Skill, and relevant shared/package Spec files
-4. Apply the selected profile: light = changed-scope main-session review (report a routing mismatch if dispatched); standard = exactly one independent affected-scope review including public headers, direct call sites, and one dependency hop; reinforced = independent affected-scope review that the main session re-dispatches as a fresh full round after each blocking-fix batch until blocking findings are zero; comprehensive = the same independent loop at full-scope with no extra commit-ready round; strict = full-scope independent loop plus a mandatory fresh full-scope commit-ready final review on the stable snapshot. Full-scope still requires impact evidence and is not an indiscriminate whole-repository scan. Each dispatched round re-covers the profile's complete scope rather than only confirming the previous round's findings.
+4. Apply the selected profile: light = changed-scope main-session review (report a routing mismatch if dispatched); standard = exactly one independent affected-scope review including public headers, direct call sites, and one dependency hop; reinforced = independent affected-scope review that the main session re-dispatches as a fresh full round after each blocking-fix batch until the adjudicated blocking count is zero; comprehensive = the same independent loop at full-scope with no extra commit-ready round; strict = full-scope independent loop plus a mandatory fresh full-scope commit-ready final review on the stable snapshot. Full-scope still requires impact evidence and is not an indiscriminate whole-repository scan. Each dispatched round re-covers the profile's complete scope rather than only confirming the previous round's findings.
 5. For each issue, classify before writing:
    - If simultaneously mechanical, small, determinate, and in-scope (lint nit, missing type, wrong import, dead branch) → fix directly and record the fix and its verification
    - Design/judgment issues, implementation blocking defects, planning defects, and out-of-task-scope findings → record and report with location, severity, evidence, and reason; do not silently rewrite them
+   - Any failure that touches safety, correctness, or an acceptance criterion must be classified as blocking severity and counted in `Blocking findings count`; never downgrade it to high/medium/low (or major/minor). The main session independently re-grades every finding against this absolute gate.
    Fix blocking findings in batches; non-blocking findings may remain as fixed items or residual risks and never by themselves require another complete round. Never dispatch or resume the Implement Agent; your finding routing never schedules a review round — review scheduling follows the selected review profile.
 6. Trace every acceptance criterion to implementation or verification results/artifacts
 7. Run applicable embedded C project checks after direct fixes and identify every unavailable or user-only check
-8. Report
+8. Report. Loop exit uses the main session's adjudicated blocking count, not this report's `Blocking findings count` alone.
 
 ## Report Format
 

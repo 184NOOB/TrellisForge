@@ -241,7 +241,7 @@ this template's supported scope and must not trigger extra files or dispatch wor
 [workflow-state:in_progress]
 Tools: `trellis-implement` / `trellis-research` are sub-agent types only (Task/Agent tool, NOT Skill; there is no skill by these names). `trellis-update-spec` and `PROJECT_PREFIX-trellis-review` are skills. `trellis-check` exists as both; prefer the Agent form according to the selected review level.
 Flow: `trellis-implement` -> `PROJECT_PREFIX-trellis-review` -> light main-session review OR standard/reinforced/comprehensive/strict `trellis-check` Agent -> `trellis-update-spec` -> commit (Phase 3.4) -> `/trellis:finish-work`.
-Main-session default: dispatch the implement sub-agent. Review dispatch follows the persisted profile: light stays in the main session and does not load the bundled generic `trellis-check` Skill; standard dispatches exactly one independent affected-scope `trellis-check` Agent when supported; reinforced dispatches independent affected-scope `trellis-check` Agents and re-dispatches a fresh agent after each blocking-fix round until blocking findings are zero; comprehensive does the same at full-scope without an extra commit-ready review; strict adds a mandatory fresh full-scope `trellis-check` Agent on the stable commit-ready snapshot. Each re-review round uses a newly dispatched agent, never a resumed reviewer session. Sub-agent self-exemption: if already running as `trellis-implement`, do NOT spawn another `trellis-implement` or `trellis-check`; if already running as `trellis-check`, do NOT spawn another `trellis-check` or `trellis-implement`. Dispatch is main session only.
+Main-session default: dispatch the implement sub-agent. Review dispatch follows the persisted profile: light stays in the main session and does not load the bundled generic `trellis-check` Skill; standard dispatches exactly one independent affected-scope `trellis-check` Agent when supported; reinforced dispatches independent affected-scope `trellis-check` Agents and re-dispatches a fresh agent after each blocking-fix round until the main session's Severity Adjudication shows an adjudicated count of zero blocking findings; comprehensive does the same at full-scope without an extra commit-ready review; strict adds a mandatory fresh full-scope `trellis-check` Agent on the stable commit-ready snapshot. Each re-review round uses a newly dispatched agent, never a resumed reviewer session. Sub-agent self-exemption: if already running as `trellis-implement`, do NOT spawn another `trellis-implement` or `trellis-check`; if already running as `trellis-check`, do NOT spawn another `trellis-check` or `trellis-implement`. Dispatch is main session only.
 Dispatch prompt starts with `Active task: <task path from task.py current>`. Read context: jsonl entries -> `prd.md` -> `design.md if present` -> `implement.md if present`.
 Execution plan: the implement sub-agent creates/approves the live `<task>/execution-plan.json` via `plan.py` before any source edit and advances only through `plan.py start/record/done/block/revise` (two-level verification: minimal records required_checks, one terminal report phase writes final-report.md); between rounds run `python .trellis/scripts/plan.py --task "<task-path>" status` to decide re-dispatch vs 2.2. When the live plan is already fully completed, a small patch bypasses plan.py entirely and a same-requirement change that needs new phases/checks/report runs `plan.py sequel --reason "..."` (see the Phase 2 gate). The `<execution-plan>` breadcrumb is display-only.
 
@@ -269,7 +269,7 @@ does not repeat an unaffected scan or build merely to confirm it again.
 
 [workflow-state:in_progress-inline]
 Flow: `trellis-before-dev` -> edit -> `PROJECT_PREFIX-trellis-review` + profiled review -> validation -> `trellis-update-spec` -> commit (Phase 3.4) -> `/trellis:finish-work`.
-Inline mode keeps implementation in the main session. For review, `light` is a main-session changed-scope review; `standard` dispatches one independent affected-scope `trellis-check` agent when supported; `reinforced` dispatches independent affected-scope reviews and re-dispatches a fresh agent after each blocking-fix round until blocking findings are zero; `comprehensive` repeats the same independent loop at full-scope with no extra commit-ready review; `strict` adds a mandatory fresh full-scope final review on the stable commit-ready snapshot.
+Inline mode keeps implementation in the main session. For review, `light` is a main-session changed-scope review; `standard` dispatches one independent affected-scope `trellis-check` agent when supported; `reinforced` dispatches independent affected-scope reviews and re-dispatches a fresh agent after each blocking-fix round until the main session's Severity Adjudication shows an adjudicated count of zero blocking findings; `comprehensive` repeats the same independent loop at full-scope with no extra commit-ready review; `strict` adds a mandatory fresh full-scope final review on the stable commit-ready snapshot.
 Read context: `prd.md` -> `design.md if present` -> `implement.md if present`, plus relevant spec/research loaded by skills.
 Execution plan (same gate, main session as executor): write the live `<task>/execution-plan.json` first, `plan.py validate` before touching business source, then advance exclusively via `plan.py start/record/done/block/revise` per phase; a small patch on a fully completed live plan bypasses plan.py, and a same-requirement change that needs new phases/checks/report runs `plan.py sequel --reason "..."` first (see the Phase 2 gate).
 [/workflow-state:in_progress-inline]
@@ -755,10 +755,12 @@ Apply the selected profile:
   listed files; do not paste their contents into the prompt.
 - `reinforced`: dispatch an independent affected-scope `trellis-check` agent
   after implementation using the same dispatch prompt guard as `standard`.
-  If the report has blocking findings, batch-complete that round's fixes per
-  the ownership rules, then dispatch a fresh independent `trellis-check`
-  agent for a new full affected-scope round. Repeat until the newest
-  independent report shows zero blocking findings. Every re-review round
+  If the report has blocking findings after Severity Adjudication (report
+  labels are signals; loop exit uses the adjudicated count), batch-complete
+  that round's adjudicated blocking fixes per the ownership rules, then
+  dispatch a fresh independent `trellis-check` agent for a new full
+  affected-scope round. Repeat until the main session's adjudicated count
+  shows zero blocking findings. Every re-review round
   re-covers the complete affected-scope instead of only confirming the
   previous round's findings, and a new round means a newly dispatched agent,
   never a resumed reviewer session.
@@ -781,7 +783,8 @@ Apply the selected profile:
   - Out-of-task-scope or environment/permission blocks are report-only; the
     main session decides whether to open a follow-up task.
   - Other implementation blocking defects are returned to the main session,
-    which verifies the finding against the current snapshot and then routes
+    which verifies the finding against the current snapshot, re-grades it
+    per Severity Adjudication, and then routes
     in this order:
     - Codex inline fixes the defect in the main session itself.
     - Otherwise the main session preferably relies on being able to reliably
@@ -791,8 +794,8 @@ Apply the selected profile:
       for a complex implementation repair.
     Report-only categories are design/judgment issues, implementation
     blocking defects, planning defects, and out-of-task-scope findings.
-  Non-blocking findings never by themselves trigger another complete
-  independent round. If the task change set, public contracts, acceptance
+  Non-blocking findings (after Severity Adjudication) never by themselves
+  trigger another complete independent round. If the task change set, public contracts, acceptance
   criteria, or applicable Specs materially change after a review, the old
   evidence is invalidated and the selected profile's review runs again.
 
@@ -822,9 +825,9 @@ Apply the selected profile:
   `PROJECT_PREFIX-trellis-review`, task artifacts, and applicable embedded C project
   Specs. Do not load the bundled generic `trellis-check` Skill.
 - `standard`: Codex inline keeps implementation in the main session but still dispatches one independent affected-scope `trellis-check` agent when supported. Platforms that cannot dispatch a reviewer must explicitly record a main-session equivalent review.
-- `reinforced`: like `standard`, but after each blocking-fix round dispatch a fresh independent affected-scope `trellis-check` agent for a new full round, repeating until the newest independent report shows zero blocking findings. Platforms that cannot dispatch a reviewer must explicitly record a main-session equivalent review and the missing independence.
+- `reinforced`: like `standard`, but after each blocking-fix round dispatch a fresh independent affected-scope `trellis-check` agent for a new full round, repeating until the main session's Severity Adjudication shows an adjudicated count of zero blocking findings. Platforms that cannot dispatch a reviewer must explicitly record a main-session equivalent review and the missing independence.
 - `comprehensive`: the same independent full-scope blocking-fix loop as `reinforced` but with full-scope rounds; reaching zero blocking findings does not add an extra commit-ready review round. Platforms that cannot dispatch a reviewer must explicitly record a main-session equivalent review.
-- `strict`: run the full-scope independent blocking-fix loop when supported, and additionally require one fresh independent full-scope commit-ready final review on the stable snapshot before Phase 3.4, repeating until blocking findings are zero. Platforms that cannot dispatch a reviewer must explicitly record a main-session equivalent review.
+- `strict`: run the full-scope independent blocking-fix loop when supported, and additionally require one fresh independent full-scope commit-ready final review on the stable snapshot before Phase 3.4, repeating until the adjudicated count of blocking findings is zero. Platforms that cannot dispatch a reviewer must explicitly record a main-session equivalent review.
 
 All profiles check spec compliance, acceptance evidence, validation, and cross-layer consistency when changes span layers. Each independent re-review round re-covers the complete scope of the selected profile with a newly dispatched agent; blocking findings are fixed in batches before the next round, and non-blocking findings never by themselves trigger another complete round. Material post-review changes to the task diff, public contracts, acceptance criteria, or applicable Specs invalidate prior evidence and re-trigger the current profile's review.
 
@@ -832,7 +835,7 @@ If issues are found → fix → re-check, until green.
 
 [/codex-inline]
 
-**Final pass (before Phase 3.4 commit)**: use the selected profile from `PROJECT_PREFIX-trellis-review`: `light` = changed-scope main-session review, `standard` = one independent affected-scope review when supported, `reinforced` = independent affected-scope rounds until the newest report shows zero blocking findings, `comprehensive` = the same loop at full-scope with no extra commit-ready round, and `strict` = the full-scope loop plus the mandatory fresh commit-ready final review defined in Phase 3.4. Before committing, confirm the latest review evidence is still valid; material post-review changes invalidate it and re-trigger the current profile's review. Derive affected packages from the actual diff, task manifest, and direct call graph; load only package/spec indexes supported by that evidence. Do not enumerate unrelated packages without evidence of impact.
+**Final pass (before Phase 3.4 commit)**: use the selected profile from `PROJECT_PREFIX-trellis-review`: `light` = changed-scope main-session review, `standard` = one independent affected-scope review when supported, `reinforced` = independent affected-scope rounds until the main session's Severity Adjudication shows an adjudicated count of zero blocking findings, `comprehensive` = the same loop at full-scope with no extra commit-ready round, and `strict` = the full-scope loop plus the mandatory fresh commit-ready final review defined in Phase 3.4. Before committing, confirm the latest review evidence is still valid; material post-review changes invalidate it and re-trigger the current profile's review. Derive affected packages from the actual diff, task manifest, and direct call graph; load only package/spec indexes supported by that evidence. Do not enumerate unrelated packages without evidence of impact.
 
 #### 2.3 Rollback `[on demand]`
 
@@ -868,7 +871,7 @@ Update the docs under `.trellis/spec/` accordingly. Even if the conclusion is "n
 
 **Spec-sync preamble**: before drafting commits, ask: did this task fix a bug or surface non-obvious knowledge that should land in `.trellis/spec/` so future-you (or future-AI) doesn't repeat the mistake? If yes, return to Phase 3.3 first — spec writes belong in the same task's commit batch, not as a forgotten follow-up.
 
-**Review-profile preamble**: before drafting commits, confirm the selected `PROJECT_PREFIX-trellis-review` profile from `prd.md` has completed and its latest evidence is still valid. `light`, `standard`, `reinforced`, and `comprehensive` require no extra commit-ready review round once their review path has reached a valid completed state (zero blocking findings where independent rounds apply). `strict` additionally requires, after code, tests, Specs, and task artifacts are all stable, one fresh independent full-scope commit-ready final review of the stable snapshot — even when nothing materially changed — repeating the fresh final review after any blocking-fix round until the final report shows zero blocking findings. Do not commit while the required profile is incomplete.
+**Review-profile preamble**: before drafting commits, confirm the selected `PROJECT_PREFIX-trellis-review` profile from `prd.md` has completed and its latest evidence is still valid. All "zero blocking findings" / "blocking findings are zero" exit tests mean the main session's Severity Adjudication adjudicated count, not the Agent report label alone. `light`, `standard`, `reinforced`, and `comprehensive` require no extra commit-ready review round once their review path has reached a valid completed state (zero blocking findings where independent rounds apply). `strict` additionally requires, after code, tests, Specs, and task artifacts are all stable, one fresh independent full-scope commit-ready final review of the stable snapshot — even when nothing materially changed — repeating the fresh final review after any blocking-fix round until the adjudicated count for that final report shows zero blocking findings. Do not commit while the required profile is incomplete.
 
 The AI may drive a batched commit of this task's code changes only after the user explicitly approves the proposed commit plan. This project keeps `session_auto_commit: false`: `/finish-work`, `task.py archive`, and `add_session.py` update bookkeeping files but do not create Git commits. Work commits happen first; after finish-work, any archive/journal changes require a separate commit plan and fresh user approval.
 

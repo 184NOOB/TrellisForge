@@ -3,7 +3,7 @@
   "name": "review-severity-readjudication",
   "title": "审查模板增加主会话严重度复核规则",
   "description": "",
-  "status": "planning",
+  "status": "in_progress",
   "dev_type": null,
   "scope": null,
   "package": "main",
@@ -24,6 +24,6 @@
   "notes": "",
   "meta": {
     "planning_ready": "true",
-    "plan_approved": false
+    "plan_approved": "true"
   }
 }

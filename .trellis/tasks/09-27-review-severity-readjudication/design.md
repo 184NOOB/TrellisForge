@@ -157,6 +157,6 @@ until-blocking 片段。先改 Skill 再复制镜像。无运行时脚本改动�
 
 ## 8. 执行方式
 
-散文 + 静态测试，主会话直接实施，不派发 Implement Agent。完成后按 `standard`
-派发一次独立 `trellis-check`；主会话按本规则复核定级后再决定退出（standard
-不因升级自动再派，除非 Evidence Invalidation）。
+散文 + 静态测试，主会话直接实施，不派发 Implement Agent。完成后按本任务
+`reinforced` profile：派发独立 affected-scope `trellis-check`；主会话按本规则
+复核定级；adjudicated blocking 走 blocking-fix 后再派新一轮，直到复核后计数为零。

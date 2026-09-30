@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 10
+- **Total Sessions**: 11
 - **Last Active**: 2026-10-01
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~338 | Active |
+| `journal-1.md` | ~360 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 11 | 2026-10-01 | 模板审查循环以主会话复核后的 blocking 数为准 | `ed255c6` | `v1.3-development` |
 | 10 | 2026-10-01 | 模板 Step detail 平台提示串与 task.py 步骤文案修复 | `f5b7ba2` | `v1.3-development` |
 | 9 | 2026-09-25 | 模板规划门禁加固：Spec 前置校验与 jsonl 机械门禁（仅模板） | `6e95dba` | `v1.3-development` |
 | 8 | 2026-09-22 | Codex 原生静默等待合同与模板等待合同可达性修复 | `e1e6052`, `7f01ce2`, `152a8d1` | `v1.3-development` |

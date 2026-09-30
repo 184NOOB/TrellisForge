@@ -336,3 +336,25 @@ trellis-implement(sonnet) 8/8 阶段交付 templates/embedded-c-overlay/.opencod
 ### Next Steps
 
 - 根侧同源 --step 1 文案与根 Trellis 同步另开任务
+
+
+## Session 11: 模板审查循环以主会话复核后的 blocking 数为准
+
+**Date**: 2026-10-01
+**Task**: 模板审查循环以主会话复核后的 blocking 数为准
+**Package**: main
+**Branch**: `v1.3-development`
+
+### Summary
+
+仅改 templates/embedded-c-overlay：审查 Skill 双镜像新增 Severity Adjudication，workflow 注入块与权威 profile 区退出主语改为 adjudicated count，4 个 Check Agent 禁止把安全/正确性/验收失败降级；新增 test_review_severity_adjudication_contract.py。reinforced Round 1 独立审查零阻塞。根 spec templates-and-docs.md 补退出主语合同。根目录自用 Trellis 未改。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `ed255c6` | (see git log) |
+
+### Status
+
+[OK] **Completed**

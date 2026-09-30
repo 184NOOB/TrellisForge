@@ -300,3 +300,39 @@ trellis-implement(sonnet) 8/8 阶段交付 templates/embedded-c-overlay/.opencod
 ### Status
 
 [OK] **Completed**
+
+
+## Session 10: 模板 Step detail 平台提示串与 task.py 步骤文案修复
+
+**Date**: 2026-10-01
+**Task**: 模板 Step detail 平台提示串与 task.py 步骤文案修复
+**Package**: main
+**Branch**: `v1.3-development`
+
+### Summary
+
+完成 09-24 模板提示串与 task.py 文案修复：三平台 SessionStart 补 --platform，--step 1 改为 1.1，补防漂移测试与 python.md 送达入口；reinforced 两轮 0 blocking；已归档。
+
+### Main Changes
+
+- Claude/OpenCode 提示串补平台旗标，task.py 改为 --step 1.1
+- 新增 test_step_detail_platform_hints.py 并登记 TEMPLATE-CONTENTS
+- python.md 送达入口扩为三平台
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `f5b7ba2` | (see git log) |
+
+### Testing
+
+- [OK] 模板全量 231 OK，根套件 154 OK，overlay 48/26 失败集合不变
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- 根侧同源 --step 1 文案与根 Trellis 同步另开任务

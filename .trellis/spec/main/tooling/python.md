@@ -85,7 +85,7 @@ Python 代码主要位于 `.trellis/scripts/`、`.claude/hooks/` 和 `.codex/hoo
 - 平台家族别名在归一化（转小写、去 `-` / `_` / 空格）后生效：`codex ↔ {codexsubagent, codexinline}`（后两者互不别名）、`claude ↔ claudecode`；`opencode` 保持等值匹配；禁止跨家族别名。
 - `filter_platform` 的唯一消费者是 `--mode phase`（`common/git_context.py`）。SessionStart 紧凑上下文由各平台 hook 自行抽取 Phase Index（`.codex/hooks/session-start.py` 的 `_build_workflow_toc`），不做平台过滤，因此别名改动不影响 SessionStart 注入。
 - 空内容检查早于平台过滤：被过滤到只剩标题的子步骤仍退出码 0，标签块外的标题行必然保留。测试按"标题可见、正文不得泄露"断言，不得断言输出为空。
-- 送达入口约定：`workflow.md` 的 `### Loading Step Detail` 必须给出 `--platform claude` / `--platform codex` / `--platform opencode` 三行平台中立示例（该段在 Phase Index 内、不做平台过滤，所以不能写成标签块）；`.codex/hooks/session-start.py` 的 Step detail 提示串必须带 `--platform codex`。
+- 送达入口约定：`workflow.md` 的 `### Loading Step Detail` 必须给出 `--platform claude` / `--platform codex` / `--platform opencode` 三行平台中立示例（该段在 Phase Index 内、不做平台过滤，所以不能写成标签块）；三份 SessionStart Step detail 提示串必须各自带正确旗标——`.claude/hooks/session-start.py` 带 `--platform claude`、`.codex/hooks/session-start.py` 带 `--platform codex`、`.opencode/lib/session-utils.js` 带 `--platform opencode`。
 - Codex 终端术语（`exec_command`、`write_stdin`、`yield_time_ms`、`session_id`）与原生术语（`spawn_agent`、`wait_agent`）只能出现在 `[Codex]` 块正文内；Claude / OpenCode 的过滤输出不得含这些术语正文。
 - `write_json` 必须以 `newline="\n"` 打开临时文件，保证 Windows 上写出的 JSON 是 LF（见"常见错误"）。
 
@@ -108,6 +108,7 @@ Python 代码主要位于 `.trellis/scripts/`、`.claude/hooks/` 和 `.codex/hoo
 
 - 模板 `test_codex_native_wait_contract.py`：四个 TestCase 类分别覆盖真实 CLI 送达（`TestStepExtraction`）、进程内别名矩阵（`TestPlatformAlias`）、送达入口文案（`TestDeliveryEntry`）、2.1.2 冻结文本（`TestNativeWaitContractText`）。按类拆分是为了让分阶段实施能跑绿子集。
 - 模板 `test_write_json_lf.py`：`write_json` 输出字节不含 `\r\n`、回读相等、无 `.tmp` 残留。
+- 模板 `test_step_detail_platform_hints.py`：三份 SessionStart Step detail 提示串各自含 `--platform claude` / `codex` / `opencode` 且整文件级互不串平台；`task.py` 每个 `--step <id>` 提示经进程内 `get_step` 解析为非空（须 patch `common.workflow_phase.get_repo_root` 为模板根，避免在 TrellisForge 仓库根误读根 `workflow.md`），并用边界正则 `--step 1(?![.\d])` 禁止裸 `--step 1`；真实 CLI `--step 1.1` 在模板根退出码 0；Loading Step Detail 三平台示例为第二道锁。
 - 测试写法约定：`REPO_ROOT = Path(__file__).resolve().parents[3]`（安装到下游后自然退化为仓库根，禁止硬编码 `templates/embedded-c-overlay`）；子进程 `[sys.executable, "-B", str(SCRIPTS_DIR / "get_context.py"), ...]` 带 `cwd=str(REPO_ROOT)`、`env={**os.environ, "PYTHONIOENCODING": "utf-8"}`、`encoding="utf-8", errors="replace"`、固定 `timeout`；不得真实 spawn / wait 任何 agent，也不得调用 `trellis channel`。
 - 多用例 CLI 矩阵用可重放驱动脚本承载（先例：任务目录 `research/cli_matrix.py`，逐项打印 `PASS/FAIL <name>`、任一失败退出 1），并把脚本路径记进 `plan.py record` 的 `--command` / `--artifact`；PowerShell 5.1 会拆散内嵌引号的多语句命令，不要把它当作可重放的 command id。
 

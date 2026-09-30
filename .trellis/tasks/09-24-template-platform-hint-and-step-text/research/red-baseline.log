@@ -1,0 +1,655 @@
+﻿python.exe : .F.F.FF
+所在位置 行:1 字符: 382
++ ... ull; $out = & python -B -m unittest discover -s "templates/embedded-c ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (.F.F.FF:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+======================================================================
+FAIL: test_claude_hint_passes_claude_platform (test_step_detail_platform_hints.TestStepDetailPlatformHints.test_claude_
+hint_passes_claude_platform)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\10671\Desktop\Study\TrellisForge\templates\embedded-c-overlay\.trellis\scripts\tests\test_step_detail_
+platform_hints.py", line 99, in test_claude_hint_passes_claude_platform
+    self._assert_hint(CLAUDE_HOOK, "claude", ("codex", "opencode"))
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\10671\Desktop\Study\TrellisForge\templates\embedded-c-overlay\.trellis\scripts\tests\test_step_detail_
+platform_hints.py", line 91, in _assert_hint
+    self.assertIn(
+    ~~~~~~~~~~~~~^
+        f"--mode phase --step <X.Y> --platform {platform}", text
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+AssertionError: '--mode phase --step <X.Y> --platform claude' not found in '#!/usr/bin/env python3\n# -*- coding: utf-8
+ -*-\n"""\nSession Start Hook - Inject structured context\n"""\nfrom __future__ import annotations\n\n# IMPORTANT: Supp
+ress all warnings FIRST\nimport warnings\nwarnings.filterwarnings("ignore")\n\nimport json\nimport os\nimport re\nimpor
+t shlex\nimport subprocess\nimport sys\nfrom io import StringIO\nfrom pathlib import Path\n\n\ndef _normalize_windows_s
+hell_path(path_str: str) -> str:\n    """Normalize Unix-style shell paths to real Windows paths.\n\n    On Windows, she
+lls like Git Bash / MSYS2 / Cygwin may report paths like\n    `/d/Users/...` or `/cygdrive/d/Users/...`. `Path.resolve(
+)` will misinterpret\n    these as `D:/d/Users...` on drive D: (or similar), breaking repo root\n    detection.\n\n    
+This function is intentionally conservative: it only rewrites patterns that\n    unambiguously represent a drive letter
+ mount.\n    """\n    if not isinstance(path_str, str) or not path_str:\n        return path_str\n\n    # Only relevant
+ on Windows; keep other platforms untouched.\n    if not sys.platform.startswith("win"):\n        return path_str\n\n  
+  p = path_str.strip()\n\n    # Already a Windows drive path (C:\\... or C:/...)\n    if re.match(r"^[A-Za-z]:[\\/]", p
+):\n        return p\n\n    # MSYS/Git-Bash style: /c/Users/... or /d/Work/...\n    m = re.match(r"^/([A-Za-z])/(.*)", 
+p)\n    if m:\n        drive, rest = m.group(1).upper(), m.group(2)\n        rest = rest.replace(\'/\', \'\\\\\')\n    
+    return f"{drive}:\\\\{rest}"\n\n    # Cygwin style: /cygdrive/c/Users/...\n    m = re.match(r"^/cygdrive/([A-Za-z])
+/(.*)", p)\n    if m:\n        drive, rest = m.group(1).upper(), m.group(2)\n        rest = rest.replace(\'/\', \'\\\\\
+')\n        return f"{drive}:\\\\{rest}"\n\n    # WSL mounted drive (sometimes leaked into env): /mnt/c/Users/...\n    
+m = re.match(r"^/mnt/([A-Za-z])/(.*)", p)\n    if m:\n        drive, rest = m.group(1).upper(), m.group(2)\n        res
+t = rest.replace(\'/\', \'\\\\\')\n        return f"{drive}:\\\\{rest}"\n\n    return path_str\n\n\nFIRST_REPLY_NOTICE 
+= """<first-reply-notice>\nOn the first visible assistant reply in this session, briefly acknowledge that Trellis Sessi
+onStart context loaded.\nChoose the acknowledgment language in this order:\n1. Use the language of the user\'s current 
+request (the user message that triggered this reply).\n2. If that request has no clear natural language, use an explici
+tly established project communication language.\n3. If neither provides a language, output the language-neutral fallbac
+k exactly: `Trellis SessionStart 鉁揱.\nContinue directly with the user\'s request after the acknowledgment.\nThe acknowl
+edgment must not alter the language used for the remainder of the response.\nThis notice is one-shot: do not repeat it 
+after the first visible assistant reply in this session.\n</first-reply-notice>"""\n\n# Force UTF-8 on stdin/stdout/std
+err on Windows. Default codepage there is\n# cp936 / cp1252 / etc. 鈥?non-ASCII content (Chinese task names, prd snippet
+s)\n# both in stdin (hook payload from host CLI) and stdout (our emitted blocks)\n# raises UnicodeDecodeError / Unicode
+EncodeError. Equivalent to `python -X utf8`\n# but applied per-stream so we don\'t depend on host CLI\'s command wiring
+.\nif sys.platform.startswith("win"):\n    import io as _io\n    for _stream_name in ("stdin", "stdout", "stderr"):\n  
+      _stream = getattr(sys, _stream_name, None)\n        if _stream is None:\n            continue\n        if hasattr
+(_stream, "reconfigure"):\n            try:\n                _stream.reconfigure(encoding="utf-8", errors="replace")  #
+ type: ignore[union-attr]\n            except Exception:\n                pass  # Optional Windows stream setup; keep h
+ook startup non-fatal.\n        elif hasattr(_stream, "detach"):\n            try:\n                setattr(sys, _strea
+m_name, _io.TextIOWrapper(_stream.detach(), encoding="utf-8", errors="replace"))\n            except Exception:\n      
+          pass  # Optional Windows stream setup; keep hook startup non-fatal.\n\n\n\ndef _has_curated_jsonl_entry(jsonl
+_path: Path) -> bool:\n    """Return True iff jsonl has at least one row with a ``file`` field.\n\n    A freshly seeded
+ jsonl only contains a ``{"_example": ...}`` row (no\n    ``file`` key) 鈥?that is NOT "ready". Readiness requires at le
+ast one\n    curated entry. Matches the contract used by hook-inject and pull-based\n    sub-agent context loaders.\n  
+  """\n    try:\n        for line in jsonl_path.read_text(encoding="utf-8").splitlines():\n            line = line.stri
+p()\n            if not line:\n                continue\n            try:\n                row = json.loads(line)\n    
+        except json.JSONDecodeError:\n                continue\n            if isinstance(row, dict) and row.get("file"
+):\n                return True\n    except (OSError, UnicodeDecodeError):\n        return False\n    return False\n\n\
+ndef should_skip_injection() -> bool:\n    """Check if any platform\'s non-interactive flag is set, or if Trellis\n    
+hooks are explicitly disabled via TRELLIS_HOOKS=0 / TRELLIS_DISABLE_HOOKS=1.\n    """\n    if os.environ.get("TRELLIS_H
+OOKS") == "0":\n        return True\n    if os.environ.get("TRELLIS_DISABLE_HOOKS") == "1":\n        return True\n    n
+on_interactive_vars = [\n        "CLAUDE_NON_INTERACTIVE",\n        "QODER_NON_INTERACTIVE",\n        "CODEBUDDY_NON_IN
+TERACTIVE",\n        "FACTORY_NON_INTERACTIVE",\n        "CURSOR_NON_INTERACTIVE",\n        "GEMINI_NON_INTERACTIVE",\n
+        "KIRO_NON_INTERACTIVE",\n        "COPILOT_NON_INTERACTIVE",\n        "TRAE_NON_INTERACTIVE",\n        "ZCODE_NO
+N_INTERACTIVE",\n    ]\n    return any(os.environ.get(var) == "1" for var in non_interactive_vars)\n\n\ndef read_file(p
+ath: Path, fallback: str = "") -> str:\n    try:\n        return path.read_text(encoding="utf-8")\n    except (FileNotF
+oundError, PermissionError):\n        return fallback\n\n\ndef _repo_relative(repo_root: Path, path: Path) -> str:\n   
+ try:\n        return path.relative_to(repo_root).as_posix()\n    except ValueError:\n        return str(path)\n\n\ndef
+ _run_git(repo_root: Path, args: list[str]) -> str:\n    try:\n        result = subprocess.run(\n            ["git", *a
+rgs],\n            capture_output=True,\n            text=True,\n            encoding="utf-8",\n            errors="rep
+lace",\n            timeout=3,\n            cwd=str(repo_root),\n        )\n    except (subprocess.TimeoutExpired, File
+NotFoundError, PermissionError):\n        return ""\n    if result.returncode != 0:\n        return ""\n    return resu
+lt.stdout.strip()\n\n\ndef _format_git_state(repo_root: Path) -> str:\n    branch = _run_git(repo_root, ["branch", "--s
+how-current"]) or "(detached)"\n    dirty_lines = [\n        line for line in _run_git(repo_root, ["status", "--porcela
+in"]).splitlines()\n        if line.strip()\n    ]\n    dirty_text = "clean" if not dirty_lines else f"dirty {len(dirty
+_lines)} paths"\n    return f"Git: branch {branch}; {dirty_text}."\n\n\ndef _detect_platform(input_data: dict) -> str |
+ None:\n    if isinstance(input_data.get("cursor_version"), str):\n        return "cursor"\n    env_map = {\n        # 
+ZCode may set both ZCODE_PROJECT_DIR and CLAUDE_PROJECT_DIR; check\n        # ZCODE first so ZCode sessions aren\'t mis
+detected as claude.\n        "ZCODE_PROJECT_DIR": "zcode",\n        "CLAUDE_PROJECT_DIR": "claude",\n        "CURSOR_PR
+OJECT_DIR": "cursor",\n        "CODEBUDDY_PROJECT_DIR": "codebuddy",\n        "FACTORY_PROJECT_DIR": "droid",\n        
+"GEMINI_PROJECT_DIR": "gemini",\n        "QODER_PROJECT_DIR": "qoder",\n        "KIRO_PROJECT_DIR": "kiro",\n        "C
+OPILOT_PROJECT_DIR": "copilot",\n        "TRAE_PROJECT_DIR": "trae",\n    }\n    for env_name, platform in env_map.item
+s():\n        if os.environ.get(env_name):\n            return platform\n    script_parts = set(Path(sys.argv[0]).parts
+)\n    if ".claude" in script_parts:\n        return "claude"\n    if ".cursor" in script_parts:\n        return "curso
+r"\n    if ".codex" in script_parts:\n        return "codex"\n    if ".gemini" in script_parts:\n        return "gemini
+"\n    if ".qoder" in script_parts:\n        return "qoder"\n    if ".codebuddy" in script_parts:\n        return "code
+buddy"\n    if ".factory" in script_parts:\n        return "droid"\n    if ".kiro" in script_parts:\n        return "ki
+ro"\n    if ".trae" in script_parts:\n        return "trae"\n    if ".zcode" in script_parts:\n        return "zcode"\n
+    return None\n\n\ndef _resolve_context_key(trellis_dir: Path, input_data: dict) -> str | None:\n    scripts_dir = tr
+ellis_dir / "scripts"\n    if str(scripts_dir) not in sys.path:\n        sys.path.insert(0, str(scripts_dir))\n    from
+ common.active_task import resolve_context_key  # type: ignore[import-not-found]\n\n    return resolve_context_key(inpu
+t_data, platform=_detect_platform(input_data))\n\n\ndef _persist_context_key_for_bash(context_key: str | None) -> None:
+\n    """Expose Trellis session identity to later Claude Code Bash commands.\n\n    Claude Code SessionStart hooks can 
+append exports to CLAUDE_ENV_FILE; those\n    variables are then available to Bash tools in the same conversation. With
+out\n    this bridge, `task.py start` has hook stdin during SessionStart but no\n    session identity when the AI later
+ runs it as a normal shell command.\n    """\n    if not context_key:\n        return\n    env_file = os.environ.get("C
+LAUDE_ENV_FILE")\n    if not env_file:\n        return\n    try:\n        with open(env_file, "a", encoding="utf-8") as
+ handle:\n            handle.write(f"export TRELLIS_CONTEXT_ID={shlex.quote(context_key)}\\n")\n    except OSError:\n  
+      pass  # Optional shell bridge; keep session-start non-fatal.\n\n\ndef _resolve_active_task(trellis_dir: Path, inp
+ut_data: dict):\n    scripts_dir = trellis_dir / "scripts"\n    if str(scripts_dir) not in sys.path:\n        sys.path.
+insert(0, str(scripts_dir))\n    from common.active_task import resolve_active_task  # type: ignore[import-not-found]\n
+\n    return resolve_active_task(\n        trellis_dir.parent,\n        input_data,\n        platform=_detect_platform(
+input_data),\n    )\n\n\ndef run_script(script_path: Path, context_key: str | None = None) -> str:\n    try:\n        i
+f script_path.suffix == ".py":\n            # Add PYTHONIOENCODING to force UTF-8 in subprocess\n            env = os.e
+nviron.copy()\n            env["PYTHONIOENCODING"] = "utf-8"\n            if context_key:\n                env["TRELLIS
+_CONTEXT_ID"] = context_key\n            cmd = [sys.executable, "-W", "ignore", str(script_path)]\n        else:\n     
+       env = os.environ.copy()\n            if context_key:\n                env["TRELLIS_CONTEXT_ID"] = context_key\n 
+           cmd = [str(script_path)]\n\n        result = subprocess.run(\n            cmd,\n            capture_output=T
+rue,\n            text=True,\n            encoding="utf-8",\n            errors="replace",\n            timeout=5,\n   
+         cwd=script_path.parent.parent.parent,\n            env=env,\n        )\n        return result.stdout if result
+.returncode == 0 else "No context available"\n    except (subprocess.TimeoutExpired, FileNotFoundError, PermissionError
+):\n        return "No context available"\n\n\ndef _normalize_task_ref(task_ref: str) -> str:\n    normalized = task_re
+f.strip()\n    if not normalized:\n        return ""\n\n    path_obj = Path(normalized)\n    if path_obj.is_absolute():
+\n        return str(path_obj)\n\n    normalized = normalized.replace("\\\\", "/")\n    while normalized.startswith("./
+"):\n        normalized = normalized[2:]\n\n    if normalized.startswith("tasks/"):\n        return f".trellis/{normali
+zed}"\n\n    return normalized\n\n\ndef _resolve_task_dir(trellis_dir: Path, task_ref: str) -> Path:\n    normalized = 
+_normalize_task_ref(task_ref)\n    path_obj = Path(normalized)\n    if path_obj.is_absolute():\n        return path_obj
+\n    if normalized.startswith(".trellis/"):\n        return trellis_dir.parent / path_obj\n    return trellis_dir / "t
+asks" / path_obj\n\n\ndef _get_task_status(trellis_dir: Path, input_data: dict) -> str:\n    """Return compact active-t
+ask status, artifact presence, and next action."""\n    active = _resolve_active_task(trellis_dir, input_data)\n\n    i
+f not active.task_path:\n        return (\n            "Status: NO ACTIVE TASK\\n"\n            "Next-Action: Default: 
+do the work. Code analysis, Q&A, and single-file local edits proceed directly with no Trellis prompt. "\n            "A
+sk about creating a Trellis task only when the user explicitly wants code written AND it is complex (multi-file, workfl
+ow/Hook/contract mechanism, design tradeoffs or multi-step, or template-affecting)."\n        )\n\n    task_ref = activ
+e.task_path\n    task_dir = _resolve_task_dir(trellis_dir, task_ref)\n    if active.stale or not task_dir.is_dir():\n  
+      return (\n            f"Status: STALE POINTER\\nTask: {task_ref}\\n"\n            f"Next-Action: Run `python ./.t
+rellis/scripts/task.py finish` to clear the stale pointer, "\n            "then ask the user what to work on next."\n  
+      )\n\n    task_json_path = task_dir / "task.json"\n    task_data = {}\n    if task_json_path.is_file():\n        t
+ry:\n            task_data = json.loads(task_json_path.read_text(encoding="utf-8"))\n        except (json.JSONDecodeErr
+or, PermissionError):\n            pass  # Optional task metadata; fall back to generic status.\n\n    task_title = tas
+k_data.get("title", task_ref)\n    task_status = task_data.get("status", "unknown")\n    artifact_names = ("prd.md", "d
+esign.md", "implement.md", "implement.jsonl", "check.jsonl")\n    present = [name for name in artifact_names if (task_d
+ir / name).is_file()]\n    if (task_dir / "research").is_dir():\n        present.append("research/")\n    present_line 
+= ", ".join(present) if present else "(none)"\n\n    if task_status == "completed":\n        return (\n            f"St
+atus: COMPLETED\\nTask: {task_title}\\n"\n            f"Present: {present_line}\\n"\n            "Next-Action: Run `/tr
+ellis:finish-work`. If the working tree is dirty, return to Phase 3.4 first."\n        )\n\n    has_prd = (task_dir / "
+prd.md").is_file()\n    has_design = (task_dir / "design.md").is_file()\n    has_implement_plan = (task_dir / "implemen
+t.md").is_file()\n    implement_jsonl = task_dir / "implement.jsonl"\n    check_jsonl = task_dir / "check.jsonl"\n    j
+sonl_ready = (\n        (not implement_jsonl.is_file() or _has_curated_jsonl_entry(implement_jsonl))\n        and (not 
+check_jsonl.is_file() or _has_curated_jsonl_entry(check_jsonl))\n    )\n\n    if task_status == "planning" and not has_
+prd:\n        return (\n            f"Status: PLANNING\\nTask: {task_title}\\n"\n            f"Present: {present_line}\
+\n"\n            "Next-Action: Load `trellis-brainstorm` and write `prd.md`. Stay in planning.\\n"\n            "Specs:
+ Read the relevant .trellis/spec indexes and guideline files "\n            "before the decision inventory, and persist
+ consulted specs in prd.md "\n            \'under "## Spec References".\'\n        )\n\n    if task_status == "planning
+":\n        missing_complex = [\n            name for name, exists in (\n                ("design.md", has_design),\n  
+              ("implement.md", has_implement_plan),\n            )\n            if not exists\n        ]\n        next_
+bits: list[str] = []\n        if missing_complex:\n            next_bits.append(\n                "Lightweight task can
+ request start review with PRD-only; "\n                f"complex task must add {\', \'.join(missing_complex)} before s
+tart"\n            )\n        else:\n            next_bits.append("Planning artifacts are present; ask for review befor
+e `task.py start`")\n        if not jsonl_ready:\n            next_bits.append("curate `implement.jsonl` and `check.jso
+nl` before sub-agent mode start")\n        return (\n            f"Status: PLANNING\\nTask: {task_title}\\n"\n         
+   f"Present: {present_line}\\n"\n            f"Next-Action: {\'; \'.join(next_bits)}. Do not enter implementation unti
+l the user confirms start.\\n"\n            "Specs: Read the relevant .trellis/spec indexes and guideline files "\n    
+        "before the decision inventory, and persist consulted specs in prd.md "\n            \'under "## Spec Reference
+s".\'\n        )\n\n    return (\n        f"Status: {str(task_status).upper()}\\nTask: {task_title}\\n"\n        f"Pres
+ent: {present_line}\\n"\n        "Next-Action: Follow the matching per-turn workflow-state. "\n        "Implementation/
+check context order is jsonl entries -> `prd.md` -> `design.md if present` -> `implement.md if present`."\n    )\n\n\nd
+ef _load_trellis_config(trellis_dir: Path, input_data: dict) -> tuple:\n    """Load Trellis config for session-start de
+cisions.\n\n    Returns:\n        (is_mono, packages_dict, spec_scope, task_pkg, default_pkg)\n    """\n    scripts_dir
+ = trellis_dir / "scripts"\n    if str(scripts_dir) not in sys.path:\n        sys.path.insert(0, str(scripts_dir))\n\n 
+   try:\n        from common.config import get_default_package, get_packages, get_spec_scope, is_monorepo  # type: igno
+re[import-not-found]\n        from common.paths import get_current_task  # type: ignore[import-not-found]\n\n        re
+po_root = trellis_dir.parent\n        is_mono = is_monorepo(repo_root)\n        packages = get_packages(repo_root) or {
+}\n        scope = get_spec_scope(repo_root)\n\n        # Get active task\'s package\n        task_pkg = None\n        
+current = get_current_task(\n            repo_root,\n            input_data,\n            platform=_detect_platform(inp
+ut_data),\n        )\n        if current:\n            task_json = repo_root / current / "task.json"\n            if ta
+sk_json.is_file():\n                try:\n                    data = json.loads(task_json.read_text(encoding="utf-8"))\
+n                    if isinstance(data, dict):\n                        tp = data.get("package")\n                    
+    if isinstance(tp, str) and tp:\n                            task_pkg = tp\n                except (json.JSONDecodeE
+rror, OSError):\n                    pass  # Optional package metadata; fall back to default scope.\n\n        default_
+pkg = get_default_package(repo_root)\n        return is_mono, packages, scope, task_pkg, default_pkg\n    except Except
+ion:\n        return False, {}, None, None, None\n\n\ndef _check_legacy_spec(trellis_dir: Path, is_mono: bool, packages
+: dict) -> str | None:\n    """Check for legacy spec directory structure in monorepo.\n\n    Returns warning message if
+ legacy structure detected, None otherwise.\n    """\n    if not is_mono or not packages:\n        return None\n\n    s
+pec_dir = trellis_dir / "spec"\n    if not spec_dir.is_dir():\n        return None\n\n    # Check for legacy flat spec 
+dirs (spec/backend/, spec/frontend/ with index.md)\n    has_legacy = False\n    for legacy_name in ("backend", "fronten
+d"):\n        legacy_dir = spec_dir / legacy_name\n        if legacy_dir.is_dir() and (legacy_dir / "index.md").is_file
+():\n            has_legacy = True\n            break\n\n    if not has_legacy:\n        return None\n\n    # Check whi
+ch packages are missing spec/<pkg>/ directory\n    missing = [\n        name for name in sorted(packages.keys())\n     
+   if not (spec_dir / name).is_dir()\n    ]\n\n    if not missing:\n        return None  # All packages have spec dirs\
+n\n    if len(missing) == len(packages):\n        return (\n            f"[!] Legacy spec structure detected: found `sp
+ec/backend/` or `spec/frontend/` "\n            f"but no package-scoped `spec/<package>/` directories.\\n"\n           
+ f"Monorepo packages: {\', \'.join(sorted(packages.keys()))}\\n"\n            f"Please reorganize: `spec/backend/` -> `
+spec/<package>/backend/`"\n        )\n    return (\n        f"[!] Partial spec migration detected: packages {\', \'.joi
+n(missing)} "\n        f"still missing `spec/<pkg>/` directory.\\n"\n        f"Please complete migration for all packag
+es."\n    )\n\n\ndef _resolve_spec_scope(\n    is_mono: bool,\n    packages: dict,\n    scope,\n    task_pkg: str | Non
+e,\n    default_pkg: str | None,\n) -> set | None:\n    """Resolve which packages should have their specs injected.\n\n
+    Returns:\n        Set of package names to include, or None for full scan.\n    """\n    if not is_mono or not packa
+ges:\n        return None  # Single-repo: full scan\n\n    if scope is None:\n        return None  # No scope configure
+d: full scan\n\n    if isinstance(scope, str) and scope == "active_task":\n        if task_pkg and task_pkg in packages
+:\n            return {task_pkg}\n        if default_pkg and default_pkg in packages:\n            return {default_pkg}
+\n        return None  # Fallback to full scan\n\n    if isinstance(scope, list):\n        valid = set()\n        for e
+ntry in scope:\n            if entry in packages:\n                valid.add(entry)\n            else:\n               
+ print(\n                    f"Warning: spec_scope contains unknown package: {entry}, ignoring",\n                    f
+ile=sys.stderr,\n                )\n\n        if valid:\n            # Warn if active task is out of scope\n           
+ if task_pkg and task_pkg not in valid:\n                print(\n                    f"Warning: active task package \'{
+task_pkg}\' is out of configured spec_scope",\n                    file=sys.stderr,\n                )\n            ret
+urn valid\n\n        # All entries invalid: fallback chain\n        print(\n            "Warning: all spec_scope entrie
+s invalid, falling back to task/default/full",\n            file=sys.stderr,\n        )\n        if task_pkg and task_p
+kg in packages:\n            return {task_pkg}\n        if default_pkg and default_pkg in packages:\n            return
+ {default_pkg}\n        return None  # Full scan\n\n    return None  # Unknown scope type: full scan\n\n\ndef _collect_
+spec_index_paths(trellis_dir: Path, allowed_pkgs: set | None) -> list[str]:\n    paths: list[str] = []\n    guides_inde
+x = trellis_dir / "spec" / "guides" / "index.md"\n    if guides_index.is_file():\n        paths.append(".trellis/spec/g
+uides/index.md")\n\n    spec_dir = trellis_dir / "spec"\n    if not spec_dir.is_dir():\n        return paths\n\n    for
+ sub in sorted(spec_dir.iterdir()):\n        if not sub.is_dir() or sub.name.startswith(".") or sub.name == "guides":\n
+            continue\n\n        index_file = sub / "index.md"\n        if index_file.is_file():\n            paths.appe
+nd(f".trellis/spec/{sub.name}/index.md")\n            continue\n\n        if allowed_pkgs is not None and sub.name not 
+in allowed_pkgs:\n            continue\n        for nested in sorted(sub.iterdir()):\n            if not nested.is_dir(
+):\n                continue\n            nested_index = nested / "index.md"\n            if nested_index.is_file():\n 
+               paths.append(f".trellis/spec/{sub.name}/{nested.name}/index.md")\n\n    return paths\n\n\ndef _build_com
+pact_current_state(\n    trellis_dir: Path,\n    input_data: dict,\n    spec_index_paths: list[str],\n) -> str:\n    re
+po_root = trellis_dir.parent\n    lines: list[str] = []\n\n    try:\n        from common.paths import get_active_journa
+l_file, get_developer, get_tasks_dir, count_lines  # type: ignore[import-not-found]\n        from common.tasks import i
+ter_active_tasks  # type: ignore[import-not-found]\n    except Exception:\n        get_active_journal_file = None  # ty
+pe: ignore[assignment]\n        get_developer = None  # type: ignore[assignment]\n        get_tasks_dir = None  # type:
+ ignore[assignment]\n        count_lines = None  # type: ignore[assignment]\n        iter_active_tasks = None  # type: 
+ignore[assignment]\n\n    developer = get_developer(repo_root) if get_developer else None\n    lines.append(f"Developer
+: {developer or \'(not initialized)\'}")\n    lines.append(_format_git_state(repo_root))\n\n    active = _resolve_activ
+e_task(trellis_dir, input_data)\n    if active.task_path:\n        task_dir = _resolve_task_dir(trellis_dir, active.tas
+k_path)\n        status = "unknown"\n        task_json = task_dir / "task.json"\n        if task_json.is_file():\n     
+       try:\n                data = json.loads(task_json.read_text(encoding="utf-8"))\n                if isinstance(da
+ta, dict):\n                    status = str(data.get("status") or "unknown")\n            except (json.JSONDecodeError
+, OSError):\n                pass  # Optional task metadata; fall back to generic status.\n        lines.append(f"Curre
+nt task: {_repo_relative(repo_root, task_dir)}; status={status}.")\n    else:\n        lines.append("Current task: none
+.")\n\n    if get_tasks_dir and iter_active_tasks:\n        try:\n            task_count = sum(1 for _ in iter_active_t
+asks(get_tasks_dir(repo_root)))\n            lines.append(\n                f"Active tasks: {task_count} total. Use `py
+thon ./.trellis/scripts/task.py list --mine` only if needed."\n            )\n        except Exception:\n            pa
+ss  # Optional task summary; keep compact state available.\n\n    if get_active_journal_file and count_lines:\n        
+journal = get_active_journal_file(repo_root)\n        if journal:\n            lines.append(\n                f"Journal
+: {_repo_relative(repo_root, journal)}, {count_lines(journal)} / 2000 lines."\n            )\n\n    if spec_index_paths
+:\n        lines.append(f"Spec indexes: {len(spec_index_paths)} available.")\n\n    return "\\n".join(lines)\n\n\ndef _
+extract_range(content: str, start_header: str, end_header: str) -> str:\n    """Extract lines starting at `## start_hea
+der` up to (but excluding) `## end_header`.\n\n    Both parameters are full header lines WITHOUT the `## ` prefix (e.g.
+ "Phase Index").\n    Returns empty string if start header is not found.\n    End header missing 鈫?extracts to end of f
+ile.\n    """\n    lines = content.splitlines()\n    start: int | None = None\n    end: int = len(lines)\n    start_mat
+ch = f"## {start_header}"\n    end_match = f"## {end_header}"\n    for i, line in enumerate(lines):\n        stripped =
+ line.strip()\n        if start is None and stripped == start_match:\n            start = i\n            continue\n    
+    if start is not None and stripped == end_match:\n            end = i\n            break\n    if start is None:\n   
+     return ""\n    return "\\n".join(lines[start:end]).rstrip()\n\n\n_BREADCRUMB_TAG_RE = re.compile(\n    r"\\[workfl
+ow-state:([A-Za-z0-9_-]+)\\]\\s*\\n.*?\\n\\s*\\[/workflow-state:\\1\\]",\n    re.DOTALL,\n)\n\n\ndef _strip_breadcrumb_
+tag_blocks(content: str) -> str:\n    """Remove `[workflow-state:STATUS]...[/workflow-state:STATUS]` blocks.\n\n    The
+ tag blocks live inside `## Phase Index` (since v0.5.0-rc.0, when\n    they were colocated with their phase summaries) 
+and are consumed by the\n    UserPromptSubmit hook (`inject-workflow-state.py`). The session-start\n    payload already
+ covers the full step bodies, so re-inlining the\n    breadcrumbs here would just duplicate context.\n    """\n    stri
+pped = _BREADCRUMB_TAG_RE.sub("", content)\n    stripped = re.sub(r"<!--.*?-->", "", stripped, flags=re.DOTALL)\n    st
+ripped = re.sub(r"^\\[(?!/?workflow-state:)/?[^\\]\\n]+\\]\\s*\\n?", "", stripped, flags=re.MULTILINE)\n    return re.s
+ub(r"\\n{3,}", "\\n\\n", stripped).strip()\n\n\ndef _build_workflow_overview(workflow_path: Path) -> str:\n    """Injec
+t only the compact Phase Index summary for SessionStart."""\n    content = read_file(workflow_path)\n    if not content
+:\n        return "No workflow.md found"\n\n    out_lines = [\n        "# Development Workflow - Session Summary",\n   
+     "Full guide: .trellis/workflow.md. Step detail: `python ./.trellis/scripts/get_context.py --mode phase --step <X.Y
+>`.",\n        "",\n    ]\n\n    phases = _extract_range(content, "Phase Index", "Phase 1: Plan")\n    if phases:\n    
+    out_lines.append(_strip_breadcrumb_tag_blocks(phases).rstrip())\n\n    return "\\n".join(out_lines).rstrip()\n\n\nd
+ef main():\n    if should_skip_injection():\n        sys.exit(0)\n\n    try:\n        hook_input = json.loads(sys.stdin
+.read())\n        if not isinstance(hook_input, dict):\n            hook_input = {}\n    except (json.JSONDecodeError, 
+ValueError):\n        hook_input = {}\n\n    # Try platform-specific env vars, hook cwd, fallback to cwd\n    project_d
+ir_env_vars = [\n        "CLAUDE_PROJECT_DIR",\n        "QODER_PROJECT_DIR",\n        "CODEBUDDY_PROJECT_DIR",\n       
+ "FACTORY_PROJECT_DIR",\n        "CURSOR_PROJECT_DIR",\n        "GEMINI_PROJECT_DIR",\n        "KIRO_PROJECT_DIR",\n   
+     "COPILOT_PROJECT_DIR",\n        "TRAE_PROJECT_DIR",\n        "ZCODE_PROJECT_DIR",\n    ]\n    project_dir = None\n
+    for var in project_dir_env_vars:\n        val = os.environ.get(var)\n        if val:\n            project_dir = Pat
+h(_normalize_windows_shell_path(val)).resolve()\n            break\n    if project_dir is None:\n        project_dir = 
+Path(_normalize_windows_shell_path(hook_input.get("cwd", "."))).resolve()\n\n    trellis_dir = project_dir / ".trellis"
+\n    context_key = _resolve_context_key(trellis_dir, hook_input)\n    _persist_context_key_for_bash(context_key)\n\n  
+  # Load config for scope filtering and legacy detection\n    is_mono, packages, scope_config, task_pkg, default_pkg = 
+_load_trellis_config(\n        trellis_dir,\n        hook_input,\n    )\n    allowed_pkgs = _resolve_spec_scope(is_mono
+, packages, scope_config, task_pkg, default_pkg)\n\n    output = StringIO()\n\n    spec_index_paths = _collect_spec_ind
+ex_paths(trellis_dir, allowed_pkgs)\n\n    output.write("""<session-context>\nTrellis compact SessionStart context. Use
+ it to orient the session; load details on demand.\n</session-context>\n\n""")\n    output.write(FIRST_REPLY_NOTICE)\n 
+   output.write("\\n\\n")\n\n    # Legacy migration warning\n    legacy_warning = _check_legacy_spec(trellis_dir, is_mo
+no, packages)\n    if legacy_warning:\n        output.write(f"<migration-warning>\\n{legacy_warning}\\n</migration-warn
+ing>\\n\\n")\n\n    output.write("<current-state>\\n")\n    output.write(_build_compact_current_state(trellis_dir, hook
+_input, spec_index_paths))\n    output.write("\\n</current-state>\\n\\n")\n\n    output.write("<trellis-workflow>\\n")\
+n    output.write(_build_workflow_overview(trellis_dir / "workflow.md"))\n    output.write("\\n</trellis-workflow>\\n\\
+n")\n\n    output.write("<guidelines>\\n")\n    output.write(\n        "Task context order for implementation/check: js
+onl entries -> `prd.md` -> "\n        "`design.md if present` -> `implement.md if present`. Missing optional artifacts 
+"\n        "are skipped for lightweight tasks.\\n\\n"\n    )\n\n    if spec_index_paths:\n        output.write("## Avai
+lable indexes (read on demand)\\n")\n        for p in spec_index_paths:\n            output.write(f"- {p}\\n")\n       
+ output.write("\\n")\n\n    output.write(\n        "Discover more via: "\n        "`python ./.trellis/scripts/get_conte
+xt.py --mode packages`\\n"\n    )\n    output.write("</guidelines>\\n\\n")\n\n    # Check task status and inject struct
+ured tag\n    task_status = _get_task_status(trellis_dir, hook_input)\n    output.write(f"<task-status>\\n{task_status}
+\\n</task-status>\\n\\n")\n\n    output.write("""<ready>\nContext loaded. Follow <task-status>. Load workflow/spec/task
+ details only when needed.\n</ready>""")\n\n    context_text = output.getvalue()\n\n    # Kiro (CLI trellis agent agent
+Spawn) adds a hook\'s stdout directly to the\n    # conversation context 鈥?no JSON envelope. Emit the bare overview tex
+t.\n    # Conditionally isolated: all other platforms keep the JSON path below.\n    if _detect_platform(hook_input) ==
+ "kiro":\n        print(context_text, flush=True)\n        return\n\n    platform = _detect_platform(hook_input)\n    r
+esult: dict[str, object] = {\n        # Claude Code / Qoder / CodeBuddy / Droid / Gemini / Copilot / Trae /\n        # 
+ZCode format.\n        "hookSpecificOutput": {\n            "hookEventName": "SessionStart",\n            "additionalCo
+ntext": context_text,\n        },\n    }\n    # Cursor sessionStart format (top-level snake_case per Cursor docs).\n   
+ # ZCode reads BOTH `hookSpecificOutput.additionalContext` and top-level\n    # `additional_context` without deduplicat
+ion, so emitting both keys would\n    # duplicate the context in the conversation. Keep the previous shared output\n   
+ # shape for every other platform.\n    if platform != "zcode":\n        result["additional_context"] = context_text\n\
+n    # Output JSON - stdout is already configured for UTF-8\n    print(json.dumps(result, ensure_ascii=False), flush=Tr
+ue)\n\n\nif __name__ == "__main__":\n    main()\n'
+
+======================================================================
+FAIL: test_opencode_hint_passes_opencode_platform (test_step_detail_platform_hints.TestStepDetailPlatformHints.test_ope
+ncode_hint_passes_opencode_platform)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\10671\Desktop\Study\TrellisForge\templates\embedded-c-overlay\.trellis\scripts\tests\test_step_detail_
+platform_hints.py", line 105, in test_opencode_hint_passes_opencode_platform
+    self._assert_hint(
+    ~~~~~~~~~~~~~~~~~^
+        OPENCODE_SESSION_UTILS, "opencode", ("claude", "codex")
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\10671\Desktop\Study\TrellisForge\templates\embedded-c-overlay\.trellis\scripts\tests\test_step_detail_
+platform_hints.py", line 91, in _assert_hint
+    self.assertIn(
+    ~~~~~~~~~~~~~^
+        f"--mode phase --step <X.Y> --platform {platform}", text
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+AssertionError: '--mode phase --step <X.Y> --platform opencode' not found in '/* global process */\n/**\n * Trellis Ses
+sion Utilities (OpenCode adapter)\n *\n * Pure, testable helpers used by the OpenCode plugins:\n *   - compact SessionS
+tart context construction (mirrors the template\n *     `.claude/hooks/session-start.py` payload shape and wording);\n 
+*   - per-turn `<workflow-state>` breadcrumb parsing/building (mirrors the\n *     template `.claude/hooks/inject-workf
+low-state.py`: workflow.md\n *     `[workflow-state:STATUS]` tag blocks are the single source of truth,\n *     no hard
+coded routing table, explicit degradation when tags are absent);\n *   - Shell `TRELLIS_CONTEXT_ID` environment bridge 
+helpers (PowerShell and\n *     POSIX/Git-Bash forms, no double-injection);\n *   - execution-plan display bridge that 
+delegates to the template Python\n *     `common/execution_plan.py` so both platforms render identical text;\n *   - Se
+ssionStart history-detection helpers for injection dedup.\n *\n * All executable gates (task.py / plan.py) remain autho
+ritative; this lib\n * only carries context into the OpenCode conversation.\n */\n\nimport { existsSync, readFileSync, 
+readdirSync, statSync } from "fs"\nimport { join, isAbsolute, resolve as resolvePath } from "path"\nimport { platform }
+ from "os"\nimport { execFileSync } from "child_process"\nimport process from "process"\nimport { PYTHON_CMD, debugLog,
+ stringValue } from "./trellis-context.js"\n\nexport { PYTHON_CMD }\n\nexport const FIRST_REPLY_NOTICE = `<first-reply-
+notice>\nOn the first visible assistant reply in this session, briefly acknowledge that Trellis SessionStart context lo
+aded.\nChoose the acknowledgment language in this order:\n1. Use the language of the user\'s current request (the user 
+message that triggered this reply).\n2. If that request has no clear natural language, use an explicitly established pr
+oject communication language.\n3. If neither provides a language, output the language-neutral fallback exactly: \\`Trel
+lis SessionStart 鉁揬\`.\nContinue directly with the user\'s request after the acknowledgment.\nThe acknowledgment must n
+ot alter the language used for the remainder of the response.\nThis notice is one-shot: do not repeat it after the firs
+t visible assistant reply in this session.\n</first-reply-notice>`\n\n// ----------------------------------------------
+-----------------------------\n// workflow.md breadcrumb tag blocks (single source of truth)\n// ----------------------
+-----------------------------------------------------\n\n// Supports STATUS values with letters, digits, underscores, h
+yphens\n// (so "in-review" / "blocked-by-team" work alongside "in_progress").\nconst TAG_RE = /\\[workflow-state:([A-Za
+-z0-9_-]+)\\]\\s*\\n([\\s\\S]*?)\\n\\s*\\[\\/workflow-state:\\1\\]/g\n\n/**\n * Parse workflow.md for [workflow-state:S
+TATUS] blocks. Returns {status: body}.\n * Missing workflow.md or unreadable file returns {} so the breadcrumb\n * degr
+ades visibly ("Refer to workflow.md for current step.") instead of the\n * plugin silently masking a broken workflow.\n
+ */\nexport function loadBreadcrumbs(directory) {\n  const workflowPath = join(directory, ".trellis", "workflow.md")\n 
+ if (!existsSync(workflowPath)) return {}\n  let content\n  try {\n    content = readFileSync(workflowPath, "utf-8")\n 
+ } catch {\n    return {}\n  }\n  const result = {}\n  for (const match of content.matchAll(TAG_RE)) {\n    const statu
+s = match[1]\n    const body = match[2].trim()\n    if (body) result[status] = body\n  }\n  return result\n}\n\n/**\n *
+ Build the <workflow-state>...</workflow-state> block.\n * - Known status (tag present in workflow.md) -> detailed body
+\n * - Unknown status (no tag, or workflow.md missing) -> explicit degradation line\n * - no_task pseudo-status (taskId
+ === null) -> header omits task info\n * - optional `note` -> appended after the body (e.g. session-ambiguity warning)\
+n */\nexport function buildBreadcrumb(taskId, status, templates, note = null) {\n  let body = templates[status]\n  if (
+body === undefined) {\n    body = "Refer to workflow.md for current step."\n  }\n  const header = taskId === null ? `St
+atus: ${status}` : `Task: ${taskId} (${status})`\n  let block = `<workflow-state>\\n${header}\\n${body}\\n</workflow-st
+ate>`\n  if (note) {\n    block += `\\n\\n<workflow-ambiguity>\\n${note}\\n</workflow-ambiguity>`\n  }\n  return block\
+n}\n\nexport const DEFAULT_PROMPT_INJECTION_SKIP_KEYWORD = "no-trellis"\n\nfunction stripInlineComment(value) {\n  let 
+inQuote = null\n  for (let idx = 0; idx < value.length; idx++) {\n    const ch = value[idx]\n    if (inQuote) {\n      
+if (ch === inQuote) inQuote = null\n      continue\n    }\n    if (ch === \'"\' || ch === "\'") {\n      inQuote = ch\n
+      continue\n    }\n    if (ch === "#" && (idx === 0 || /\\s/.test(value[idx - 1]))) return value.slice(0, idx)\n  }
+\n  return value\n}\n\nfunction unquoteYaml(s) {\n  if (s.length >= 2 && s[0] === s[s.length - 1] && (s[0] === \'"\' ||
+ s[0] === "\'")) return s.slice(1, -1)\n  return s\n}\n\n/**\n * Line-based parser for ONLY the `prompt_injection:` blo
+ck of\n * `.trellis/config.yaml`. Mirrors the shared Python hook\'s\n * `_resolve_skip_keyword()` semantics (missing ke
+y keeps default; the\n * default is "no-trellis"; "" disables the escape hatch).\n */\nexport function readSkipKeyword(
+directory) {\n  const path = join(directory, ".trellis", "config.yaml")\n  if (!existsSync(path)) return DEFAULT_PROMPT
+_INJECTION_SKIP_KEYWORD\n  let text\n  try {\n    text = readFileSync(path, "utf-8")\n  } catch {\n    return DEFAULT_P
+ROMPT_INJECTION_SKIP_KEYWORD\n  }\n\n  let inSection = false\n  let sectionIndent = -1\n  for (const rawLine of text.sp
+lit(/\\r?\\n/)) {\n    const trimmed = rawLine.trim()\n    if (!inSection) {\n      if (/^prompt_injection\\s*:\\s*(#.*
+)?$/.test(trimmed)) {\n        inSection = true\n        sectionIndent = rawLine.length - rawLine.trimStart().length\n 
+     }\n      continue\n    }\n    if (!trimmed || trimmed.startsWith("#")) continue\n    const indent = rawLine.length
+ - rawLine.trimStart().length\n    if (indent <= sectionIndent) break\n    const m = trimmed.match(/^skip_keyword\\s*:\
+\s*(.*)$/)\n    if (!m) continue\n    return unquoteYaml(stripInlineComment(m[1]).trim())\n  }\n  return DEFAULT_PROMPT
+_INJECTION_SKIP_KEYWORD\n}\n\n/**\n * Case-insensitive, word-boundary match of `keyword` in `text`. Hyphen\n * counts a
+s a word char so "no-trellisx" / "xno-trellis" don\'t match, but\n * punctuation/whitespace boundaries do. Empty keywor
+d never matches.\n */\nexport function promptHasSkipKeyword(text, keyword) {\n  if (!keyword || typeof text !== "string
+") return false\n  const escaped = keyword.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\\\$&")\n  const pattern = new RegExp(`(
+?<![\\\\w-])${escaped}(?![\\\\w-])`, "i")\n  return pattern.test(text)\n}\n\n// ---------------------------------------
+------------------------------------\n// Task status (SessionStart / <task-status>)\n// -------------------------------
+--------------------------------------------\n\nexport function hasCuratedJsonlEntry(jsonlPath) {\n  try {\n    const c
+ontent = readFileSync(jsonlPath, "utf-8")\n    for (const rawLine of content.split(/\\r?\\n/)) {\n      const line = ra
+wLine.trim()\n      if (!line) continue\n      try {\n        const row = JSON.parse(line)\n        if (row && typeof r
+ow === "object" && typeof row.file === "string" && row.file) {\n          return true\n        }\n      } catch {\n    
+    // Ignore malformed line\n      }\n    }\n  } catch {\n    return false\n  }\n  return false\n}\n\n/**\n * Compact 
+active-task status for the main session. Uses the fail-closed\n * main resolution: never borrows another window\'s task
+. An ambiguous\n * runtime state is reported explicitly instead of guessed.\n */\nexport function getTaskStatus(ctx, pl
+atformInput = null) {\n  const active = ctx.resolveMainTask(platformInput)\n  const taskRef = active.taskPath\n  if (!t
+askRef) {\n    const base =\n      "Status: NO ACTIVE TASK\\n" +\n      "Next-Action: Default: do the work. Code analys
+is, Q&A, and single-file local edits proceed directly with no Trellis prompt. " +\n      "Ask about creating a Trellis 
+task only when the user explicitly wants code written AND it is complex (multi-file, workflow/Hook/contract mechanism, 
+design tradeoffs or multi-step, or template-affecting)."\n    if (active.source === "ambiguous") {\n      return (\n   
+     base +\n        "\\nSession state: AMBIGUOUS 鈥?session runtime pointers exist but none is bound to this OpenCode s
+ession. " +\n        "Do not borrow another window\'s task; tell the user and resolve the session identity or start the
+ task in its own window."\n      )\n    }\n    return base\n  }\n\n  const taskDir = ctx.resolveTaskDir(taskRef)\n\n  i
+f (active.stale || !taskDir || !existsSync(taskDir)) {\n    return (\n      `Status: STALE POINTER\\nTask: ${taskRef}\\
+n` +\n      "Next-Action: Run `python ./.trellis/scripts/task.py finish` to clear the stale pointer, " +\n      "then a
+sk the user what to work on next."\n    )\n  }\n\n  let taskData = {}\n  const taskJsonPath = join(taskDir, "task.json"
+)\n  if (existsSync(taskJsonPath)) {\n    try {\n      taskData = JSON.parse(readFileSync(taskJsonPath, "utf-8"))\n    
+} catch {\n      // Ignore parse errors\n    }\n  }\n\n  const taskTitle = taskData.title || taskRef\n  const taskStatu
+s = taskData.status || "unknown"\n\n  if (taskStatus === "completed") {\n    return `Status: COMPLETED\\nTask: ${taskTi
+tle}\\nNext-Action: Run /trellis:finish-work. If the working tree is dirty, return to Phase 3.4 first.`\n  }\n\n  const
+ hasPrd = existsSync(join(taskDir, "prd.md"))\n  const hasDesign = existsSync(join(taskDir, "design.md"))\n  const hasI
+mplementPlan = existsSync(join(taskDir, "implement.md"))\n  const artifactNames = ["prd.md", "design.md", "implement.md
+", "implement.jsonl", "check.jsonl"]\n  const present = artifactNames.filter(name => existsSync(join(taskDir, name)))\n
+  if (existsSync(join(taskDir, "research"))) present.push("research/")\n  const presentLine = present.length > 0 ? pres
+ent.join(", ") : "(none)"\n  const implementJsonl = join(taskDir, "implement.jsonl")\n  const checkJsonl = join(taskDir
+, "check.jsonl")\n  const jsonlReady =\n    (!existsSync(implementJsonl) || hasCuratedJsonlEntry(implementJsonl)) &&\n 
+   (!existsSync(checkJsonl) || hasCuratedJsonlEntry(checkJsonl))\n\n  if (taskStatus === "planning" && !hasPrd) {\n    
+return `Status: PLANNING\\nTask: ${taskTitle}\\nPresent: ${presentLine}\\nNext-Action: Load \\`trellis-brainstorm\\` an
+d write \\`prd.md\\`. Stay in planning.\\nSpecs: Read the relevant .trellis/spec indexes and guideline files before the
+ decision inventory, and persist consulted specs in prd.md under "## Spec References".`\n  }\n\n  if (taskStatus === "p
+lanning") {\n    const missingComplex = []\n    if (!hasDesign) missingComplex.push("design.md")\n    if (!hasImplement
+Plan) missingComplex.push("implement.md")\n    const nextBits = []\n    if (missingComplex.length > 0) {\n      nextBit
+s.push(\n        `Lightweight task can request start review with PRD-only; complex task must add ${missingComplex.join(
+", ")} before start`,\n      )\n    } else {\n      nextBits.push("Planning artifacts are present; ask for review befor
+e `task.py start`")\n    }\n    if (!jsonlReady) {\n      nextBits.push("curate `implement.jsonl` and `check.jsonl` bef
+ore sub-agent mode start")\n    }\n    return `Status: PLANNING\\nTask: ${taskTitle}\\nPresent: ${presentLine}\\nNext-A
+ction: ${nextBits.join("; ")}. Do not enter implementation until the user confirms start.\\nSpecs: Read the relevant .t
+rellis/spec indexes and guideline files before the decision inventory, and persist consulted specs in prd.md under "## 
+Spec References".`\n  }\n\n  return (\n    `Status: ${String(taskStatus).toUpperCase()}\\nTask: ${taskTitle}\\n` +\n   
+ `Present: ${presentLine}\\n` +\n    "Next-Action: Follow the matching per-turn workflow-state. " +\n    "Implementatio
+n/check context order is jsonl entries -> `prd.md` -> `design.md if present` -> `implement.md if present`."\n  )\n}\n\n
+// ---------------------------------------------------------------------------\n// Config / spec index discovery (mirro
+rs template session-start.py)\n// ---------------------------------------------------------------------------\n\nexport
+ function loadTrellisConfig(directory, contextKey = null) {\n  const scriptPath = join(directory, ".trellis", "scripts"
+, "get_context.py")\n  if (!existsSync(scriptPath)) {\n    return { isMonorepo: false, packages: {}, specScope: null, a
+ctiveTaskPackage: null, defaultPackage: null }\n  }\n  try {\n    const output = execFileSync(PYTHON_CMD, [scriptPath, 
+"--mode", "packages", "--json"], {\n      cwd: directory,\n      timeout: 5000,\n      encoding: "utf-8",\n      stdio:
+ ["pipe", "pipe", "pipe"],\n      env: {\n        ...process.env,\n        ...(contextKey ? { TRELLIS_CONTEXT_ID: conte
+xtKey } : {}),\n      },\n    })\n    const data = JSON.parse(output)\n    if (data.mode !== "monorepo") {\n      retur
+n { isMonorepo: false, packages: {}, specScope: null, activeTaskPackage: null, defaultPackage: null }\n    }\n    const
+ pkgDict = {}\n    for (const pkg of (data.packages || [])) {\n      pkgDict[pkg.name] = pkg\n    }\n    return {\n    
+  isMonorepo: true,\n      packages: pkgDict,\n      specScope: data.specScope || null,\n      activeTaskPackage: data.
+activeTaskPackage || null,\n      defaultPackage: data.defaultPackage || null,\n    }\n  } catch (e) {\n    debugLog("s
+ession", "loadTrellisConfig error:", e instanceof Error ? e.message : String(e))\n    return { isMonorepo: false, packa
+ges: {}, specScope: null, activeTaskPackage: null, defaultPackage: null }\n  }\n}\n\nexport function checkLegacySpec(di
+rectory, config) {\n  if (!config.isMonorepo || Object.keys(config.packages).length === 0) {\n    return null\n  }\n\n 
+ const specDir = join(directory, ".trellis", "spec")\n  if (!existsSync(specDir)) return null\n\n  let hasLegacy = fals
+e\n  for (const name of ["backend", "frontend"]) {\n    if (existsSync(join(specDir, name, "index.md"))) {\n      hasLe
+gacy = true\n      break\n    }\n  }\n  if (!hasLegacy) return null\n\n  const pkgNames = Object.keys(config.packages).
+sort()\n  const missing = pkgNames.filter(name => !existsSync(join(specDir, name)))\n\n  if (missing.length === 0) retu
+rn null\n\n  if (missing.length === pkgNames.length) {\n    return (\n      `[!] Legacy spec structure detected: found 
+\\`spec/backend/\\` or \\`spec/frontend/\\` ` +\n      `but no package-scoped \\`spec/<package>/\\` directories.\\n` +\
+n      `Monorepo packages: ${pkgNames.join(", ")}\\n` +\n      `Please reorganize: \\`spec/backend/\\` -> \\`spec/<pack
+age>/backend/\\``\n    )\n  }\n  return (\n    `[!] Partial spec migration detected: packages ${missing.join(", ")} ` +
+\n    `still missing \\`spec/<pkg>/\\` directory.\\n` +\n    `Please complete migration for all packages.`\n  )\n}\n\ne
+xport function resolveSpecScope(config) {\n  if (!config.isMonorepo || Object.keys(config.packages).length === 0) {\n  
+  return null\n  }\n\n  const { specScope, activeTaskPackage, defaultPackage, packages } = config\n  if (specScope == n
+ull) return null\n\n  if (specScope === "active_task") {\n    if (activeTaskPackage && activeTaskPackage in packages) r
+eturn new Set([activeTaskPackage])\n    if (defaultPackage && defaultPackage in packages) return new Set([defaultPackag
+e])\n    return null\n  }\n\n  if (Array.isArray(specScope)) {\n    const valid = new Set()\n    for (const entry of sp
+ecScope) {\n      if (entry in packages) {\n        valid.add(entry)\n      }\n    }\n    if (valid.size > 0) return va
+lid\n    if (activeTaskPackage && activeTaskPackage in packages) return new Set([activeTaskPackage])\n    if (defaultPa
+ckage && defaultPackage in packages) return new Set([defaultPackage])\n    return null\n  }\n\n  return null\n}\n\nexpo
+rt function collectSpecIndexPaths(directory, allowedPkgs) {\n  const specDir = join(directory, ".trellis", "spec")\n  c
+onst paths = []\n\n  const guidesIndex = join(specDir, "guides", "index.md")\n  if (existsSync(guidesIndex)) {\n    pat
+hs.push(".trellis/spec/guides/index.md")\n  }\n\n  if (!existsSync(specDir)) return paths\n\n  try {\n    const subs = 
+readdirSync(specDir).filter(name => {\n      if (name.startsWith(".") || name === "guides") return false\n      try {\n
+        return statSync(join(specDir, name)).isDirectory()\n      } catch {\n        return false\n      }\n    }).sort
+()\n\n    for (const sub of subs) {\n      const indexFile = join(specDir, sub, "index.md")\n      if (existsSync(index
+File)) {\n        paths.push(`.trellis/spec/${sub}/index.md`)\n      } else {\n        if (allowedPkgs !== null && !all
+owedPkgs.has(sub)) continue\n        try {\n          const nested = readdirSync(join(specDir, sub)).filter(name => {\n
+            try {\n              return statSync(join(specDir, sub, name)).isDirectory()\n            } catch {\n      
+        return false\n            }\n          }).sort()\n          for (const layer of nested) {\n            const ne
+stedIndex = join(specDir, sub, layer, "index.md")\n            if (existsSync(nestedIndex)) {\n              paths.push
+(`.trellis/spec/${sub}/${layer}/index.md`)\n            }\n          }\n        } catch {\n          // Ignore director
+y read errors\n        }\n      }\n    }\n  } catch {\n    // Ignore spec directory read errors\n  }\n\n  return paths\
+n}\n\nexport function readDeveloper(directory) {\n  try {\n    const content = readFileSync(join(directory, ".trellis",
+ ".developer"), "utf-8")\n    for (const line of content.split(/\\r?\\n/)) {\n      if (line.startsWith("name=")) retur
+n line.slice("name=".length).trim()\n    }\n  } catch {\n    // Ignore missing developer file\n  }\n  return "(not init
+ialized)"\n}\n\nexport function runGit(directory, args) {\n  try {\n    return execFileSync("git", args, {\n      cwd: 
+directory,\n      timeout: 3000,\n      encoding: "utf-8",\n      stdio: ["pipe", "pipe", "pipe"],\n    }).trim()\n  } 
+catch {\n    return ""\n  }\n}\n\nexport function buildCompactCurrentState(ctx, platformInput, specIndexPaths) {\n  con
+st directory = ctx.directory\n  const lines = []\n  lines.push(`Developer: ${readDeveloper(directory)}`)\n\n  const bra
+nch = runGit(directory, ["branch", "--show-current"]) || "(detached)"\n  const dirtyCount = runGit(directory, ["status"
+, "--porcelain"])\n    .split(/\\r?\\n/)\n    .filter(line => line.trim()).length\n  lines.push(`Git: branch ${branch};
+ ${dirtyCount === 0 ? "clean" : `dirty ${dirtyCount} paths`}.`)\n\n  const active = ctx.resolveMainTask(platformInput)\
+n  if (active.taskPath) {\n    const taskDir = ctx.resolveTaskDir(active.taskPath)\n    let status = "unknown"\n    if 
+(taskDir) {\n      try {\n        const data = JSON.parse(readFileSync(join(taskDir, "task.json"), "utf-8"))\n        s
+tatus = data.status || "unknown"\n      } catch {\n        // Ignore parse errors\n      }\n    }\n    lines.push(`Curr
+ent task: ${active.taskPath}; status=${status}.`)\n  } else {\n    lines.push("Current task: none.")\n  }\n\n  const ta
+sksDir = join(directory, ".trellis", "tasks")\n  if (existsSync(tasksDir)) {\n    try {\n      const activeTasks = read
+dirSync(tasksDir, { withFileTypes: true })\n        .filter(entry => entry.isDirectory() && entry.name !== "archive" &&
+ existsSync(join(tasksDir, entry.name, "task.json")))\n      lines.push(`Active tasks: ${activeTasks.length} total. Use
+ \\`python ./.trellis/scripts/task.py list --mine\\` only if needed.`)\n    } catch {\n      // Ignore task list errors
+\n    }\n  }\n\n  const developer = readDeveloper(directory)\n  const workspaceDir = join(directory, ".trellis", "works
+pace", developer)\n  if (developer !== "(not initialized)" && existsSync(workspaceDir)) {\n    try {\n      const journ
+als = readdirSync(workspaceDir)\n        .filter(name => /^journal-\\d+\\.md$/.test(name))\n        .sort((a, b) => Num
+ber(a.match(/\\d+/)?.[0] || 0) - Number(b.match(/\\d+/)?.[0] || 0))\n      const journal = journals[journals.length - 1
+]\n      if (journal) {\n        const journalPath = join(workspaceDir, journal)\n        const lineCount = readFileSyn
+c(journalPath, "utf-8").split(/\\r?\\n/).length\n        lines.push(`Journal: .trellis/workspace/${developer}/${journal
+}, ${lineCount} / 2000 lines.`)\n      }\n    } catch {\n      // Ignore journal errors\n    }\n  }\n\n  if (specIndexP
+aths.length > 0) {\n    lines.push(`Spec indexes: ${specIndexPaths.length} available.`)\n  }\n\n  return lines.join("\\
+n")\n}\n\n// ---------------------------------------------------------------------------\n// Execution-plan display bri
+dge (delegates to the template Python helper so\n// every platform renders identical plan state; never mutates anything
+)\n// ---------------------------------------------------------------------------\n\nconst PLAN_BREADCRUMB_PY =\n  "imp
+ort sys\\n" +\n  "from pathlib import Path\\n" +\n  "sys.path.insert(0, str(Path(\'.trellis\') / \'scripts\'))\\n" +\n 
+ "from common.execution_plan import plan_breadcrumb\\n" +\n  "text = plan_breadcrumb(Path.cwd(), Path(sys.argv[1]))\\n"
+ +\n  "if text:\\n" +\n  "    sys.stdout.write(text + \'\\\\n\')\\n"\n\nconst PLAN_PROTOCOL_PY =\n  "import sys\\n" +\n
+  "from pathlib import Path\\n" +\n  "sys.path.insert(0, str(Path(\'.trellis\') / \'scripts\'))\\n" +\n  "from common.e
+xecution_plan import plan_protocol_block\\n" +\n  "sys.stdout.write(plan_protocol_block(Path.cwd(), Path(sys.argv[1])) 
++ \'\\\\n\')\\n"\n\nfunction runPythonFragment(directory, code, taskDirAbs, contextKey) {\n  try {\n    const output = 
+execFileSync(PYTHON_CMD, ["-W", "ignore", "-c", code, taskDirAbs], {\n      cwd: directory,\n      timeout: 8000,\n    
+  encoding: "utf-8",\n      stdio: ["pipe", "pipe", "pipe"],\n      env: {\n        ...process.env,\n        PYTHONIOEN
+CODING: "utf-8",\n        ...(contextKey ? { TRELLIS_CONTEXT_ID: contextKey } : {}),\n      },\n    })\n    return outp
+ut.trim()\n  } catch (e) {\n    debugLog("session", "plan python bridge failed:", e instanceof Error ? e.message : Stri
+ng(e))\n    return ""\n  }\n}\n\n/** Compact <execution-plan> block for the active task, when one exists. */\nexport fu
+nction planBreadcrumb(directory, taskDirAbs, contextKey = null) {\n  if (!taskDirAbs || !isAbsolute(taskDirAbs)) return
+ ""\n  const text = runPythonFragment(directory, PLAN_BREADCRUMB_PY, taskDirAbs, contextKey)\n  return text || ""\n}\n\
+n/** Execution-plan protocol + current state for implement prompts. */\nexport function planProtocolBlock(directory, ta
+skDirAbs, contextKey = null) {\n  if (!taskDirAbs || !isAbsolute(taskDirAbs)) return ""\n  const text = runPythonFragme
+nt(directory, PLAN_PROTOCOL_PY, taskDirAbs, contextKey)\n  return text || ""\n}\n\n// ---------------------------------
+------------------------------------------\n// Compact SessionStart context\n// ---------------------------------------
+------------------------------------\n\nexport function buildSessionContext(ctx, platformInput = null) {\n  const direc
+tory = ctx.directory\n  const contextKey = typeof ctx.getContextKey === "function"\n    ? ctx.getContextKey(platformInp
+ut)\n    : null\n\n  const config = loadTrellisConfig(directory, contextKey)\n  const allowedPkgs = resolveSpecScope(co
+nfig)\n  const paths = collectSpecIndexPaths(directory, allowedPkgs)\n\n  const parts = []\n\n  parts.push(`<session-co
+ntext>\nTrellis compact SessionStart context. Use it to orient the session; load details on demand.\n</session-context>
+`)\n  parts.push(FIRST_REPLY_NOTICE)\n\n  const legacyWarning = checkLegacySpec(directory, config)\n  if (legacyWarning
+) {\n    parts.push(`<migration-warning>\\n${legacyWarning}\\n</migration-warning>`)\n  }\n\n  parts.push("<current-sta
+te>")\n  parts.push(buildCompactCurrentState(ctx, platformInput, paths))\n  parts.push("</current-state>")\n\n  const w
+orkflowContent = ctx.readProjectFile(".trellis/workflow.md")\n  if (workflowContent) {\n    const allLines = workflowCo
+ntent.split("\\n")\n    const overviewLines = [\n      "# Development Workflow - Session Summary",\n      "Full guide: 
+.trellis/workflow.md. Step detail: `python ./.trellis/scripts/get_context.py --mode phase --step <X.Y>`.",\n      "",\n
+    ]\n\n    let rangeStart = -1\n    let rangeEnd = allLines.length\n    for (let i = 0; i < allLines.length; i++) {\n
+      const stripped = allLines[i].trim()\n      if (rangeStart === -1 && stripped === "## Phase Index") {\n        ran
+geStart = i\n      } else if (rangeStart !== -1 && stripped === "## Phase 1: Plan") {\n        rangeEnd = i\n        br
+eak\n      }\n    }\n    if (rangeStart !== -1) {\n      const strippedStateBlocks = allLines\n        .slice(rangeStar
+t, rangeEnd)\n        .join("\\n")\n        .replace(/\\[workflow-state:([A-Za-z0-9_-]+)\\]\\s*\\n[\\s\\S]*?\\n\\s*\\[\
+\/workflow-state:\\1\\]\\n?/g, "")\n        .replace(/<!--[\\s\\S]*?-->/g, "")\n        .replace(/^\\[(?!\\/?workflow-s
+tate:)\\/?[^\\]\\n]+\\]\\s*\\n?/gm, "")\n        .replace(/\\n{3,}/g, "\\n\\n")\n      overviewLines.push(strippedState
+Blocks.trimEnd())\n    }\n\n    parts.push("<trellis-workflow>")\n    parts.push(overviewLines.join("\\n").trimEnd())\n
+    parts.push("</trellis-workflow>")\n  }\n\n  parts.push("<guidelines>")\n  parts.push(\n    "Task context order for 
+implementation/check: jsonl entries -> `prd.md` -> " +\n    "`design.md if present` -> `implement.md if present`. Missi
+ng optional artifacts " +\n    "are skipped for lightweight tasks.\\n"\n  )\n\n  if (paths.length > 0) {\n    parts.pus
+h("## Available indexes (read on demand)")\n    for (const p of paths) {\n      parts.push(`- ${p}`)\n    }\n    parts.
+push("")\n  }\n\n  parts.push(\n    "Discover more via: " +\n    "`python ./.trellis/scripts/get_context.py --mode pack
+ages`"\n  )\n  parts.push("</guidelines>")\n\n  const taskStatus = getTaskStatus(ctx, platformInput)\n  parts.push(`<ta
+sk-status>\\n${taskStatus}\\n</task-status>`)\n\n  const active = ctx.resolveMainTask(platformInput)\n  if (active.task
+Path && !active.stale) {\n    const taskDir = ctx.resolveTaskDir(active.taskPath)\n    const planCtx = taskDir ? planBr
+eadcrumb(directory, resolvePath(taskDir), active.contextKey) : ""\n    if (planCtx) {\n      parts.push(planCtx)\n    }
+\n  }\n\n  parts.push(`<ready>\nContext loaded. Follow <task-status>. Load workflow/spec/task details only when needed.
+\n</ready>`)\n\n  return parts.join("\\n\\n")\n}\n\n// ----------------------------------------------------------------
+-----------\n// SessionStart dedup helpers (metadata markers on persisted parts)\n// ----------------------------------
+-----------------------------------------\n\nfunction getTrellisMetadata(metadata) {\n  if (!metadata || typeof metadat
+a !== "object") {\n    return {}\n  }\n\n  const trellis = metadata.trellis\n  if (!trellis || typeof trellis !== "obje
+ct") {\n    return {}\n  }\n\n  return trellis\n}\n\nfunction markPartAsSessionStart(part) {\n  const metadata = part.m
+etadata && typeof part.metadata === "object"\n    ? part.metadata\n    : {}\n  part.metadata = {\n    ...metadata,\n   
+ trellis: {\n      ...getTrellisMetadata(metadata),\n      sessionStart: true,\n    },\n  }\n}\n\nfunction hasSessionSt
+artMarker(part) {\n  if (!part || part.type !== "text" || typeof part.text !== "string") {\n    return false\n  }\n\n  
+return getTrellisMetadata(part.metadata).sessionStart === true\n}\n\nexport function hasInjectedTrellisContext(messages
+) {\n  if (!Array.isArray(messages)) {\n    return false\n  }\n\n  return messages.some(message => {\n    if (!message?
+.info || message.info.role !== "user" || !Array.isArray(message.parts)) {\n      return false\n    }\n\n    return mess
+age.parts.some(hasSessionStartMarker)\n  })\n}\n\nexport async function hasPersistedInjectedContext(client, directory, 
+sessionID) {\n  try {\n    const response = await client.session.messages({\n      path: { id: sessionID },\n      quer
+y: { directory },\n      throwOnError: true,\n    })\n    return hasInjectedTrellisContext(response.data || [])\n  } ca
+tch (error) {\n    debugLog(\n      "session",\n      "Failed to read session history for dedupe:",\n      error instan
+ceof Error ? error.message : String(error),\n    )\n    return false\n  }\n}\n\nexport function markContextInjected(par
+t) {\n  markPartAsSessionStart(part)\n}\n\n// -------------------------------------------------------------------------
+--\n// Prompt-policy bridge: reuse the template Python normalizer verbatim.\n// ---------------------------------------
+------------------------------------\n\n/**\n * Call `.trellis/scripts/common/subagent_prompt_policy.py --json` with\n 
+* {"prompt", "injected_context"} on stdin and return\n * {"normalized_prompt", "execution_contract", "policy_marker"}.\
+n * Throws on process failure, timeout, or invalid response shape so the\n * caller can degrade explicitly (the raw bus
+iness prompt must never be\n * silently replaced by a JavaScript re-implementation of the rules).\n */\nexport function
+ normalizePromptViaPython(directory, prompt, injectedContext) {\n  const scriptPath = join(directory, ".trellis", "scri
+pts", "common", "subagent_prompt_policy.py")\n  if (!existsSync(scriptPath)) {\n    throw new Error(`prompt policy scri
+pt not found: ${scriptPath}`)\n  }\n  const payload = JSON.stringify({ prompt, injected_context: injectedContext })\n  
+const output = execFileSync(PYTHON_CMD, [scriptPath, "--json"], {\n    cwd: directory,\n    timeout: 8000,\n    input: 
+payload,\n    encoding: "utf-8",\n    stdio: ["pipe", "pipe", "pipe"],\n    env: { ...process.env, PYTHONIOENCODING: "u
+tf-8" },\n  })\n  const data = JSON.parse(output)\n  if (\n    !data || typeof data !== "object" ||\n    typeof data.no
+rmalized_prompt !== "string" ||\n    typeof data.execution_contract !== "string" ||\n    typeof data.policy_marker !== 
+"string"\n  ) {\n    throw new Error("prompt policy bridge returned an invalid response shape")\n  }\n  return data\n}\
+n\n// ---------------------------------------------------------------------------\n// Static degradation fallback for t
+he prompt-policy bridge.\n//\n// These strings MUST stay byte-identical with\n// `.trellis/scripts/common/subagent_prom
+pt_policy.py`\n// (`execution_contract()` / `policy_marker()`); the platform contract test\n// asserts equality, so a P
+ython-side wording change fails the test instead\n// of silently drifting. They are used ONLY when the Python `--json` 
+bridge\n// is unavailable and the raw business prompt must keep an explicit contract.\n// -----------------------------
+----------------------------------------------\n\nexport const STATIC_POLICY_MARKER = "[Trellis dispatch policy normali
+zed]"\n\nexport const STATIC_EXECUTION_CONTRACT =\n  "Preserve task scope, acceptance criteria, and required validation
+ commands. " +\n  "Treat per-item wording as report granularity, not one tool call per item. " +\n  "Batch independent 
+reads and searches; perform targeted follow-up only when " +\n  "a batch result proves it is needed. Do not rebuild for
+ comment or historical " +\n  "documentation matches. After a real code fix, rerun only affected checks " +\n  "and sto
+p when scope, evidence, verification, and report are complete."\n\n// -------------------------------------------------
+--------------------------\n// Shell identity bridge (TRELLIS_CONTEXT_ID) for OpenCode shell tools\n// ----------------
+-----------------------------------------------------------\n\nexport function shellQuote(value) {\n  return `\'${Strin
+g(value).replace(/\'/g, "\'\\\\\'\'")}\'`\n}\n\nexport function powershellQuote(value) {\n  return `\'${String(value).r
+eplace(/\'/g, "\'\'")}\'`\n}\n\nexport function envValue(env, key) {\n  const value = env?.[key]\n  return typeof value
+ === "string" && value.trim() ? value.trim() : null\n}\n\nexport function shellBasename(value) {\n  return value.replac
+e(/\\\\/g, "/").split("/").pop()?.toLowerCase() || ""\n}\n\n/** True when a Windows host is running a POSIX-like shell 
+(Git Bash / MSYS). */\nexport function isWindowsPosixShell(env = process.env) {\n  if (envValue(env, "MSYSTEM")) return
+ true\n  if (envValue(env, "MINGW_PREFIX")) return true\n  if (envValue(env, "OPENCODE_GIT_BASH_PATH")) return true\n\n
+  const ostype = envValue(env, "OSTYPE")?.toLowerCase() || ""\n  if (/(msys|mingw|cygwin)/.test(ostype)) return true\n\
+n  const shell = shellBasename(envValue(env, "SHELL") || "")\n  return /^(bash|sh|zsh)(\\.exe)?$/.test(shell)\n}\n\n/**
+\n * Environment prefix that exposes the current Trellis session identity to a\n * shell command: PowerShell form on Wi
+ndows native shells, POSIX export\n * otherwise.\n */\nexport function buildTrellisContextPrefix(contextKey, hostPlatfo
+rm = platform(), env = process.env) {\n  if (hostPlatform === "win32" && !isWindowsPosixShell(env)) {\n    return `$env
+:TRELLIS_CONTEXT_ID = ${powershellQuote(contextKey)}; `\n  }\n\n  return `export TRELLIS_CONTEXT_ID=${shellQuote(contex
+tKey)}; `\n}\n\n/** Which shell-tool argument field carries the command ("command" | "cmd" | null). */\nexport function
+ getShellCommandKey(args) {\n  if (!args || typeof args !== "object") return null\n  if (typeof args.command === "strin
+g") return "command"\n  if (typeof args.cmd === "string") return "cmd"\n  return null\n}\n\n/** True when the command a
+lready sets TRELLIS_CONTEXT_ID explicitly up front. */\nexport function commandStartsWithTrellisContext(command) {\n  c
+onst firstCommand = command.trimStart().split(/[;&|]/, 1)[0].trimStart()\n  return (\n    /^TRELLIS_CONTEXT_ID\\s*=/.te
+st(firstCommand) ||\n    /^export\\s+TRELLIS_CONTEXT_ID\\s*=/.test(firstCommand) ||\n    /^env\\s+(?:(?:-\\S+|[A-Za-z_]
+[A-Za-z0-9_]*=\\S*)\\s+)*TRELLIS_CONTEXT_ID\\s*=/.test(firstCommand) ||\n    /^\\$env:TRELLIS_CONTEXT_ID\\s*=/i.test(fi
+rstCommand)\n  )\n}\n\n/**\n * OpenCode TUI does not guarantee session identity in the shell environment.\n * Prefix th
+e shell command with the current session\'s TRELLIS_CONTEXT_ID so\n * `task.py` / `plan.py` hit the right session point
+er. Commands that already\n * set the variable explicitly are left untouched. Returns true when injected.\n */\nexport 
+function injectTrellisContextIntoShell(ctx, input, output, hostPlatform = platform(), env = process.env) {\n  const arg
+s = output?.args\n  const commandKey = getShellCommandKey(args)\n  if (!commandKey) return false\n\n  const command = a
+rgs[commandKey]\n  if (!command.trim()) return false\n  if (commandStartsWithTrellisContext(command)) return false\n\n 
+ const contextKey = ctx.getContextKey(input, env)\n  if (!contextKey) return false\n\n  args[commandKey] = `${buildTrel
+lisContextPrefix(contextKey, hostPlatform, env)}${command}`\n  return true\n}\n'
+
+======================================================================
+FAIL: test_every_step_hint_resolves_through_get_step (test_step_detail_platform_hints.TestTaskPyStepHints.test_every_st
+ep_hint_resolves_through_get_step) (step_id='1')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\10671\Desktop\Study\TrellisForge\templates\embedded-c-overlay\.trellis\scripts\tests\test_step_detail_
+platform_hints.py", line 119, in test_every_step_hint_resolves_through_get_step
+    self.assertTrue(
+    ~~~~~~~~~~~~~~~^
+        wp.get_step(step_id),
+        ^^^^^^^^^^^^^^^^^^^^^
+        f"task.py hint --step {step_id} does not resolve",
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+AssertionError: '' is not true : task.py hint --step 1 does not resolve
+
+======================================================================
+FAIL: test_no_bare_step_1_hint_remains (test_step_detail_platform_hints.TestTaskPyStepHints.test_no_bare_step_1_hint_re
+mains)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\10671\Desktop\Study\TrellisForge\templates\embedded-c-overlay\.trellis\scripts\tests\test_step_detail_
+platform_hints.py", line 127, in test_no_bare_step_1_hint_remains
+    self.assertIsNone(
+    ~~~~~~~~~~~~~~~~~^
+        match,
+        ^^^^^^
+        "task.py still prints the unresolvable bare --step 1 hint",
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+AssertionError: <re.Match object; span=(17848, 17856), match='--step 1'> is not None : task.py still prints the unresol
+vable bare --step 1 hint
+
+----------------------------------------------------------------------
+Ran 7 tests in 0.170s
+
+FAILED (failures=4)
+

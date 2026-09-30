@@ -464,7 +464,7 @@ def main() -> int:
         )
         print("See .trellis/workflow.md planning artifact guidance or run:", file=sys.stderr)
         print(
-            "  python ./.trellis/scripts/get_context.py --mode phase --step 1",
+            "  python ./.trellis/scripts/get_context.py --mode phase --step 1.1",
             file=sys.stderr,
         )
         print(

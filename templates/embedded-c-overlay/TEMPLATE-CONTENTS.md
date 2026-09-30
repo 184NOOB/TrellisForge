@@ -13,6 +13,7 @@
 | `.trellis/scripts/tests/test_codex_native_wait_contract.py` | 覆盖后新增（1.3 新增） | 等待合同送达链路真实 CLI 考查：编号子步骤归并、Codex / Claude 平台家族别名、Loading Step Detail 与 Codex Hook 平台提示串、2.1.2 原生静默等待合同冻结文本 |
 | `.trellis/scripts/tests/test_write_json_lf.py` | 覆盖后新增（1.3 新增） | `write_json` 原子写换行稳定性：输出保持 LF、不含 CRLF、无 `.tmp` 残留 |
 | `.trellis/scripts/tests/test_task_dir_time_prefix.py` | 覆盖后新增（1.3 新增） | 任务目录前缀 `MM-DD-HHmm` 与同分钟错峰契约：前缀格式与本地时间一致、`--slug` guard 四分支（当日完整/旧格式剥离、非当日报错、非法 HHmm 放行）、错峰顺延/占用跳过/跨日午夜、目录名排序即创建顺序 |
+| `.trellis/scripts/tests/test_step_detail_platform_hints.py` | 覆盖后新增（1.3 新增） | 三平台 SessionStart Step detail 提示串各自带 `--platform claude` / `codex` / `opencode` 且互不串平台、`task.py` 的 `--step` 提示全部可被 `get_step` 解析（边界正则拦截裸 `--step 1`、真实 CLI `--step 1.1` 退出码 0）、Loading Step Detail 三平台示例第二道锁 |
 | `.trellis/spec/shared/` | 覆盖同名前备份，随后填写 | 嵌入式 C 的仓库、验证和硬件合同骨架 |
 | `.trellis/spec/shared/trellis-maintenance.md` | 覆盖前备份 | 上游更新、受保护定制和升级后验证合同 |
 | `.agents/skills/` | `-Force` 覆盖同名前备份 | Grill Me、规划 adapter、审查 profile、定制 `trellis-finish-work` 与完整 `trellis-channel` Skill |

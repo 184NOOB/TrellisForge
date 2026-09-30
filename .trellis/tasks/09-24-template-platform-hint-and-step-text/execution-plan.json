@@ -1,0 +1,267 @@
+{
+  "schema": 3,
+  "task": ".trellis/tasks/09-24-template-platform-hint-and-step-text",
+  "revision": 1,
+  "status": "approved",
+  "audit": {
+    "required": true,
+    "file": "execution-events.jsonl"
+  },
+  "created_by": "trellis-implement",
+  "goal": "只改发布模板：三平台 Step detail 提示串各自带正确 --platform，task.py 求助命令改为可解析的 --step 1.1，并补防漂移断言；不动根自用实现（Phase 3.3 spec 条目除外）。",
+  "constraints": {
+    "forbidden_git_operations": [
+      "commit",
+      "push",
+      "tag",
+      "reset",
+      "restore-modified-source"
+    ],
+    "max_tasks": 8,
+    "max_edits_per_file": 8,
+    "allow_parallel_tasks": false
+  },
+  "tasks": [
+    {
+      "id": "discover",
+      "title": "只读侦察：锚点、脏文件快照、安装器红基线",
+      "status": "completed",
+      "objective": "重锚三份 Step detail 提示串与 task.py 求助命令；拍 git status 快照锁定禁触脏文件；记录 tests/test_overlay_tools.py 失败集合，供后续对照。",
+      "depends_on": [],
+      "scope": {
+        "read": [
+          "templates/embedded-c-overlay/**",
+          ".trellis/tasks/09-24-template-platform-hint-and-step-text/**"
+        ],
+        "write": []
+      },
+      "verification": {
+        "level": "minimal",
+        "required_checks": []
+      },
+      "no_check_reason": "纯只读侦察：无 scope.write，只建立内容锚点、脏文件清单与安装器失败集合。"
+    },
+    {
+      "id": "tests-red",
+      "title": "新增防漂移测试并采集红基线",
+      "status": "completed",
+      "objective": "新增 test_step_detail_platform_hints.py，覆盖三份提示串旗标与互不串平台、task.py --step 可解析性与裸 --step 1 边界正则、Loading Step Detail 第二道锁；先跑红确认 Claude/OpenCode 缺旗标且 task.py 仍含裸 --step 1。",
+      "depends_on": [
+        "discover"
+      ],
+      "scope": {
+        "read": [
+          "templates/embedded-c-overlay/.trellis/scripts/tests/test_codex_native_wait_contract.py",
+          "templates/embedded-c-overlay/.claude/hooks/session-start.py",
+          "templates/embedded-c-overlay/.codex/hooks/session-start.py",
+          "templates/embedded-c-overlay/.opencode/lib/session-utils.js",
+          "templates/embedded-c-overlay/.trellis/scripts/task.py",
+          "templates/embedded-c-overlay/.trellis/workflow.md"
+        ],
+        "write": [
+          "templates/embedded-c-overlay/.trellis/scripts/tests/test_step_detail_platform_hints.py"
+        ]
+      },
+      "verification": {
+        "level": "minimal",
+        "required_checks": [
+          "py-compile-new-test",
+          "new-test-red-baseline"
+        ]
+      },
+      "verification_results": {
+        "py-compile-new-test": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-30T17:35:09Z",
+          "command": "py_compile-new-test-file",
+          "summary": "test_step_detail_platform_hints.py compiles"
+        },
+        "new-test-red-baseline": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-30T17:35:09Z",
+          "command": "red-baseline-capture",
+          "summary": "7 tests, 4 expected failures: claude+opencode hint flag missing, task.py bare --step 1 unresolvable",
+          "artifact": ".trellis/tasks/09-24-template-platform-hint-and-step-text/research/red-baseline.log"
+        }
+      }
+    },
+    {
+      "id": "hint-strings",
+      "title": "补 Claude/OpenCode 提示串与 task.py --step 1.1",
+      "status": "completed",
+      "objective": "两处 Step detail 提示串分别补 --platform claude / --platform opencode；task.py 求助命令改为 --step 1.1；均为纯字符串 diff，不改宿主函数逻辑，不改 Codex hook。",
+      "depends_on": [
+        "tests-red"
+      ],
+      "scope": {
+        "read": [
+          "templates/embedded-c-overlay/.claude/hooks/session-start.py",
+          "templates/embedded-c-overlay/.opencode/lib/session-utils.js",
+          "templates/embedded-c-overlay/.trellis/scripts/task.py",
+          "templates/embedded-c-overlay/.codex/hooks/session-start.py"
+        ],
+        "write": [
+          "templates/embedded-c-overlay/.claude/hooks/session-start.py",
+          "templates/embedded-c-overlay/.opencode/lib/session-utils.js",
+          "templates/embedded-c-overlay/.trellis/scripts/task.py"
+        ]
+      },
+      "verification": {
+        "level": "minimal",
+        "required_checks": [
+          "new-test-green",
+          "cli-step-1-1",
+          "py-compile-touched"
+        ]
+      },
+      "verification_results": {
+        "new-test-green": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-30T17:35:35Z",
+          "command": "unittest-new-step-hints",
+          "summary": "Ran 7 tests OK: three hints, task.py resolvable ids, loading-step-detail second lock"
+        },
+        "cli-step-1-1": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-30T17:35:36Z",
+          "command": "cli-step-1-1-template-root",
+          "summary": "template root: --step 1.1 exit 0 non-empty; bare --step 1 still exit 2 with Step not found"
+        },
+        "py-compile-touched": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-30T17:35:36Z",
+          "command": "py_compile-claude-hook-task-py",
+          "summary": "session-start.py and task.py compile (JS covered by Node harness later)"
+        }
+      }
+    },
+    {
+      "id": "register-test",
+      "title": "TEMPLATE-CONTENTS.md 登记新测试",
+      "status": "completed",
+      "objective": "按既有表格行格式在 1.3 测试行后追加 test_step_detail_platform_hints.py 一行（覆盖后新增，1.3 新增）。",
+      "depends_on": [
+        "hint-strings"
+      ],
+      "scope": {
+        "read": [
+          "templates/embedded-c-overlay/TEMPLATE-CONTENTS.md"
+        ],
+        "write": [
+          "templates/embedded-c-overlay/TEMPLATE-CONTENTS.md"
+        ]
+      },
+      "verification": {
+        "level": "minimal",
+        "required_checks": [
+          "contents-registered"
+        ]
+      },
+      "verification_results": {
+        "contents-registered": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-30T17:35:53Z",
+          "command": "template-contents-row-check",
+          "summary": "TEMPLATE-CONTENTS.md row for test_step_detail_platform_hints.py present, 覆盖后新增（1.3 新增）"
+        }
+      }
+    },
+    {
+      "id": "full-validation",
+      "title": "三套件回归与边界审计",
+      "status": "completed",
+      "objective": "跑新测试、09-21 合约测试、模板全量、根套件、安装器套件、py_compile、git diff --check；确认 overlay 失败集合与开工前一致；功能 diff 不越出白名单。",
+      "depends_on": [
+        "register-test"
+      ],
+      "scope": {
+        "read": [
+          "templates/embedded-c-overlay/**",
+          ".trellis/scripts/tests/**",
+          "tests/test_overlay_tools.py"
+        ],
+        "write": []
+      },
+      "verification": {
+        "level": "minimal",
+        "required_checks": [
+          "unittest-template-all",
+          "unittest-root-all",
+          "unittest-overlay-same-red",
+          "git-diff-check"
+        ]
+      },
+      "verification_results": {
+        "unittest-template-all": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-30T17:39:53Z",
+          "command": "unittest-template-discover",
+          "summary": "Ran 231 tests OK (>= 212 baseline + 7 new)"
+        },
+        "unittest-root-all": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-30T17:39:54Z",
+          "command": "unittest-root-discover",
+          "summary": "Ran 154 tests OK"
+        },
+        "unittest-overlay-same-red": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-30T17:40:01Z",
+          "command": "overlay-failure-set-compare",
+          "summary": "48 tests / 26 failures; failure set identical to pre-start snapshot (set-diff 0); raw unittest exit 1 is the accepted 1.3 structural red baseline (baseline recorded in session, not task artifact)"
+        },
+        "git-diff-check": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-30T17:39:54Z",
+          "command": "git-diff-check",
+          "summary": "no output; boundary audit shows changes only in 4 template files + new test + task dir; .opencode/package.json pre-existing dirty untouched; python.md zero diff"
+        }
+      }
+    },
+    {
+      "id": "report",
+      "title": "终态验收报告",
+      "status": "completed",
+      "objective": "写 final-report.md，对照 AC1-AC6 给出证据；R5/AC7 留到 Phase 3.3。",
+      "depends_on": [
+        "full-validation"
+      ],
+      "scope": {
+        "read": [
+          ".trellis/tasks/09-24-template-platform-hint-and-step-text/**"
+        ],
+        "write": [
+          "final-report.md"
+        ]
+      },
+      "verification": {
+        "level": "report",
+        "required_checks": [
+          "report-written"
+        ],
+        "report_path": "final-report.md"
+      },
+      "verification_results": {
+        "report-written": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-09-30T17:41:13Z",
+          "command": "final-report-exists-and-sections",
+          "summary": "final-report.md present (9451 bytes, LF) with AC1-AC6 conclusions; AC7 deferred to Phase 3.3",
+          "artifact": ".trellis/tasks/09-24-template-platform-hint-and-step-text/final-report.md"
+        }
+      }
+    }
+  ],
+  "approved_fingerprint": "728a8b2a95a1c7450495ec68af65ce966d437b3eb528e10d86e5b711a0ebdca4"
+}

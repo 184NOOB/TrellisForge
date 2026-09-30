@@ -1,0 +1,14 @@
+{"file": ".trellis/spec/main/tooling/templates-and-docs.md", "reason": "模板写入范围/根目录禁改/发布收尾禁区"}
+{"file": ".trellis/spec/main/tooling/index.md", "reason": "质量检查命令与开发前检查清单"}
+{"file": ".trellis/spec/guides/index.md", "reason": "改退出条件文本前全局搜索消费者"}
+{"file": ".trellis/spec/shared/validation.md", "reason": "pass/fail/not run/not applicable 报告口径"}
+{"file": "templates/embedded-c-overlay/.agents/skills/__PROJECT_PREFIX__-trellis-review/SKILL.md", "reason": "权威审查契约：新节、循环 IF/until、signals-only、Report Contract"}
+{"file": "templates/embedded-c-overlay/.opencode/skills/__PROJECT_PREFIX__-trellis-review/SKILL.md", "reason": "OpenCode 镜像，必须与 .agents 逐字节一致"}
+{"file": "templates/embedded-c-overlay/.trellis/workflow.md", "reason": "244/272 注入块、756-772 权威区、825-827/835/871 退出主语"}
+{"file": "templates/embedded-c-overlay/.claude/agents/trellis-check.md", "reason": "生产端定级规则与 until 句"}
+{"file": "templates/embedded-c-overlay/.opencode/agents/trellis-check.md", "reason": "生产端定级规则；保留 standard 断言子串"}
+{"file": "templates/embedded-c-overlay/.codex/agents/trellis-check.toml", "reason": "生产端定级规则；保留 Blocking findings count 字段行"}
+{"file": "templates/embedded-c-overlay/.trellis/agents/check.md", "reason": "Channel Check Agent 定级规则"}
+{"file": "templates/embedded-c-overlay/.trellis/scripts/tests/test_review_profile_contract.py", "reason": "既有断言子串与镜像合同，改文不得破坏"}
+{"file": "templates/embedded-c-overlay/.trellis/scripts/tests/test_review_fix_ownership_contract.py", "reason": "Ownership 节禁词"}
+{"file": ".trellis/tasks/09-27-review-severity-readjudication/design.md", "reason": "落位、断言保留清单与测试设计"}

@@ -1,0 +1,14 @@
+{"file": ".trellis/spec/main/tooling/templates-and-docs.md", "reason": "核对改动是否越出 templates/embedded-c-overlay/ 或触碰发布收尾交付物"}
+{"file": ".trellis/spec/main/tooling/index.md", "reason": "核对验证命令口径"}
+{"file": "templates/embedded-c-overlay/.agents/skills/__PROJECT_PREFIX__-trellis-review/SKILL.md", "reason": "Severity Adjudication、循环退出主语、Ownership 禁词、Standard 语义"}
+{"file": "templates/embedded-c-overlay/.opencode/skills/__PROJECT_PREFIX__-trellis-review/SKILL.md", "reason": "与 .agents 逐字节一致"}
+{"file": "templates/embedded-c-overlay/.trellis/workflow.md", "reason": "244/272/756-772/825-827/835/871 退出主语与既有断言子串"}
+{"file": "templates/embedded-c-overlay/.claude/agents/trellis-check.md", "reason": "定级规则与 until 句"}
+{"file": "templates/embedded-c-overlay/.opencode/agents/trellis-check.md", "reason": "定级规则；standard 断言子串"}
+{"file": "templates/embedded-c-overlay/.codex/agents/trellis-check.toml", "reason": "定级规则；报告字段行"}
+{"file": "templates/embedded-c-overlay/.trellis/agents/check.md", "reason": "Channel Agent 定级规则"}
+{"file": "templates/embedded-c-overlay/.trellis/scripts/tests/test_review_severity_adjudication_contract.py", "reason": "新契约测试 9 组断言"}
+{"file": "templates/embedded-c-overlay/.trellis/scripts/tests/test_review_profile_contract.py", "reason": "回归"}
+{"file": "templates/embedded-c-overlay/.trellis/scripts/tests/test_review_fix_ownership_contract.py", "reason": "Ownership 回归"}
+{"file": ".trellis/tasks/09-27-review-severity-readjudication/design.md", "reason": "按设计逐项核对"}
+{"file": ".trellis/tasks/09-27-review-severity-readjudication/prd.md", "reason": "AC1-AC7 与 R3 五级再审语义"}

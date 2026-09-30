@@ -1,0 +1,29 @@
+{
+  "id": "review-severity-readjudication",
+  "name": "review-severity-readjudication",
+  "title": "审查模板增加主会话严重度复核规则",
+  "description": "",
+  "status": "planning",
+  "dev_type": null,
+  "scope": null,
+  "package": "main",
+  "priority": "P2",
+  "creator": "Noob184",
+  "assignee": "Noob184",
+  "createdAt": "2026-09-27",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "master",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": "09-17-trellisforge-1-3-upgrade",
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {
+    "planning_ready": "true",
+    "plan_approved": false
+  }
+}

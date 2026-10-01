@@ -1,3 +1,11 @@
+{"file": "templates/embedded-c-overlay/.trellis/scripts/common/subagent_prompt_policy.py", "reason": "A 项写入点：execution_contract() 是三平台共享派发合同唯一文本源；追加链遍历义务与失败契约，并衔接既有 stop when complete 句"}
+{"file": "templates/embedded-c-overlay/.opencode/lib/session-utils.js", "reason": "A' 项写入点：STATIC_EXECUTION_CONTRACT 必须与 Python execution_contract() 逐字相等；OpenCode 桥接失败时的静态兜底"}
+{"file": "templates/embedded-c-overlay/.trellis/scripts/common/execution_plan.py", "reason": "B/E 项写入点：plan_protocol_block 仅进行分支追加 Chain duty；format_status 在 verbose 分支外追加 dispatch chain 行；新增 _dispatch_chain"}
+{"file": "templates/embedded-c-overlay/.trellis/workflow.md", "reason": "C 项写入点：in_progress 块改 246 主语为 default 并追加 round 定义与用户例外；611 行补一轮边界且保留 (or continue inline)；2.1 只补派发范围句。注意 get_step(2.1) 抽不到 tag 块"}
+{"file": "templates/embedded-c-overlay/.claude/agents/trellis-implement.md", "reason": "D 项四份 implement 代理之一：Executing 禁令、Stop on completion 定义、报告两行"}
+{"file": "templates/embedded-c-overlay/.opencode/agents/trellis-implement.md", "reason": "D 项四份 implement 代理之一：与 Claude 版同构落位"}
+{"file": "templates/embedded-c-overlay/.codex/agents/trellis-implement.toml", "reason": "D 项 Codex TOML：无 Report Format 标题，报告两行落在 Before finishing summarize 清单；三引号串内不得出现反斜杠"}
+{"file": "templates/embedded-c-overlay/.trellis/agents/implement.md", "reason": "D 项 bundled channel worker 卡：与 Channel Termination Contract 衔接，不得漏改"}
 {"file": ".trellis/spec/main/tooling/templates-and-docs.md", "reason": "写入边界的权威依据：14-22 行规定面向下游的功能只改 templates/embedded-c-overlay/，根目录 .trellis/、.claude/、.codex/、.opencode/、.agents/ 只读参考；本任务唯一的根目录例外是 R8 授权的 python.md 定点条目"}
 {"file": ".trellis/spec/main/tooling/python.md", "reason": "模板测试写法约定（111 行：REPO_ROOT=parents[3]、子进程带 cwd/PYTHONIOENCODING/timeout、禁止硬编码模板路径、禁止真实 spawn agent）、送达验证必须走真实 CLI 的既有教训（105/165 行）、执行计划 live 指针与 sequel 合同、既有 Scenario 7 段结构（R8 新增条目须沿用）、禁止事项（不吞异常、不伪造 pass、不提交 pycache）"}
 {"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "触发条件命中'改执行计划路径/plan.py 子命令/runtime-parsed 模板/多平台命令副本'；130-146 与 157-167 的检查清单用于核对 live 解析、三平台副本、workflow.md 被 get_context/workflow_phase/SessionStart/逐轮 hook 解析的传导面"}

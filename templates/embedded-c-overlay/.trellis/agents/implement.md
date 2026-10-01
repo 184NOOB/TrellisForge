@@ -85,6 +85,14 @@ else under `plans/` is frozen read-only history.
    writes `<live-plan-dir>/final-report.md` and registers it with
    `--artifact final-report.md` before `done`. Re-run `plan.py status` when the
    phase is unclear; after a crash resume from the task-directory files alone.
+   Chain duty: one execution round covers the whole remaining chain, not one
+   phase; after each `done`, continue with the next runnable phase until the
+   terminal report phase is done. Do not return after a single phase; return
+   early only via `plan.py block <id> --reason "..."` plus a structured failure
+   report, or via context-budget exhaustion after record/done of the current
+   phase (then list the remaining runnable phases). A silent empty return is a
+   protocol violation. Completion means the terminal report phase is done, not
+   the end of the current phase.
 3. **Small patch (hard rule, bypasses plan.py):** when the user explicitly
    calls this a small patch or says not to use `plan.py`, that wins; otherwise
    all four objective gates must hold together — acceptance unchanged (or only
@@ -138,7 +146,9 @@ else under `plans/` is frozen read-only history.
    verification, and the report are complete, stop. Do not repeat unaffected
    scans or builds merely to confirm them again. If task wording says “逐项”
    or “每项附证据”, interpret that as report granularity, not one tool call
-   per item.
+   per item. Completion means the whole plan through the terminal report phase,
+   not the end of the current phase; if the chain cannot continue, block the
+   phase and report instead of stopping silently.
 
 ## Forbidden Operations
 
@@ -187,6 +197,10 @@ the signal the dispatcher waits on:
 ### Implementation Summary
 1. <step>
 2. <step>
+
+### Plan Chain
+- Plan phases advanced: <ids>
+- Remaining runnable: <ids|none>
 
 ### Verification Results
 - Static checks: <pass|fail|not run|not applicable + reason>

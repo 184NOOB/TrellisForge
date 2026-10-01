@@ -4,7 +4,7 @@
 
 ## Workflow Settings
 
-- Review level: standard
+- Review level: reinforced
 
 ## Goal
 
@@ -47,7 +47,7 @@
 
 - 在 `execution_contract()` 返回值中追加两层语义：① 一次派发覆盖剩余整条计划链——按 `start → 编辑（限该 phase 的 scope.write）→ 跑声明检查 → record → done` 逐 phase 串行推进，直到终端 report phase `done`；**不得在单个 phase `done` 后返回主会话**；② 无法继续时必须 `plan.py block <id> --reason "..."` 并返回结构化失败报告，静默空返回属协议违规。
 - 必须同步 `.opencode/lib/session-utils.js` 的 `STATIC_EXECUTION_CONTRACT` 常量，使 Python 函数 ↔ `--json` bridge ↔ JS 常量三方逐字相等（`test_subagent_prompt_contract.py:339/380-386`、`test_opencode_platform_contract.py:434/436` 强制）。
-- 保留既有批处理效率语义，不得删改原句（既有断言为动态 parity，删句不会红，但会丢失已交付合同）。
+- 保留既有批处理效率语义，不得删改原句（既有断言为动态 parity，删句不会红，但会丢失已交付合同）。既有末句 `stop when scope, evidence, verification, and report are complete` 仍以任务范围为粒度；追加段必须把它衔接为「complete = 终端 report phase `done`」，不得让两套 stop 条件并存成「做完当前 phase 的 scope 即可返回」。
 - 合法提前返回只有两种，必须在文本中写清：`block`；或上下文预算将尽时先把当前 phase `record`/`done` 收尾，再返回并列出剩余 runnable phase（工程决定，理由记入 `design.md`：预算耗尽不是"受阻"，误用 `block` 会污染计划语义）。
 
 ### R2. 执行计划协议块同步（G2）
@@ -59,11 +59,15 @@
 ### R3. workflow.md 定义 round 并约束主会话派发粒度（G3）
 
 - 在 `[workflow-state:in_progress]` 块内明确：一个 round = 一次 implement 派发 = 尽可能走完全部 runnable phase 直到 report phase 或 `block`；主会话不得按 phase 逐格派发；子代理派发模式下计划状态由 implement 子代理自己用 `plan.py` 推进，主会话只跑只读 `status` 决定"再派发 vs 进 2.2"。
+- **必须改写 246 行 Execution plan 主语为 default 口径**（工程决定，2026-10-01 规划审查）：现句「the implement sub-agent creates/approves …」改成「By default the implement sub-agent creates/approves …」，使紧随的用户显式例外能覆盖「主会话先写/批准 plan」与「主会话自行实施」；不得把 246 留成无条件主语后再另写例外（两句会直接打架）。既有 two-level verification / sequel 出口 / breadcrumb display-only 语义不得削弱。
 - **上述约束一律写成默认口径，并同段给出用户显式指令优先的例外（用户 2026-09-26 明确要求）**：① 用户明确要求主会话自行实施时，主会话本轮充当实施者，自己用 `plan.py` 推进，此时链遍历义务与失败上报义务同样适用于主会话；② 用户明确要求"主会话先写好 plan"时，主会话可以创建并 `validate` 批准 `execution-plan.json`，随后派发 implement 子代理，该子代理从进行中的链接手执行，不重新造计划。例外句必须限定为"仅当用户显式要求"，不得写成主会话可随时自行实施。
 - 例外不得削弱既有语义：`Round 1 — plan generation` 默认仍由实施者（通常是子代理）建计划；small patch 硬规则的"用户明确说小修"优先语义保持原样。
+- Phase 2 gate 611 行补一句界定「一轮 = 一次派发 = 剩余整条链、不得按 phase 拆派发」，**必须保留**既有判定表中的 `(or continue inline)`（inline 主会话继续推进，不是再派发）。
 - `[workflow-state:in_progress-inline]`（Codex inline 变体）**不改**：inline 模式下主会话本身就是实施者，必须自己跑 `plan.py`，禁令不适用。
 - 硬约束：2.1 正文必须保留 `Spawn the implement sub-agent`（`test_codex_native_wait_contract.py:129-140`）；平台可见文本不得出现 6 个 `CODEX_ONLY_TERMS`（同文件 269-288）；不得复活 `test_small_patch_and_sequel_contract.py:142-145` 的 `assertNotIn` 旧句；不得命中 `test_review_fix_ownership_contract.py:95-106` 的 8 个 FORBIDDEN 短语。
-- 送达验证必须走真实 CLI（`get_context.py --mode phase --step 2.1 --platform claude|codex|opencode`），不得只做 `assertIn` 读原文（`python.md:105/165` 的既有教训）。
+- **送达验证必须分通道，禁止把 in_progress 块的 round 定义/例外句断言到 `--step 2.1` 输出上**（2026-10-01 规划审查核实：`get_step("2.1")` 只从 `#### 2.1` 抽到 2.1.x，不含 241-263 的 tag 块、也不含 611 行 gate；`get_phase_index` 还会剥掉 workflow-state 块）。锁定方式：
+  - in_progress 块（逐轮 `<workflow-state>` 真源）：新测试读模板 `workflow.md` 该 tag 块原文，断言 round 定义默认句、246 default 主语、例外句与 `explicitly asks`。
+  - `#### 2.1`：真实 CLI `get_context.py --mode phase --step 2.1 --platform claude|codex|opencode`，**cwd 必须是模板根** `templates/embedded-c-overlay`（`python.md:74`：在仓库根跑会误读根 `workflow.md`）；只断言派发范围句（一次派发覆盖剩余整条链）、`Spawn the implement sub-agent`、claude/opencode 不含 CODEX_ONLY_TERMS。round 定义与例外句不要求出现在该输出中。
 
 ### R4. 四份 implement 代理定义同步（G4）
 
@@ -75,6 +79,7 @@
 
 - `format_status()` 在 1919-1924 行的条件行区域（**verbose 分支之外**，否则进不了 `verbose=False` 的面包屑）追加一行显示从 in_progress + runnable 出发沿 `depends_on` 正向可达的剩余链，顺序为拓扑序而非字典序，终端 report phase 收尾。
 - 链推导新增独立辅助函数：可复用反向邻接范式（`execution_plan.py:805-807`）与 DFS 步行范式（816-829）、环检测（`_find_cycle` 844-866）；`validate` 已保证 DAG 与 report 终端性，推导可假设无环，但仍需对损坏/异常计划 fail soft（不抛异常、退化为不显示该行），因为 `plan_breadcrumb` 的承诺是"永不抛错"。
+- **并行窗口语义（工程决定）**：`constraints.allow_parallel_tasks == true` 且存在多个独立 runnable 时，链行仍输出整棵剩余可达森林（拓扑序 + plan 声明序 tie-break），一次派发仍串行走完整棵剩余森林；该约束只放开状态机「多个 in_progress」，**不**把一次派发拆成多条并行分支。测试矩阵须覆盖该情形。
 - 文本硬约束：新行不得包含子串 `frozen plans:`（`test_execution_plan.py:978` 的 `assertNotIn`）；不得模仿 verbose 任务行的 `[<status右对齐12>] <id>` 格式（同文件 1111 行 `assertNotIn`）。
 - 传导面（零代码改动自动生效）：`plan.py status` CLI（plan.py:145）、Claude/Codex 逐轮面包屑（`.claude/hooks/inject-workflow-state.py:365-378`、`.codex/hooks/inject-workflow-state.py:378-380`）、OpenCode 逐轮与 SessionStart（`.opencode/plugins/inject-workflow-state.js:121-130`、`.opencode/lib/session-utils.js:680-687`）、`plan_protocol_block` 末尾状态区（2145/2173）。
 - 工程决定：**不新增 `plan.py dispatchable` 子命令**（研究 `research/06` §6 的形态二）。理由：形态二需改 3+ 文件并新增下游 CLI 表面积，其额外价值是"强制主会话把链贴进派发 prompt"——即给主会话增加新义务，而用户已明确排除同类的主会话侧关卡；形态一 2 文件即达成同一提醒效果且自动传导三平台。记入 `design.md`。
@@ -84,9 +89,9 @@
 - 新建 `templates/embedded-c-overlay/.trellis/scripts/tests/test_dispatch_chain_contract.py`，把 A–E 的断言集中在一处（用户 2026-09-26 最终决定；先前的"加进既有 4 个文件"方案已撤回），覆盖：
   - A / A'：`execution_contract()` 含链遍历义务与 `block` 义务关键短语、原有批处理效率短语仍在；Python 函数 ↔ `--json` bridge ↔ JS `STATIC_EXECUTION_CONTRACT` 三方逐字相等（沿用既有动态取值范式，**不得把常量复制进测试**）。
   - B：`plan_protocol_block()` 进行分支含 Chain duty 短语与"主会话即实施者时同一义务适用"中性句；**完成分支 `assertNotIn` 同一短语**（锁定落位）。
-  - C：`[workflow-state:in_progress]` 块同时含默认句与 `User instructions override these defaults` 例外句，例外句含 `explicitly asks` 限定词并覆盖"主会话自行实施"与"主会话先写 plan 再派发"两种情形（缺任一即红）；`[workflow-state:in_progress-inline]` 块不含该短语（inline 零改动）；既有 `Round 1 — plan generation` 与 small patch"用户明确说小修"原文仍在（防削弱）；**三平台真实 CLI** `--step 2.1 --platform claude|codex|opencode` 退出码 0 且输出含 round 定义与例外句，claude 系平台输出不含 CODEX_ONLY_TERMS。
+  - C：分通道。① 读 `workflow.md` 的 `[workflow-state:in_progress]` 块：同时含 round 定义默认句、246 行 default 主语（`By default the implement sub-agent`）、`User instructions override these defaults` 例外句；例外句含 `explicitly asks` 并覆盖"主会话自行实施"与"主会话先写 plan 再派发"两种情形（缺任一即红）；`[workflow-state:in_progress-inline]` 块不含这些新短语（inline 零改动）；既有 `Round 1 — plan generation` 与 small patch"用户明确说小修"原文仍在；611 行仍含 `(or continue inline)`。② **三平台真实 CLI**（cwd=模板根）`--step 2.1 --platform claude|codex|opencode` 退出码 0 且输出含 2.1 派发范围句与 `Spawn the implement sub-agent`，claude 系平台输出不含 CODEX_ONLY_TERMS；**不得**断言 round 定义/例外句出现在 `--step 2.1` 输出中。
   - D：`IMPLEMENT_AGENTS` 四文件循环断言三条新短语（不得单 phase 返回 / completion = 整个计划 / 报告两行），沿用 `test_small_patch_and_sequel_contract.py:46-51/147-158` 范式。
-  - E：`_dispatch_chain` 推导矩阵（线性链、菱形依赖、blocked 剪枝且不穿过、completed 剪枝、全完成 → 空、畸形/损坏 plan → 空且不抛）+ `format_status` 在 `verbose=False` 含 `dispatch chain:` 行、全完成时不含、新行不含 `frozen plans:` 子串、legacy 与 sequel 布局下不冲突。
+  - E：`_dispatch_chain` 推导矩阵（线性链、菱形依赖、blocked 剪枝且不穿过、completed 剪枝、全完成 → 空、畸形/损坏 plan → 空且不抛、`allow_parallel_tasks=true` 下多个独立 runnable 仍输出整棵剩余森林而非只取一枝）+ `format_status` 在 `verbose=False` 含 `dispatch chain:` 行、全完成时不含、新行不含 `frozen plans:` 子串、legacy 与 sequel 布局下不冲突。
 - 既有 4 个测试文件**零改动**（`test_subagent_prompt_contract.py`、`test_execution_plan.py`、`test_small_patch_and_sequel_contract.py`、`test_codex_native_wait_contract.py`），只要求它们保持全绿作为回归防线。
 - 在 `templates/embedded-c-overlay/TEMPLATE-CONTENTS.md` 按既有表格行格式登记该新测试文件一行（标注 1.3 新增）。
 - 只锁关键短语、落位与送达，不复述整段合同文本，避免脆断言。
@@ -96,8 +101,8 @@
 ### R7. 变更边界与回归基线
 
 - 允许写入：`templates/embedded-c-overlay/` 内的 `.trellis/scripts/common/subagent_prompt_policy.py`、`.trellis/scripts/common/execution_plan.py`、`.trellis/workflow.md`、四份 implement 代理定义、`.opencode/lib/session-utils.js`（仅 `STATIC_EXECUTION_CONTRACT` 常量）、新增 `.trellis/scripts/tests/test_dispatch_chain_contract.py`、`TEMPLATE-CONTENTS.md`（仅登记该新测试文件一行）、本任务目录；根 `.trellis/spec/main/tooling/python.md`（仅 R8 的定点 Scenario）。
-- 禁止写入：根目录 `.trellis/scripts/`、`.trellis/workflow.md`、`.claude/`、`.codex/`、`.opencode/`、`.agents/`（唯一例外是 R8 授权的根 `python.md` 定点条目）；模板既有 4 个测试文件（`test_subagent_prompt_contract.py`、`test_execution_plan.py`、`test_small_patch_and_sequel_contract.py`、`test_codex_native_wait_contract.py`）——只跑不改；`VERSION`、`history/`、版本 manifest、结构迁移链、`README.md`、`docs/接入指南.md`（固定收尾子任务职责）；`tools/`；并行窗口任务 `09-22-task-dir-time-prefix`、`09-24-template-platform-hint-and-step-text` 的文件与用户既有脏改动（开工前以 `git status` 快照为准，快照内脏文件一律不触碰、不回滚）。
-- 回归三套件（2026-09-26 实测基线，见 `research/01-baseline-regression.md`）：① 模板套件 `python -B -m unittest discover -s templates/embedded-c-overlay/.trellis/scripts/tests -p "test_*.py"` → **212 例 OK**，交付后须 ≥212+新增且全绿；② 根套件 `python -B -m unittest discover -s .trellis/scripts/tests -p "test_*.py"` → **154 例 OK**（只读运行，不改根文件）；③ 仓库级 `python -B -m unittest discover -s tests -p "test_*.py"` → **48 例、26 失败**（全部在 `tests/test_overlay_tools.py`，根因是 live 模板领先冻结的 1.2 manifest 触发安装器 fail-closed，属 1.3 开发期结构性红基线），开工前与提交前各跑一次，**失败集合必须完全一致**，不得新增红项，也不得为修绿触碰 manifest / history / VERSION。
+- 禁止写入：根目录 `.trellis/scripts/`、`.trellis/workflow.md`、`.claude/`、`.codex/`、`.opencode/`、`.agents/`（唯一例外是 R8 授权的根 `python.md` 定点条目）；模板既有 4 个测试文件（`test_subagent_prompt_contract.py`、`test_execution_plan.py`、`test_small_patch_and_sequel_contract.py`、`test_codex_native_wait_contract.py`）——只跑不改；`VERSION`、`history/`、版本 manifest、结构迁移链、`README.md`、`docs/接入指南.md`（固定收尾子任务职责）；`tools/`；并行窗口任务 `09-22-task-dir-time-prefix`、`09-24-template-platform-hint-and-step-text`、`09-27-review-severity-readjudication`、`10-01-allow-plan-post-complete-edit` 的文件与用户既有脏改动（开工前以 `git status` 快照为准，快照内脏文件一律不触碰、不回滚）。`10-01` 已规划改同一批 `workflow.md:246/274/614-615` 与 `plan_protocol_block` 完成/进行分支；本任务只追加链合同，不预支、不回写 10-01 的完成态 `revise` 语义。
+- 回归三套件：**权威基线是开工前 S1 实跑快照**，不是 `research/01` 的 2026-09-26 数字（该日模板 212 / 根 154 / 仓库级 48 例 26 失败；之后已新增 `test_task_dir_time_prefix.py` 等，模板用例数会变）。① 模板套件 `python -B -m unittest discover -s templates/embedded-c-overlay/.trellis/scripts/tests -p "test_*.py"`：交付后须 ≥ S1 模板用例数 + 本次新增且全绿；② 根套件 `python -B -m unittest discover -s .trellis/scripts/tests -p "test_*.py"`：与 S1 一致全绿（只读运行，不改根文件）；③ 仓库级 `python -B -m unittest discover -s tests -p "test_*.py"`：失败集合与 S1 逐例一致（预期仍全部在 `tests/test_overlay_tools.py`，根因是 live 模板领先冻结的 1.2 manifest），不得新增红项，也不得为修绿触碰 manifest / history / VERSION。`research/01` 仅作历史对照。
 - 其余：改动的 Python 文件 `python -m py_compile` 通过；`session-utils.js` 改动由既有 Node harness 覆盖，本机 Node 不可用则报 `not run` 并说明，不得记假 pass；`git diff --check` 无输出；构建 / 部署 / 硬件验证 `not applicable`（本仓库不产出固件或可执行产品）。
 
 ### R8. Spec 收敛（Phase 3.3，根 `python.md` 定点例外）
@@ -110,13 +115,13 @@
 
 - [ ] **AC1**：`execution_contract()` 新文本含"单次派发串行走完整条链、不得单 phase 返回"与"无法继续必须 `block` + 结构化报告、静默空返回属违规"两层语义，且原有批处理效率语义未丢失；Python 函数 ↔ `--json` bridge ↔ `session-utils.js` 的 `STATIC_EXECUTION_CONTRACT` 三方逐字相等（parity 测试实跑绿）。
 - [ ] **AC2**：`plan_protocol_block()` 进行分支含同义义务；完成分支不含 `Per phase loop`；head 标题串与 sequel 状态行短语未变；`test_execution_plan.py` 相关断言全绿。
-- [ ] **AC3**：模板 `workflow.md` 的 `[workflow-state:in_progress]` 块明确定义 round 与主会话派发粒度默认禁令，`[workflow-state:in_progress-inline]` 零 diff；`get_context.py --mode phase --step 2.1 --platform claude|codex|opencode` 三次真实 CLI 调用退出码 0 且各自输出含新 round 定义文本，`--platform claude|opencode` 输出不含 6 个 Codex 专用术语，2.1 仍含 `Spawn the implement sub-agent`。
+- [ ] **AC3**：模板 `workflow.md` 的 `[workflow-state:in_progress]` 块明确定义 round、把 246 行主语改成 default 口径，并含用户显式例外句；`[workflow-state:in_progress-inline]` 零 diff。分通道验证：① 新测试读 in_progress 块原文，含 round 定义、`By default the implement sub-agent`、`User instructions override these defaults` 与两种 `explicitly asks` 情形；② `get_context.py --mode phase --step 2.1 --platform claude|codex|opencode` 三次真实 CLI（cwd=模板根）退出码 0，各自输出含 2.1 派发范围句与 `Spawn the implement sub-agent`，`--platform claude|opencode` 不含 6 个 Codex 专用术语；**不得**要求 `--step 2.1` 输出含 round 定义或例外句。
 - [ ] **AC4**：四份 implement 代理定义（含 `.trellis/agents/implement.md` 与 Codex TOML）都含新禁令、completion 定义与报告两行；四份文件的共享短语断言全绿；TOML 可被解析（无转义/行继续错误）。
 - [ ] **AC5**：`plan.py status`（verbose 与非 verbose）与三平台 `<execution-plan>` 面包屑都出现链行；链为拓扑序并以终端 report phase 收尾；legacy 单文件布局、sequel live 指针布局、审计损坏布局下均不抛异常且不与 `frozen plans:` / verbose 任务行格式冲突；计划全完成时**不显示**链行（既有 `ALL TASKS COMPLETED` 行已表达终态），无 in_progress 且无 runnable 时同样不显示，两种情况都由测试锁定。
-- [ ] **AC6**：模板套件全绿（报告实际用例数，≥212+新增）；既有 4 个测试文件零改动且各自全绿；根套件 154 例全绿；仓库级 48 例失败集合与开工前基线逐例一致、无新增；改动 Python 文件 `py_compile` 通过；Node harness 相关测试 pass 或明确 `not run` + 原因；`git diff --check` 无输出。
+- [ ] **AC6**：模板套件全绿（报告实际用例数，≥ S1 模板用例数 + 本次新增）；既有 4 个测试文件零改动且各自全绿；根套件与 S1 一致全绿；仓库级失败集合与 S1 逐例一致、无新增；改动 Python 文件 `py_compile` 通过；Node harness 相关测试 pass 或明确 `not run` + 原因；`git diff --check` 无输出。
 - [ ] **AC7**：功能 diff 只出现在 `templates/embedded-c-overlay/`（外加本任务目录与 R8 授权的根 `python.md` 定点 Scenario）；模板内新增文件只有 `test_dispatch_chain_contract.py`，`TEMPLATE-CONTENTS.md` 只多一行登记；根 `.trellis/scripts/`、`.trellis/workflow.md`、`.claude/`、`.codex/`、`.opencode/`、`.agents/`、`tools/`、`docs/`、`README.md`、`VERSION`、`history/` 零 diff；并行窗口任务与用户既有脏改动未被触碰或回滚。
-- [ ] **AC8**：根 `.trellis/spec/main/tooling/python.md` 新增一个 Scenario 条目，覆盖链遍历义务、失败契约、用户显式指令优先例外、`format_status` 链行推导与 fail-soft、A/B/C/D 文本同步点五项合同，且 `Tests Required` 段点名承载断言的 4 个既有测试文件；该文件其余部分零 diff；既有"合同只存在于模板、根侧尚未同步"的事实表述（19/70/129 行）保持原样，且新条目自身也写明根侧未同步。
-- [ ] **AC9**：用户显式指令优先例外被文本与测试双重锁定 —— ① `[workflow-state:in_progress]` 块内含"用户显式要求时主会话可自行实施"与"用户显式要求时主会话可先写/批准 plan 再派发子代理从进行中的链接手"两句例外，且两句都带"仅当用户显式要求"限定词（不得写成主会话可随时自行实施）；② `plan_protocol_block()` 进行分支含"主会话即实施者时同一链遍历与失败上报义务适用"的中性表述，且"不得返回主会话"限定为 dispatched sub-agent；③ 既有 `Round 1 — plan generation` 默认由实施者建计划的语义与 small patch"用户明确说小修"优先语义未被削弱（`test_small_patch_and_sequel_contract.py` 既有断言全绿）；④ 例外句不命中 8 个 FORBIDDEN 短语与 6 个 CODEX_ONLY_TERMS。
+- [ ] **AC8**：根 `.trellis/spec/main/tooling/python.md` 新增一个 Scenario 条目，覆盖链遍历义务、失败契约、用户显式指令优先例外、`format_status` 链行推导与 fail-soft、A/B/C/D 文本同步点五项合同，且 `Tests Required` 段点名新建的 `test_dispatch_chain_contract.py`（断言落点）与 4 个既有回归文件（zero-diff 防线）；该文件其余部分零 diff；既有"合同只存在于模板、根侧尚未同步"的事实表述（19/70/129 行）保持原样，且新条目自身也写明根侧未同步。
+- [ ] **AC9**：用户显式指令优先例外被文本与测试双重锁定 —— ① `[workflow-state:in_progress]` 块内 246 行主语为 `By default the implement sub-agent`，并含"用户显式要求时主会话可自行实施"与"用户显式要求时主会话可先写/批准 plan 再派发子代理从进行中的链接手"两句例外，且两句都带"仅当用户显式要求"限定词（不得写成主会话可随时自行实施）；② `plan_protocol_block()` 进行分支含"主会话即实施者时同一链遍历与失败上报义务适用"的中性表述，且"不得返回主会话"限定为 dispatched sub-agent；③ 既有 `Round 1 — plan generation` 默认由实施者建计划的语义与 small patch"用户明确说小修"优先语义未被削弱（`test_small_patch_and_sequel_contract.py` 既有断言全绿）；④ 例外句不命中 8 个 FORBIDDEN 短语与 6 个 CODEX_ONLY_TERMS。
 
 ## Out Of Scope
 
@@ -130,7 +135,7 @@
 - `VERSION`、canonical 对象库、版本 manifest、结构迁移链、`README.md`、`docs/接入指南.md`、升级补丁（固定收尾子任务负责）。
 - 下游项目 `09-26-traffic-light-checkpoint-vision` 的实际返工与 `mission-core-semantics` 重做。
 - `templates/language-adaptation/`（实测无相关命中）。
-- 并行窗口任务 `09-22-task-dir-time-prefix`、`09-24-template-platform-hint-and-step-text` 与用户既有脏改动。
+- 并行窗口任务 `09-22-task-dir-time-prefix`、`09-24-template-platform-hint-and-step-text`、`09-27-review-severity-readjudication`、`10-01-allow-plan-post-complete-edit` 与用户既有脏改动。
 
 ## Technical Notes
 
@@ -148,5 +153,6 @@
 - Blocking technical decisions: 0
 - Final summary ready: yes
 - 已解决的用户决策：① 只改发布模板、不动根目录自用工作流运行时实现（2026-09-26）；② 排除主会话"返回后 gate"（git diff + check_recorded 验收关卡）（2026-09-26）；③ 根 `.trellis/spec/main/tooling/python.md` 允许定点同步——先答"不允许"后于同轮更正为"spec 可以同步"，最终取允许，边界为仅新增一个 Scenario 条目（2026-09-26）；④ 任务挂在 `09-17-trellisforge-1-3-upgrade` 下（2026-09-26）；⑤ 新增约束不得完全阻止主会话实施——用户显式要求时主会话可充当实施代理，也可先写/批准 plan 再派发子代理按 plan 实施，故所有主会话侧约束一律写为默认口径 + 用户显式指令优先例外（2026-09-26）；⑥ 测试哨兵形态：先选方案 1（断言加进既有 4 个文件），随后于同日撤回并改回**新建独立测试文件** `test_dispatch_chain_contract.py` + `TEMPLATE-CONTENTS.md` 登记一行，既有 4 个测试文件零改动（2026-09-26 最终决定）。
-- 已解决的工程决策（理由见 `design.md` §4.3、§7）：机械提醒取形态一（`format_status` 新增 `dispatch chain:` 行）而非新增 `plan.py dispatchable` 子命令；合法提前返回限定为 `block` 与"上下文预算耗尽先收尾当前 phase 再报告剩余 runnable"两种；链行顺序取拓扑序 + plan 声明序 tie-break（不复用字典序的 runnable）；箭头用 ASCII `->`；测试断言集中在新建的 `test_dispatch_chain_contract.py`（跨 A–E 与三平台，一处定位），既有 4 个测试文件零改动只作回归防线；`[workflow-state:in_progress-inline]` 与 `[codex-inline]` 变体零改动（inline 模式主会话本就是实施者，禁令不适用）。
-- Review level：`standard`（用户未显式指定，按 adapter 规则取默认并在此明示，不因 AI 风险判断上调）。
+- 已解决的工程决策（理由见 `design.md` §4.3、§7）：机械提醒取形态一（`format_status` 新增 `dispatch chain:` 行）而非新增 `plan.py dispatchable` 子命令；合法提前返回限定为 `block` 与"上下文预算耗尽先收尾当前 phase 再报告剩余 runnable"两种；链行顺序取拓扑序 + plan 声明序 tie-break（不复用字典序的 runnable）；箭头用 ASCII `->`；测试断言集中在新建的 `test_dispatch_chain_contract.py`（跨 A–E 与三平台，一处定位），既有 4 个测试文件零改动只作回归防线；`[workflow-state:in_progress-inline]` 与 `[codex-inline]` 变体零改动（inline 模式主会话本就是实施者，禁令不适用）；C 项送达分通道（in_progress 块读原文锁 round/例外，`--step 2.1` 只锁派发范围句）；246 行主语改成 `By default the implement sub-agent`；并行计划下链行输出整棵剩余森林且一次派发串行走完；回归数字以 S1 实跑为准而非 `research/01` 的 212。
+- 2026-10-01 规划审查已吸收：AC3/R6-C 送达通道、AC8 Tests Required 点名、S5 cwd、S9 AC9、246 主语、并行森林、兄弟任务禁写面。无新增阻塞用户决策。
+- Review level：`reinforced`（用户 2026-10-01 显式指定；拼写 `reinforeced` 按合法枚举取 `reinforced`）。

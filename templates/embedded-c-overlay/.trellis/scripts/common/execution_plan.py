@@ -2012,6 +2012,86 @@ def compute_status(plan: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _dispatch_chain(plan: dict[str, Any]) -> list[str]:
+    """Remaining phase ids for the current dispatch round, in topological order.
+
+    Seeds are the ``in_progress`` phases plus the runnable ``pending`` phases
+    (all dependencies completed); the chain then extends along reverse
+    dependencies (who depends on me) through ``pending``/``in_progress`` nodes
+    only. ``completed`` nodes drop out and ``blocked`` nodes prune their whole
+    downstream branch. A parallel plan with several independent runnable phases
+    still emits the whole remaining reachable forest, because one dispatch walks
+    it serially. Ties in the Kahn topological order keep plan declaration order
+    (never ``sorted()`` lexicographic order). Fail soft: a damaged or malformed
+    plan degrades to an empty list, and the caller simply omits the line.
+    """
+    try:
+        tasks = [t for t in plan.get("tasks", []) if isinstance(t, dict)]
+        by_id = {
+            t.get("id"): t for t in tasks if isinstance(t.get("id"), str)
+        }
+        if not by_id:
+            return []
+        status = {tid: t.get("status") for tid, t in by_id.items()}
+        completed = {tid for tid, state in status.items() if state == "completed"}
+        seeds: list[str] = []
+        for task in tasks:
+            tid = task.get("id")
+            if isinstance(tid, str) and status.get(tid) == "in_progress":
+                seeds.append(tid)
+        for task in tasks:
+            tid = task.get("id")
+            if not isinstance(tid, str) or status.get(tid) != "pending":
+                continue
+            deps = [d for d in task.get("depends_on") or [] if isinstance(d, str)]
+            if all(d in completed for d in deps):
+                seeds.append(tid)
+        if not seeds:
+            return []
+        dependents: dict[str, list[str]] = {}
+        for tid, task in by_id.items():
+            for dep in task.get("depends_on") or []:
+                if isinstance(dep, str) and dep in by_id:
+                    dependents.setdefault(dep, []).append(tid)
+        include: list[str] = []
+        seen: set[str] = set()
+        stack = list(seeds)
+        while stack:
+            tid = stack.pop(0)
+            if tid in seen or status.get(tid) not in ("pending", "in_progress"):
+                continue  # completed/blocked: excluded, and never traversed
+            seen.add(tid)
+            include.append(tid)
+            for child in dependents.get(tid, []):
+                if child not in seen:
+                    stack.append(child)
+        order = {tid: index for index, tid in enumerate(by_id)}
+        indegree = {tid: 0 for tid in include}
+        for tid in include:
+            for dep in by_id[tid].get("depends_on") or []:
+                if isinstance(dep, str) and dep in indegree:
+                    indegree[tid] += 1
+        ready = [tid for tid in include if indegree[tid] == 0]
+        ready.sort(key=lambda tid: order.get(tid, 0))
+        result: list[str] = []
+        while ready:
+            tid = ready.pop(0)
+            result.append(tid)
+            for child in dependents.get(tid, []):
+                if child in indegree:
+                    indegree[child] -= 1
+                    if indegree[child] == 0:
+                        ready.append(child)
+            ready.sort(key=lambda tid: order.get(tid, 0))
+        if len(result) != len(include):
+            # Residual cycle guard: validate refuses cycles, but a damaged plan
+            # must still produce something safe instead of raising.
+            return result
+        return result
+    except Exception:
+        return []
+
+
 def _frozen_plan_summaries(task_dir: Path) -> list[str]:
     """One compact line per frozen plan; best-effort (never breaks status)."""
     try:
@@ -2081,6 +2161,9 @@ def format_status(task_dir: Path, repo_root: Path | None = None, *, verbose: boo
         lines.append("next runnable: " + ", ".join(status["runnable"]))
     if status["blocked"]:
         lines.append("blocked: " + ", ".join(status["blocked"]))
+    chain = _dispatch_chain(plan)
+    if chain:
+        lines.append("dispatch chain: " + " -> ".join(chain))
     if verbose:
         for task in plan.get("tasks", []):
             if not isinstance(task, dict):
@@ -2315,6 +2398,14 @@ def plan_protocol_block(repo_root: Path, task_dir: Path) -> str:
               "--exit-code <number> --summary \"<short text>\" [--artifact <task-relative-path>]` "
               "for every declared required check → `done <id>`. "
               "Do not write per-phase Markdown and do not reformat full command output; record results only.\n"
+              "Chain duty: one execution round covers the whole remaining chain, not one phase. After each "
+              "`done`, continue with the next runnable phase until the terminal report phase is done. A "
+              "dispatched sub-agent must not return to the main session after a single phase; return early "
+              "only via `block <id> --reason \"...\"` plus a structured failure report, or via "
+              "context-budget exhaustion after `record`/`done` of the current phase (then list the remaining "
+              "runnable phases). A silent empty return is a protocol violation. When the main session is the "
+              "implementer (Codex inline, or because the user explicitly asked it to implement or to write the "
+              "plan first), the same chain duty and the same failure reporting apply to it.\n"
               "The terminal level=report phase additionally: confirm all dependencies completed, run and "
               f"record every declared final check, write `{live_display}/{REPORT_FILE}` summarizing changed "
               f"files, phase results, check results, skipped items, and known risks, then `record` it with "

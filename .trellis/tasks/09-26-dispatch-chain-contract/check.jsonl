@@ -1,3 +1,11 @@
+{"file": "templates/embedded-c-overlay/.trellis/scripts/common/subagent_prompt_policy.py", "reason": "审查 A：execution_contract 新文本是否含链义务与 block 义务、旧批处理句是否保留、是否把 complete 衔接到终端 report phase"}
+{"file": "templates/embedded-c-overlay/.opencode/lib/session-utils.js", "reason": "审查 A'：STATIC_EXECUTION_CONTRACT 是否与 Python 逐字相等"}
+{"file": "templates/embedded-c-overlay/.trellis/scripts/common/execution_plan.py", "reason": "审查 B/E：Chain duty 是否只在进行分支、完成分支无 Per phase loop、链行是否在 verbose 外、并行森林与 fail-soft"}
+{"file": "templates/embedded-c-overlay/.trellis/workflow.md", "reason": "审查 C：246 default 主语、in_progress 例外句、611 保留 (or continue inline)、2.1 只有派发范围句、inline 块零 diff；不得把 round/例外写进 2.1"}
+{"file": "templates/embedded-c-overlay/.claude/agents/trellis-implement.md", "reason": "审查 D：四份代理之一是否含禁令、completion 定义与报告两行"}
+{"file": "templates/embedded-c-overlay/.opencode/agents/trellis-implement.md", "reason": "审查 D：OpenCode 原生 implement 代理是否与 Claude 版同构落位"}
+{"file": "templates/embedded-c-overlay/.codex/agents/trellis-implement.toml", "reason": "审查 D：TOML 可解析且报告两行落在既有 summarize 清单"}
+{"file": "templates/embedded-c-overlay/.trellis/agents/implement.md", "reason": "审查 D：bundled worker 卡不得漏改，且与 Channel Termination Contract 不冲突"}
 {"file": ".trellis/spec/main/tooling/templates-and-docs.md", "reason": "审查写入边界：功能改动只允许出现在 templates/embedded-c-overlay/，根目录唯一例外是 .trellis/spec/main/tooling/python.md 的定点 Scenario；据 14-22 行核对是否误改根自用实现或提前触碰收尾子任务资产（VERSION/history/manifest/README/接入指南）"}
 {"file": ".trellis/spec/main/tooling/python.md", "reason": "审查测试写法约定（111 行）与'送达验证必须走真实 CLI、不得只做文本断言'（105/165 行）；核对禁止事项（不吞异常、不把不可执行检查伪造为 pass、不提交 __pycache__/.pyc）与 R8 新增 Scenario 是否沿用既有 7 段结构且保留'根侧尚未同步'事实表述"}
 {"file": ".trellis/spec/shared/validation.md", "reason": "审查报告口径：三套件命令与 pass/fail/not run/not applicable 的区分，构建与硬件验证为 not applicable，Node harness 不可用时必须报 not run 而非假 pass"}

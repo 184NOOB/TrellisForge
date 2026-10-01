@@ -3,7 +3,7 @@
   "name": "dispatch-chain-contract",
   "title": "模板单次派发走完执行计划链合同",
   "description": "",
-  "status": "planning",
+  "status": "in_progress",
   "dev_type": null,
   "scope": null,
   "package": "main",
@@ -24,6 +24,6 @@
   "notes": "",
   "meta": {
     "planning_ready": "true",
-    "plan_approved": false
+    "plan_approved": "true"
   }
 }

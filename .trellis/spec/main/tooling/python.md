@@ -228,6 +228,63 @@ Python 代码主要位于 `.trellis/scripts/`、`.claude/hooks/` 和 `.codex/hoo
 
 分叉是用户决定:模板侧合同由 `test_task_dir_time_prefix.py` 锁定;根侧升级只能由明确授权的根级任务执行,并各自保持测试与文档同步。
 
+## Scenario: 模板单次派发走完执行计划链（链遍历义务 / 失败契约 / 链行）
+
+### 1. Scope / Trigger
+
+- Trigger: 模板把"一次 implement 派发 = 串行走完整条剩余 phase 链，直到终端 report phase `done`"与"做不下去必须 `plan.py block` + 结构化上报，静默空返回属协议违规"写进三平台共享文本（`execution_contract()` / `plan_protocol_block()` / `workflow.md` / 四份 implement 代理定义），并让 `format_status()`（`plan.py status` 与三平台 `<execution-plan>` 面包屑）显示本轮链。A/A'/B/C/D/E 的文本同步、parity 与"用户显式指令优先"例外都是跨层合同（CLI / `execution_plan.py` / workflow / 各平台 Agent / Hook）。
+- 合同目前只存在于 `templates/embedded-c-overlay/`。根目录自用 `.trellis/scripts/`、根 `.trellis/workflow.md`、根三份代理定义与 hooks 尚未同步本次链遍历义务与链行，不得把模板行为写成根目录已经具备的事实；根侧回移属根级工具修复、需单独任务授权。
+- 用户 2026-09-26 明确：主会话侧约束一律写成默认口径 + "用户显式指令优先"例外——主会话可自行实施，也可先写/批准 plan 再派发；不新增任何主会话"返回后 gate"或机械拦截通道。
+
+### 2. Signatures
+
+- `common.subagent_prompt_policy.execution_contract() -> str`：三平台共享派发合同唯一文本源（Claude/Codex hook import 取值；OpenCode 经 `--json` bridge）。
+- `.opencode/lib/session-utils.js` `STATIC_EXECUTION_CONTRACT`：OpenCode 桥接失败时的静态兜底，必须与 Python 返回值逐字相等。
+- `common.execution_plan.plan_protocol_block(repo_root, task_dir) -> str`：进行分支含中性 Chain duty。
+- `common.execution_plan._dispatch_chain(plan: dict) -> list[str]`：本轮剩余链推导。
+- `format_status(task_dir, repo_root, *, verbose=...)` 增 `dispatch chain: a -> b -> report` 行。
+- `workflow.md` `[workflow-state:in_progress]` 块与 `#### 2.1` 派发范围句；`get_context.py --mode phase --step 2.1 --platform claude|codex|opencode` 为送达入口（cwd 必须是模板根）。
+
+### 3. Contracts
+
+- `execution_contract()` 追加段：一次派发拥有剩余整条链（`start -> 编辑（限 scope.write）-> 跑声明检查 -> record -> done`），不得在单个 phase `done` 后返回；`complete` 指终端 report phase `done`，不再是当前 phase 的 scope 完成；无法继续 → `plan.py block <id> --reason` + 结构化失败报告；静默空返回属违规；唯一另一种合法提前返回是上下文预算耗尽（先 `record`/`done` 当前 phase，再返回并列出剩余 runnable）。
+- 共享合同文本不得包含双引号字符：JS 静态常量由"剥出双引号段再拼接"的 parity 正则读取，裸 `"` 会打破 Python ↔ `--json` bridge ↔ JS 三方逐字相等；`--reason` 占位用单引号 `'...'`。
+- `plan_protocol_block()` 只在**进行分支**追加中性 Chain duty："A dispatched sub-agent must not return …"必须带 dispatched 限定，并含"主会话即实施者（Codex inline 或用户显式要求实施/先写 plan）时同一链遍历与失败上报义务适用"句；完成分支不得出现该短语（既有 `assertNotIn "Per phase loop"` 同时保持）。
+- `workflow.md`：246 行主语为 `By default the implement sub-agent`；`Dispatch granularity (default)` 定义 round；`User instructions override these defaults` 例外含两个 `explicitly asks` 情形；`[workflow-state:in_progress-inline]`、`[codex-inline]` 与 2.1.2 冻结文本零 diff；`(or continue inline)` 保留。
+- 四份 implement 代理定义（含 Codex TOML 与 channel worker 卡）共享短语：`Do not return after a single phase`、completion = 整个计划（`not the end of the current phase`）、报告两行 `Plan phases advanced:` / `Remaining runnable:`。
+- `_dispatch_chain`：种子 = `in_progress` + runnable `pending`；沿反向邻接只纳入 `pending`/`in_progress`，`completed` 剪枝、`blocked` 剪枝且不穿过；Kahn 拓扑 + plan 声明序 tie-break；`allow_parallel_tasks=true` 输出整棵剩余森林；异常/畸形计划 fail soft 返回 `[]`。
+- 链行只在链非空时输出、位于 verbose 分支之外（保证 `verbose=False` 面包屑可见）；不得含 `frozen plans:` 子串，不得模仿 `[<status 右对齐 12>] <id>` 行；全完成时由既有 `ALL TASKS COMPLETED` 行表达终态，不显示链行；既有 `next runnable` 行原样保留。
+
+### 4. Validation & Error Matrix
+
+- 单 phase `done` 后返回（零 diff、未 record、未 block）→ 协议违规（文本合同；无机械 gate，靠 2.2 审查与状态可见性兜底）
+- 真受阻 → `block <id> --reason` + 结构化报告；预算耗尽 → 先收尾当前 phase 再报告剩余 runnable；两者不得混用
+- 计划全完成，或无 `in_progress` 且无 runnable → 不显示链行
+- 畸形计划、审计损坏、live 指针歧义 → `_dispatch_chain` 与 `plan_breadcrumb` 不抛异常，链行退化为不显示
+- `--step 2.1` 输出只要求派发范围句与 `Spawn the implement sub-agent`；round 定义与例外句只属于 tag 块，不得断言到 2.1 输出
+
+### 5. Good/Base/Bad Cases
+
+- Good: 一次派发从当前 phase 串行走到终端 report `done`，`status`/面包屑每轮显示 `dispatch chain:`；真受阻时 block + 报告，主会话据审计决定 revise。
+- Base: `allow_parallel_tasks=true` 有多个独立 runnable 时仍输出整棵剩余森林；legacy 与 sequel 布局下链行只描述 live 计划，且不与 `frozen plans:` 行混淆。
+- Bad: 主会话按 phase 逐格派发；预算将尽时误用 `block` 把可用 phase 标成阻塞；把 round/例外断言到 `--step 2.1` 输出；给共享合同文本加双引号导致 JS parity 破裂。
+
+### 6. Tests Required
+
+- 模板 `test_dispatch_chain_contract.py`（新建，A–E）：`execution_contract()` 关键短语与动态三方 parity、协议块进行分支短语 + 完成分支 `assertNotIn`、`[workflow-state:in_progress]` 块 round/例外/246 default 主语 + 三平台真实 CLI 只锁 2.1 派发范围句、四份代理新短语与 Codex TOML 可解析、`_dispatch_chain` 推导矩阵（线性/菱形/blocked/completed/全完成/畸形/并行森林/声明序）与 `format_status` 链行（legacy/sequel/fail-soft）。
+- 既有 4 个测试文件零改动、作为回归防线：`test_subagent_prompt_contract.py`（Python ↔ JS parity）、`test_execution_plan.py`（完成分支禁区、`frozen plans:`、verbose 行格式）、`test_small_patch_and_sequel_contract.py`（`IMPLEMENT_AGENTS` 四文件循环）、`test_codex_native_wait_contract.py`（2.1 送达与 `Spawn the implement sub-agent`）。
+- 运行方式：`python -B -m unittest discover -s templates/embedded-c-overlay/.trellis/scripts/tests -p "test_*.py"`。
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+在 `workflow.md` 里定义 round 却只对 `--step 2.1` 做断言（该 step 抽不到 tag 块与 611 行）；把"不得返回主会话"写成无条件禁令（inline 主会话与用户显式要求场景被堵死）；把链行写进 verbose 分支（面包屑看不到）或复用字典序 runnable。
+
+#### Correct
+
+共享合同文本 Python/JS 同步并保持无裸双引号写法；协议块落进行分支且限定 dispatched 子代理；tag 块锁默认口径 + `explicitly asks` 例外；链行在 verbose 之外、拓扑序、fail soft，并保留既有 `next runnable` 行不动。
+
 ## 测试与示例
 
 - 执行计划状态机的行为测试在 `.trellis/scripts/tests/test_execution_plan.py`。

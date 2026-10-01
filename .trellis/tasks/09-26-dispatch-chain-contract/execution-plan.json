@@ -1,0 +1,398 @@
+{
+  "schema": 3,
+  "task": ".trellis/tasks/09-26-dispatch-chain-contract",
+  "revision": 2,
+  "status": "approved",
+  "audit": {
+    "required": true,
+    "file": "execution-events.jsonl"
+  },
+  "created_by": "trellis-implement",
+  "goal": "Template dispatch-chain contract: one dispatch walks the remaining plan chain to the terminal report phase with a block-and-report failure contract, status shows the chain, plus focused tests and the root python.md Scenario entry.",
+  "constraints": {
+    "forbidden_git_operations": [
+      "commit",
+      "push",
+      "tag",
+      "reset",
+      "restore-modified-source"
+    ],
+    "max_tasks": 8,
+    "max_edits_per_file": 6,
+    "allow_parallel_tasks": false
+  },
+  "tasks": [
+    {
+      "id": "baseline-snapshot",
+      "title": "S1 baseline snapshot (read-only)",
+      "status": "completed",
+      "objective": "Record git status/diff snapshot and the authoritative pre-change baselines for the template, root, and repo-level unittest suites; user dirty files and sibling-window files are documented and left untouched.",
+      "depends_on": [],
+      "scope": {
+        "read": [
+          "templates/embedded-c-overlay/",
+          ".trellis/scripts/tests/",
+          "tests/"
+        ],
+        "write": []
+      },
+      "verification": {
+        "level": "minimal",
+        "required_checks": []
+      },
+      "no_check_reason": "Pure read-only baseline phase: no business file is written; the snapshot numbers and dirty-file list are carried into final-report.md and used as the comparison baseline by later phases."
+    },
+    {
+      "id": "contract-text",
+      "title": "S2 A/A': execution_contract chain duty + JS static parity",
+      "status": "completed",
+      "objective": "Append the chain-traversal obligation and block-and-report failure contract to execution_contract() while keeping every existing batch-efficiency sentence, and make session-utils.js STATIC_EXECUTION_CONTRACT byte-identical.",
+      "depends_on": [
+        "baseline-snapshot"
+      ],
+      "scope": {
+        "read": [
+          "templates/embedded-c-overlay/.trellis/scripts/common/subagent_prompt_policy.py",
+          "templates/embedded-c-overlay/.opencode/lib/session-utils.js"
+        ],
+        "write": [
+          "templates/embedded-c-overlay/.trellis/scripts/common/subagent_prompt_policy.py",
+          "templates/embedded-c-overlay/.opencode/lib/session-utils.js"
+        ]
+      },
+      "verification": {
+        "level": "minimal",
+        "required_checks": [
+          "contract-parity",
+          "opencode-parity",
+          "py-compile-policy"
+        ]
+      },
+      "verification_results": {
+        "contract-parity": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-10-01T09:44:32Z",
+          "command": "tpl-test-subagent-prompt-contract",
+          "summary": "22 tests OK; execution_contract chain duty + JS STATIC parity green"
+        },
+        "opencode-parity": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-10-01T09:44:32Z",
+          "command": "tpl-test-opencode-platform-contract",
+          "summary": "13 tests OK incl. Node harness static-contract parity"
+        },
+        "py-compile-policy": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-10-01T09:44:32Z",
+          "command": "py-compile-subagent-prompt-policy",
+          "summary": "py_compile exit 0"
+        }
+      }
+    },
+    {
+      "id": "protocol-and-chain",
+      "title": "S3+S4 B protocol-block Chain duty and E dispatch-chain status line",
+      "status": "completed",
+      "objective": "Insert the neutral Chain duty only in the in-progress branch of plan_protocol_block(); add _dispatch_chain() with topological, blocked-pruned, fail-soft derivation and the non-verbose `dispatch chain:` status line.",
+      "depends_on": [
+        "contract-text"
+      ],
+      "scope": {
+        "read": [
+          "templates/embedded-c-overlay/.trellis/scripts/common/execution_plan.py"
+        ],
+        "write": [
+          "templates/embedded-c-overlay/.trellis/scripts/common/execution_plan.py"
+        ]
+      },
+      "verification": {
+        "level": "minimal",
+        "required_checks": [
+          "execution-plan-regression",
+          "py-compile-execution-plan"
+        ]
+      },
+      "verification_results": {
+        "execution-plan-regression": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-10-01T09:45:40Z",
+          "command": "tpl-test-execution-plan",
+          "summary": "test_execution_plan.py green; Chain duty kept inside in-progress branch; smoke matrix linear/diamond/blocked/parallel/all-done/malformed correct"
+        },
+        "py-compile-execution-plan": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-10-01T09:45:40Z",
+          "command": "py-compile-execution-plan",
+          "summary": "py_compile exit 0"
+        }
+      }
+    },
+    {
+      "id": "workflow-md-contract",
+      "title": "S5 C workflow.md round definition, default subject, user-exception",
+      "status": "completed",
+      "objective": "Rewrite the in_progress Execution plan subject to the default voice, add the dispatch-granularity default and `User instructions override these defaults` exception, bound one round at the Phase 2 gate keeping `(or continue inline)`, and add only the dispatch-scope sentence to 2.1.",
+      "depends_on": [
+        "protocol-and-chain"
+      ],
+      "scope": {
+        "read": [
+          "templates/embedded-c-overlay/.trellis/workflow.md"
+        ],
+        "write": [
+          "templates/embedded-c-overlay/.trellis/workflow.md"
+        ]
+      },
+      "verification": {
+        "level": "minimal",
+        "required_checks": [
+          "workflow-regression",
+          "step-2-1-delivery"
+        ]
+      },
+      "verification_results": {
+        "workflow-regression": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-10-01T09:46:37Z",
+          "command": "tpl-workflow-regression-batch",
+          "summary": "82 tests OK across 6 workflow-parsing files"
+        },
+        "step-2-1-delivery": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-10-01T09:46:37Z",
+          "command": "tpl-step-2-1-three-platforms",
+          "summary": "claude/codex/opencode exit 0, Spawn sentence + dispatch-scope sentence present, no Codex-only terms"
+        }
+      }
+    },
+    {
+      "id": "agent-definitions",
+      "title": "S6 D four implement-agent definitions",
+      "status": "completed",
+      "objective": "Add the single-phase-return prohibition, the completion = whole-plan definition, and the two report lines to all four implement agent definitions, with the Codex TOML keeping its multi-line-string form parseable.",
+      "depends_on": [
+        "workflow-md-contract"
+      ],
+      "scope": {
+        "read": [
+          "templates/embedded-c-overlay/.claude/agents/trellis-implement.md",
+          "templates/embedded-c-overlay/.opencode/agents/trellis-implement.md",
+          "templates/embedded-c-overlay/.codex/agents/trellis-implement.toml",
+          "templates/embedded-c-overlay/.trellis/agents/implement.md"
+        ],
+        "write": [
+          "templates/embedded-c-overlay/.claude/agents/trellis-implement.md",
+          "templates/embedded-c-overlay/.opencode/agents/trellis-implement.md",
+          "templates/embedded-c-overlay/.codex/agents/trellis-implement.toml",
+          "templates/embedded-c-overlay/.trellis/agents/implement.md"
+        ]
+      },
+      "verification": {
+        "level": "minimal",
+        "required_checks": [
+          "agent-shared-regression",
+          "toml-parse"
+        ]
+      },
+      "verification_results": {
+        "agent-shared-regression": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-10-01T09:48:35Z",
+          "command": "tpl-agent-shared-batch",
+          "summary": "59 tests OK; 4 agent files carry all 4 chain phrases"
+        },
+        "toml-parse": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-10-01T09:48:35Z",
+          "command": "codex-toml-tomllib-load",
+          "summary": "tomllib parses edited TOML; no escape errors"
+        }
+      }
+    },
+    {
+      "id": "dispatch-chain-test",
+      "title": "S7 new test_dispatch_chain_contract.py and TEMPLATE-CONTENTS row",
+      "status": "completed",
+      "objective": "Create the A-E contract test file with dynamic parity values, channel-split C delivery, D loop, and the E derivation matrix; register one row in TEMPLATE-CONTENTS.md.",
+      "depends_on": [
+        "agent-definitions"
+      ],
+      "scope": {
+        "read": [
+          "templates/embedded-c-overlay/.trellis/scripts/tests/",
+          "templates/embedded-c-overlay/TEMPLATE-CONTENTS.md"
+        ],
+        "write": [
+          "templates/embedded-c-overlay/.trellis/scripts/tests/test_dispatch_chain_contract.py",
+          "templates/embedded-c-overlay/TEMPLATE-CONTENTS.md"
+        ]
+      },
+      "verification": {
+        "level": "minimal",
+        "required_checks": [
+          "new-contract-test",
+          "template-full-suite",
+          "py-compile-new-test"
+        ]
+      },
+      "verification_results": {
+        "new-contract-test": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-10-01T09:51:53Z",
+          "command": "tpl-test-dispatch-chain-contract",
+          "summary": "24 tests OK (A/A' parity, B placement, C two channels, D four agents, E matrix)"
+        },
+        "template-full-suite": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-10-01T09:51:53Z",
+          "command": "tpl-template-full-suite",
+          "summary": "270 tests OK = 246 S1 baseline + 24 new"
+        },
+        "py-compile-new-test": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-10-01T09:51:53Z",
+          "command": "py-compile-test-dispatch-chain-contract",
+          "summary": "py_compile exit 0"
+        }
+      }
+    },
+    {
+      "id": "spec-entry",
+      "title": "S8 R8 root python.md Scenario entry",
+      "status": "completed",
+      "objective": "Add exactly one Scenario entry to the root .trellis/spec/main/tooling/python.md recording the template chain contract, failure contract, user-override exception, _dispatch_chain fail-soft semantics, and the A/B/C/D sync points, naming the new test file and the four regression files in Tests Required.",
+      "depends_on": [
+        "dispatch-chain-test"
+      ],
+      "scope": {
+        "read": [
+          ".trellis/spec/main/tooling/python.md"
+        ],
+        "write": [
+          ".trellis/spec/main/tooling/python.md"
+        ]
+      },
+      "verification": {
+        "level": "minimal",
+        "required_checks": [
+          "root-suite",
+          "diff-check-spec"
+        ]
+      },
+      "verification_results": {
+        "root-suite": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-10-01T09:53:26Z",
+          "command": "tpl-root-suite",
+          "summary": "154 tests OK, identical to S1 root baseline"
+        },
+        "diff-check-spec": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-10-01T09:53:26Z",
+          "command": "git-diff-check-scoped",
+          "summary": "scoped git diff --check clean (template + python.md); global check only flags pre-existing CRLF task.json from S1"
+        }
+      }
+    },
+    {
+      "id": "verify-final",
+      "title": "S9 final acceptance and report",
+      "status": "completed",
+      "objective": "Re-run the three suites against the S1 baselines, py_compile every changed Python file, confirm the change boundary, and write final-report.md with per-AC evidence. Also close the E-matrix audit-damage gap: add one format_status test for a damaged execution-events.jsonl and re-run every declared check so the recorded evidence matches the revised test file.",
+      "depends_on": [
+        "spec-entry"
+      ],
+      "scope": {
+        "read": [
+          "templates/embedded-c-overlay/",
+          ".trellis/spec/main/tooling/python.md",
+          ".trellis/tasks/09-26-dispatch-chain-contract/"
+        ],
+        "write": [
+          "final-report.md",
+          "templates/embedded-c-overlay/.trellis/scripts/tests/test_dispatch_chain_contract.py"
+        ]
+      },
+      "verification": {
+        "level": "report",
+        "required_checks": [
+          "template-final",
+          "root-final",
+          "repo-baseline-match",
+          "py-compile-final",
+          "git-diff-check-final",
+          "scope-diff-final",
+          "audit-damage-coverage"
+        ],
+        "report_path": "final-report.md"
+      },
+      "verification_results": {
+        "audit-damage-coverage": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-10-01T10:00:21Z",
+          "command": "tpl-test-dispatch-chain-contract-r2",
+          "summary": "25 tests OK incl. degraded-audit format_status case (AUDIT DAMAGED + chain line, no raise)"
+        },
+        "template-final": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-10-01T10:01:32Z",
+          "command": "tpl-template-full-suite-r2",
+          "summary": "271 tests OK; final-report.md written and registered",
+          "artifact": ".trellis/tasks/09-26-dispatch-chain-contract/final-report.md"
+        },
+        "root-final": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-10-01T10:00:21Z",
+          "command": "tpl-root-suite-r2",
+          "summary": "154 tests OK, identical to S1 root baseline"
+        },
+        "repo-baseline-match": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-10-01T10:00:21Z",
+          "command": "repo-suite-diff-vs-s1",
+          "summary": "repo suite 48 tests; failure set 26/26 exactly equal to S1 (no new red)"
+        },
+        "py-compile-final": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-10-01T10:00:22Z",
+          "command": "py-compile-final-3-files",
+          "summary": "py_compile exit 0 on policy.py, execution_plan.py, new test file"
+        },
+        "git-diff-check-final": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-10-01T10:00:22Z",
+          "command": "git-diff-check-scoped-r2",
+          "summary": "scoped git diff --check clean; global output only pre-existing CRLF task.json from S1 snapshot"
+        },
+        "scope-diff-final": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-10-01T10:00:22Z",
+          "command": "git-status-allowlist-check",
+          "summary": "no non-allowlisted paths; no root runtime/tools/docs/VERSION/history diff"
+        }
+      }
+    }
+  ],
+  "approved_fingerprint": "0b63980a2e505d275dc3a35cafea0690a501fe533ceef5589b8dd9cfbc72e4c0"
+}

@@ -80,6 +80,14 @@ of past turns.
   full command output; a passing `done` requires every declared check recorded
   `pass`. A recorded `fail` is permanent for the revision — recover via
   block/revise. Read-only phases with `no_check_reason` need no records at all.
+- **Chain duty:** one execution round covers the whole remaining chain, not one
+  phase. After each `done`, continue with the next runnable phase until the
+  terminal report phase is done. Do not return after a single phase; return
+  early only via `plan.py block <id> --reason "..."` plus a structured failure
+  report, or via context-budget exhaustion after record/done of the current
+  phase (then list the remaining runnable phases). A silent empty return is a
+  protocol violation. Completion means the terminal report phase is done, not
+  the end of the current phase.
 - **The final `report` phase:** confirm all dependencies completed, run and
   record every declared final check, write `<live-plan-dir>/final-report.md`
   (changed files, phase results, check results, skipped items, known risks),
@@ -138,7 +146,10 @@ prompt>"`.
 4. Stop on completion: once scope, acceptance evidence, required verification,
    and the report are complete, stop. Do not repeat unaffected scans or builds
    merely to confirm them again. Interpret “逐项” and “每项附证据” as report
-   granularity, not one tool call per item.
+   granularity, not one tool call per item. Completion means the whole plan
+   through the terminal report phase, not the end of the current phase; if the
+   chain cannot continue, block the phase and report instead of stopping
+   silently.
 
 ## Core Responsibilities
 
@@ -204,6 +215,11 @@ separate from executable checks.
 
 1. <implementation step>
 2. <implementation step>
+
+### Plan Chain
+
+- Plan phases advanced: <ids>
+- Remaining runnable: <ids|none>
 
 ### Verification Results
 

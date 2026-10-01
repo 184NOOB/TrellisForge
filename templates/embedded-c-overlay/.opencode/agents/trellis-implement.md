@@ -96,12 +96,15 @@ of past turns.
   live plan stay in the current phase (batch edit → `record` → `done`); once
   the live plan is fully completed, touch no execution-plan file at all.
   Blocking review/implementation fixes default to this small-patch path.
-- **Same-task sequel:** when the same requirement line needs new
-  phases/checks/report, or blocking fixes are too many, messy and complex for
-  a small patch, run `plan.py sequel --reason "..."` — only after every live
-  phase, including the terminal report, is `completed` — then edit the new
-  live plan and `validate` before further source edits. `revise` only reopens
-  the current live plan and never creates a sequel; a completed report phase
+- **Completion-state reopen:** when the same requirement line needs new
+  phases/checks/report, or completed steps must change, or blocking fixes are
+  too many, messy and complex for a small patch, reopen the same live plan in
+  place with `plan.py revise --reason "..."`: unmodified completed phases stay
+  `completed`, the terminal report resets to `pending`, then edit the live plan
+  (keep the report phase pending, `level=report`, with `depends_on` covering
+  every other phase) and `validate` before further source edits. `plan.py
+  sequel` stays available when a separate plan book is explicitly wanted, but
+  it is no longer the required completion-state exit; a completed report phase
   can never be rewritten into a normal phase. A different requirement or an
   archived task opens a new Trellis task instead.
 - Run `plan.py status` whenever the current phase is unclear; after a crash

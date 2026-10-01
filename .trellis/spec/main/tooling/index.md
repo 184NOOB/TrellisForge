@@ -4,7 +4,7 @@
 
 ## 规范索引
 
-- [Python 工作流脚本](python.md)：脚本边界、编码、测试方式，模板执行计划 live 指针 / `sequel` 合同，模板等待合同可达性（子步骤归并 / 平台家族别名 / `--platform` 送达入口），以及模板规划门禁 Spec 前置校验（Spec References 节 / jsonl 真实条目 / 种子骨架）。
+- [Python 工作流脚本](python.md)：脚本边界、编码、测试方式，模板执行计划 live 指针、完成态原地 `revise` 与 `sequel` 兼容合同，模板等待合同可达性（子步骤归并 / 平台家族别名 / `--platform` 送达入口），以及模板规划门禁 Spec 前置校验（Spec References 节 / jsonl 真实条目 / 种子骨架）。
 - [PowerShell 安装器](powershell.md)：Windows 兼容性、路径安全、冲突和回滚。
 - [覆盖层升级架构](overlay-upgrade.md)：电梯模型的 canonical 对象库、版本 manifest、结构链与三类哈希收据契约。
 - [模板与文档](templates-and-docs.md)：发布内容、占位符和接入文档契约。

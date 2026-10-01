@@ -11,25 +11,29 @@ Python 代码主要位于 `.trellis/scripts/`、`.claude/hooks/` 和 `.codex/hoo
 - Hook 读取标准输入 JSON，输出可注入上下文；不要在 Hook 中执行产品构建或隐式修改工作树。
 - 文本文件显式使用 UTF-8 读写并保留简体中文内容；命令示例必须能在 Windows PowerShell 中解释。
 
-## Scenario: 模板执行计划 live 指针与 sequel
+## Scenario: 模板执行计划 live 指针、完成态原地重开与 sequel
 
 ### 1. Scope / Trigger
 
-- Trigger: 下游模板新增 `plan.py sequel` 与 live 计划解析。任务可顺序持有多份闭环计划；命令签名、指针 JSON、冻结目录和错误矩阵都是跨层合同（CLI / `execution_plan.py` / workflow / 各平台 Agent / Hook）。
-- 合同目前只存在于 `templates/embedded-c-overlay/`。根目录自用 `.trellis/scripts/` 尚未同步，不得把模板行为写成根目录已经具备的事实。
+- Trigger: 下游模板在有 `plan.py sequel` 与 live 计划解析之外，还允许同一 live 计划在全部完成（含 terminal report）后原地 `revise` 补加/重开步骤并重跑验收。任务可顺序持有多份闭环计划；命令签名、指针 JSON、冻结目录、完成态重开（`task_reopened`）和错误矩阵都是跨层合同（CLI / `execution_plan.py` / workflow / 各平台 Agent / Hook）。
+- 合同目前只存在于 `templates/embedded-c-overlay/`。根目录自用 `.trellis/scripts/` 尚未同步（既没有 `cmd_sequel`，也没有完成态原地重开），不得把模板行为写成根目录已经具备的事实，也不得以"同步"名义回改根侧。
 
 ### 2. Signatures
 
-- `python .trellis/scripts/plan.py [--task <path>] sequel --reason "..."`
+- `python .trellis/scripts/plan.py [--task <path>] sequel --reason "..."`（兼容命令：冻结全完成的 live 计划并另开一本）
+- `python .trellis/scripts/plan.py [--task <path>] revise --reason "..."`（完成态默认出口；只重开 live，不创建 sequel）
 - 现有 `validate|status|start|record|done|block|revise` 全部只作用于 live plan。
 - `common.execution_plan.resolve_live_plan(task_dir) -> tuple[int, Path]`
 - `common.execution_plan.cmd_sequel(repo_root, task_dir, reason) -> str`
+- `common.execution_plan.effective_completion_events(events) -> dict[str, dict]`、`pending_sanctioned_reopens(events, plan) -> list[str]`；`cmd_revise` 在重导后若全部阶段均 `completed` 且唯一 `level=report`，把该 report 置 `pending` 并清 `verification_results`。
 
 ### 3. Contracts
 
 - 无 sequel 时（第 1 份 / 旧布局）：任务根 `execution-plan.json` 是真实 schema-3 计划，含 `tasks`。
 - 有 sequel 时：任务根 `execution-plan.json` 仅为指针 `{"schema": 3, "live": N}`，不含 `tasks`。live 文件在 `plans/<N>/execution-plan.json` 与 `plans/<N>/execution-events.jsonl`；对应 `final-report.md` 也在该目录。
 - `plan_sequel` 事件写入**新** live 账本，字段 `from`、`to`、`reason`。冻结账本只读，不再追加。
+- 全完成的 live plan 用 `revise` 原地重开：未改动的已完成阶段保持 `completed`（fingerprint 不变），唯一 terminal report 重置为 `pending` 并清 managed 字段；批准时 `plan_approved` 的同一原子写追加每个重开 id 的 `task_reopened` 事件，批准后的推进不依赖旧完成指纹。完成后大修不再要求 `sequel`；`sequel` 保留给「显式另开一本计划」的场景，冻结布局与只读语义不变。
+- `cmd_validate` 完成态规则：仍生效完成集 = 按事件序 `task_completed` 置完成、后续 `task_reopened` 取回；仍 `completed` 的 id 必须匹配其**最后一次** `task_completed` 的 fingerprint；历史完成 id 从 `tasks` 消失仍拒绝；已重开的 id 只能是非 `completed`（通常 `pending`），手工再标 `completed` 拒绝；完成过的计划在重开期间先前 terminal report 必须仍在位、`level=report` 且 `pending`。
 - Hook / OpenCode 插件只展示 live 状态，不推进状态，也不复制路径常量。
 
 ### 4. Validation & Error Matrix
@@ -38,29 +42,30 @@ Python 代码主要位于 `.trellis/scripts/`、`.claude/hooks/` 和 `.codex/hoo
 - live 仍有未完成 phase，或缺少 terminal report / `plan_completed` -> 拒绝 sequel
 - 指针缺 `live`、`live < 1`、混入 `tasks`、指向缺失目录、或 `plans/<n>` 自身又是指针 -> 全部变更命令 fail closed
 - 冻结目录上的 `start|record|done|block|revise|validate` -> 拒绝
-- 把已完成 report 改成普通阶段 -> `validate` 仍拒绝（防伪史，不是 sequel 通道）
+- 完成态 plan 的 report 改成普通阶段或再标 `completed` -> `validate` 拒绝（terminal report 必须保持 `level=report` 且 `pending`），不是 sequel 通道
+- 已完成步骤仍标 `completed` 时改 guarded 正文 -> `validate` 拒绝 `rewritten after completion`；先重置为 `pending`（sanctioned 重开）才可改并重跑
 - `revise` -> 只重开当前 live，不创建 sequel
 
 ### 5. Good/Base/Bad Cases
 
-- Good: 旧单文件任务无需迁移即可 `validate` / `status` / 推进。
+- Good: 旧单文件任务无需迁移即可 `validate` / `status` / 推进；全完成计划不跑 `sequel`、不新建任务，`revise` 补加新阶段、更新 report `depends_on` 后 `validate` 并重跑出新的 `final-report.md`。
 - Base: 完成后 `sequel` 把第 1 份冻进 `plans/1/`，live 指针变为 2；第三次 `sequel` 得到 live 3。
-- Bad: 计划未完成就 `sequel`；手改已完成 report 冒充下一轮；损坏指针后继续 `start`。
+- Bad: 计划未完成就 `sequel`；把完成态 report 改成普通阶段或手工再标 `completed` 冒充重开；损坏指针后继续 `start`。
 
 ### 6. Tests Required
 
-- 模板 `test_execution_plan.py`：旧单文件兼容、完成后 sequel 冻结、未完成拒绝、第三次 sequel、损坏指针 fail closed、`status` 只详列 live、`revise` 不创建 sequel、已完成 report 仍不可改写、sequel 回滚清掉空的 `plans/1/`。
-- 模板 `test_small_patch_and_sequel_contract.py`：workflow / implement 协议含用户声明优先的小修门槛、阻塞修复默认小修、以及 `sequel` 完成态出口。
+- 模板 `test_execution_plan.py`：旧单文件兼容、完成后 `revise` 原地重开 report（pending + 清 managed 字段 + `reopened` 事件字段）、补加阶段后 `validate` 并重跑新 report、未改动 completed 保持且 fingerprint 校验、重开非 report 步骤可改正文、重开后手工再标 completed 拒绝、report 降级/再标 completed 拒绝、完成后 sequel 冻结（兼容）、未完成拒绝、第三次 sequel、损坏指针 fail closed、`status` 只详列 live、`revise` 不创建 sequel、sequel 回滚清掉空的 `plans/1/`。
+- 模板 `test_small_patch_and_sequel_contract.py`：workflow / implement 协议含用户声明优先的小修门槛、阻塞修复默认小修、以及完成后原地 `revise` 完成态出口（不再写「完成后必须 sequel」）；Claude hook 完成后提示指向 `revise --reason`。
 
 ### 7. Wrong vs Correct
 
 #### Wrong
 
-完成后把 `report` 改成普通阶段再 `revise`，或让 `plan.py` 自动判断一次编辑算不算小修。
+为同一需求继续，先把已完成计划 `sequel` 封掉再开空白新本（冻结不是必需）；把完成态 report 改成普通阶段或手工再标 `completed`；或让 `plan.py` 自动判断一次编辑算不算小修。
 
 #### Correct
 
-小修（用户明确说小修/不走 `plan.py`，或满足四条客观门槛；阻塞修复默认如此）不碰已完成计划文件。同一需求的大修或过多冗杂复杂的阻塞修复才 `plan.py sequel --reason "..."`。
+小修（用户明确说小修/不走 `plan.py`，或满足四条客观门槛；阻塞修复默认如此）不碰已完成计划文件。同一需求的补加/改步骤走 `plan.py revise --reason "..."` → 编辑 live 计划（report 保持 `pending`、`level=report`、传递覆盖全部阶段）→ `validate` → 重跑；`sequel` 仅在明确要另开一本计划时使用。
 
 ## Scenario: 模板等待合同可达性（子步骤归并 / 平台家族别名 / 送达入口）
 

@@ -11,11 +11,15 @@ Per task directory two persisted files exist:
     <task-path>/execution-events.jsonl   append-only audit log (written via this module only)
 
 A task may hold several sequentially closed plans. The first (and, for legacy
-tasks, only) plan keeps the task-root layout above. ``plan.py sequel`` freezes a
-completed plan into ``<task-path>/plans/<n>/`` and turns the task-root
-``execution-plan.json`` into a live pointer ``{"schema": 3, "live": N}``; exactly
-one plan is live at a time and frozen plans are read-only. All path helpers
-below resolve to the live plan, so every existing consumer follows it for free.
+tasks, only) plan keeps the task-root layout above. A fully completed live plan
+is reopened in place with ``plan.py revise``: unmodified completed phases stay
+completed, the unique terminal report resets to pending, and a ``task_reopened``
+event records the sanctioned reopen. ``plan.py sequel`` remains available and
+freezes a completed plan into ``<task-path>/plans/<n>/`` while turning the
+task-root ``execution-plan.json`` into a live pointer
+``{"schema": 3, "live": N}``; exactly one plan is live at a time and frozen
+plans are read-only. All path helpers below resolve to the live plan, so every
+existing consumer follows it for free.
 
 Core correctness (dependency checks, verification checks, state transitions, audit
 append) lives here so the CLI flow works identically on Claude Code, Codex,
@@ -874,6 +878,53 @@ def _expected_revision(events: list[dict[str, Any]]) -> int:
     return 1 + len(history_of(events, "plan_revised"))
 
 
+def effective_completion_events(
+    events: list[dict[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    """Still-effective ``task_completed`` events keyed by task id.
+
+    Replays the audit in order: ``task_completed`` marks an id completed, a
+    later ``task_reopened`` takes it back out. A sanctioned reopen is recorded
+    atomically with the ``plan_approved`` that resets the phase, so this set is
+    a pure function of the audit log.
+    """
+    effective: dict[str, dict[str, Any]] = {}
+    for event in events:
+        name = event.get("event")
+        tid = event.get("task")
+        if not isinstance(tid, str):
+            continue
+        if name == "task_completed":
+            effective[tid] = event
+        elif name == "task_reopened":
+            effective.pop(tid, None)
+    return effective
+
+
+def effective_completed_ids(events: list[dict[str, Any]]) -> set[str]:
+    return set(effective_completion_events(events))
+
+
+def pending_sanctioned_reopens(
+    events: list[dict[str, Any]], plan: dict[str, Any]
+) -> list[str]:
+    """Still-effective completed ids the plan JSON has reset to ``pending``.
+
+    These are reopens the model performed while the plan was proposed (after
+    ``plan.py revise``): validate sanctions them and records one
+    ``task_reopened`` event per id with the approval.
+    """
+    effective = effective_completed_ids(events)
+    by_id = {
+        t.get("id"): t for t in plan.get("tasks", []) if isinstance(t, dict)
+    }
+    return sorted(
+        tid
+        for tid in effective
+        if tid in by_id and by_id[tid].get("status") == "pending"
+    )
+
+
 def cmd_validate(repo_root: Path, task_dir: Path) -> str:
     _require_live_task_dir(task_dir)
     events, corrupt = read_events(task_dir)
@@ -920,6 +971,21 @@ def cmd_validate(repo_root: Path, task_dir: Path) -> str:
             )
         return f"plan already approved at revision {plan['revision']} (no changes)"
 
+    # Sanctioned reopens: a proposed plan may reset a still-effective completed
+    # phase to pending (the revise-then-edit path). The engine owns the reset
+    # of managed fields so models never hand-edit verification_results, and the
+    # approval below records one task_reopened event per id.
+    reopens = pending_sanctioned_reopens(events, plan)
+    validate_by_id = {
+        t.get("id"): t for t in plan.get("tasks", []) if isinstance(t, dict)
+    }
+    for tid in reopens:
+        task = validate_by_id.get(tid)
+        if task is None:
+            continue
+        for field in _MANAGED_TASK_FIELDS:
+            task.pop(field, None)
+
     issues = validate_plan_shape(plan, task_rel)
 
     revision = plan.get("revision")
@@ -963,17 +1029,29 @@ def cmd_validate(repo_root: Path, task_dir: Path) -> str:
         )
 
     # Completed tasks exist only by audit history: a model cannot mark work
-    # done by editing the JSON.
+    # done by editing the JSON, and a sanctioned reopen is recorded in the
+    # audit before the phase is re-run. `task_reopened` takes an id back out of
+    # the still-effective completion set.
     historical_completed = {
         e.get("task") for e in history_of(events, "task_completed")
     }
     claimed_completed = {
         t.get("id") for t in plan.get("tasks", []) if isinstance(t, dict) and t.get("status") == "completed"
     }
-    if not claimed_completed <= historical_completed:
+    forged = sorted(claimed_completed - historical_completed)
+    if forged:
         issues.append(
-            "tasks marked completed without audit history: "
-            + ", ".join(sorted(claimed_completed - historical_completed))
+            "tasks marked completed without audit history: " + ", ".join(forged)
+        )
+    effective_completed = effective_completion_events(events)
+    re_marked = sorted(
+        tid for tid in claimed_completed & historical_completed
+        if tid not in effective_completed
+    )
+    if re_marked:
+        issues.append(
+            "reopened task(s) cannot be marked completed again by editing the "
+            "plan: " + ", ".join(re_marked) + "; run plan.py start/record/done"
         )
     by_id = {
         t.get("id"): t for t in plan.get("tasks", []) if isinstance(t, dict)
@@ -982,14 +1060,47 @@ def cmd_validate(repo_root: Path, task_dir: Path) -> str:
         task = by_id.get(tid)
         if task is None:
             issues.append(f"completed task '{tid}' disappeared from the plan")
-        elif task.get("status") != "completed":
-            issues.append(f"completed task '{tid}' cannot be downgraded by editing the plan")
-    for e in history_of(events, "task_completed"):
-        task = by_id.get(e.get("task"))
-        if task is not None and e.get("fingerprint") and task_fingerprint(task) != e["fingerprint"]:
+    for tid, event in effective_completed.items():
+        task = by_id.get(tid)
+        if task is None or task.get("status") != "completed":
+            continue  # sanctioned reopen / already reported above
+        if event.get("fingerprint") and task_fingerprint(task) != event["fingerprint"]:
             issues.append(
-                f"completed task '{task.get('id')}' content was rewritten after completion"
+                f"completed task '{tid}' content was rewritten after completion"
             )
+
+    # A completion-state revision keeps its single terminal report: it must
+    # stay level=report and pending until the new work re-runs final
+    # acceptance. Demoting it to a normal phase, or marking it completed again
+    # by hand, is not a sanctioned exit.
+    if history_of(events, "plan_completed") and approvals:
+        snapshot = approvals[-1].get("snapshot")
+        prior_report_ids = sorted(
+            str(t.get("id"))
+            for t in (snapshot or {}).get("tasks", [])
+            if isinstance(t, dict)
+            and isinstance(t.get("verification"), dict)
+            and t["verification"].get("level") == "report"
+        )
+        for rid in prior_report_ids:
+            task = by_id.get(rid)
+            if task is None:
+                continue  # the disappeared-completed-task issue above covers it
+            verification = (
+                task.get("verification")
+                if isinstance(task.get("verification"), dict) else {}
+            )
+            if verification.get("level") != "report":
+                issues.append(
+                    f"terminal report phase '{rid}' must stay level=report when a "
+                    "completed plan is revised; demoting it to a normal phase is "
+                    "not a sanctioned exit"
+                )
+            elif task.get("status") != "pending":
+                issues.append(
+                    f"terminal report phase '{rid}' must be reset to pending when "
+                    "a completed plan is revised; it re-runs after the new work"
+                )
 
     if plan.get("status") == "proposed":
         for task in plan.get("tasks", []):
@@ -1016,18 +1127,27 @@ def cmd_validate(repo_root: Path, task_dir: Path) -> str:
         t["id"] for t in plan["tasks"] if t.get("status") == "completed"
     ]
     original_text = plan_path(task_dir).read_text(encoding="utf-8")
-    mutate_with_audit(
-        task_dir,
-        original_text,
-        plan,
+    approve_events: list[dict[str, Any]] = [
         {
             "event": "plan_approved",
             "revision": plan["revision"],
             "fingerprint": fingerprint,
             "completed": completed_now,
             "snapshot": plan_guarded(plan),
-        },
+        }
+    ]
+    # Sanctioned reopens are recorded atomically with the approval: the
+    # approval's completed list already excludes them, and the explicit event
+    # keeps the reopen visible to revise/replay.
+    approve_events.extend(
+        {
+            "event": "task_reopened",
+            "task": tid,
+            "reason": "sanctioned reopen of a completed phase (recorded with plan approval)",
+        }
+        for tid in reopens
     )
+    mutate_with_audit(task_dir, original_text, plan, approve_events)
     return f"plan approved: revision {plan['revision']}, {len(plan['tasks'])} tasks"
 
 
@@ -1111,24 +1231,28 @@ def cmd_revise(repo_root: Path, task_dir: Path, reason: str) -> str:
         note = "\nwarning: unauthorized guarded edits were reverted to the last-approved snapshot"
     else:
         note = ""
-    completed = {
+    historical_completed = {
         str(e.get("task")) for e in history_of(events, "task_completed")
     }
     by_id = {
         t.get("id"): t for t in plan.get("tasks", []) if isinstance(t, dict)
     }
-    for tid in completed:
+    for tid in historical_completed:
         if tid not in by_id:
             raise PlanError(
                 f"completed task '{tid}' disappeared from the plan",
                 hint="history may not be deleted; escalate before continuing",
             )
+    # Re-derive from the still-effective completion set so a phase reopened by
+    # an earlier sanctioned revision stays pending instead of being resurrected
+    # from its superseded task_completed event.
+    effective_completed = effective_completed_ids(events)
     reset: list[str] = []
     for task in plan.get("tasks", []):
         if not isinstance(task, dict):
             continue
         new_status = (
-            "completed" if task.get("id") in completed else "pending"
+            "completed" if task.get("id") in effective_completed else "pending"
         )
         # Only tasks that actually fall back to pending belong in the reset
         # note; an audit-completed task re-derived to completed was not reset
@@ -1142,6 +1266,29 @@ def cmd_revise(repo_root: Path, task_dir: Path, reason: str) -> str:
         if new_status != "completed":
             for field in _MANAGED_TASK_FIELDS:
                 task.pop(field, None)
+    # Reopening a fully completed live plan resets its unique terminal report:
+    # the next loop must re-run final acceptance, and validate will record the
+    # reopen (`task_reopened`) when it approves the revised plan. Unmodified
+    # completed phases stay completed.
+    reopened: list[str] = []
+    report_ids = [
+        str(t.get("id"))
+        for t in plan.get("tasks", [])
+        if isinstance(t, dict)
+        and isinstance(t.get("verification"), dict)
+        and t["verification"].get("level") == "report"
+    ]
+    all_completed = bool(plan.get("tasks")) and all(
+        isinstance(t, dict) and t.get("status") == "completed"
+        for t in plan["tasks"]
+    )
+    if all_completed and len(report_ids) == 1:
+        report_task = by_id.get(report_ids[0])
+        if isinstance(report_task, dict):
+            report_task["status"] = "pending"
+            for field in _MANAGED_TASK_FIELDS:
+                report_task.pop(field, None)
+            reopened.append(report_ids[0])
     plan["revision"] = int(plan["revision"]) + 1
     plan["status"] = "proposed"
     plan.pop("approved_fingerprint", None)
@@ -1156,11 +1303,13 @@ def cmd_revise(repo_root: Path, task_dir: Path, reason: str) -> str:
             "to_revision": int(plan["revision"]),
             "reason": reason.strip(),
             "reset": reset,
+            "reopened": reopened,
         },
     )
     return (
         f"plan revision {plan['revision']} is proposed"
         + (f"; reset to pending: {', '.join(reset)}" if reset else "")
+        + (f"; reopened terminal report: {', '.join(reopened)}" if reopened else "")
         + note
         + "\nedit execution-plan.json if needed, then run plan.py validate"
     )
@@ -1358,6 +1507,8 @@ def replay_statuses(
             statuses[tid] = "in_progress"
         elif name == "task_completed" and tid in statuses:
             statuses[tid] = "completed"
+        elif name == "task_reopened" and tid in statuses:
+            statuses[tid] = "pending"
         elif name == "task_blocked" and tid in statuses:
             statuses[tid] = "blocked"
     return statuses
@@ -1383,7 +1534,9 @@ def _replay_start_index(
 
     A completed task's map is preserved across revisions, but revise cleared
     any superseded record set, so its window starts at the last plan_revised
-    before completion (whole log when there was none). A non-completed task
+    before completion (whole log when there was none), or at the last
+    task_reopened when the task was reopened before it completed again: the
+    pre-reopen records belong to the superseded window. A non-completed task
     counts only events after the latest plan_approved / plan_revised boundary.
     """
     if is_completed:
@@ -1392,11 +1545,17 @@ def _replay_start_index(
             if e.get("event") == "task_completed" and str(e.get("task")) == tid
         ]
         if done:
-            prior = [
+            boundaries = [
                 i for i, e in enumerate(events)
                 if e.get("event") == "plan_revised" and i < done[-1]
             ]
-            return prior[-1] if prior else -1
+            boundaries += [
+                i for i, e in enumerate(events)
+                if e.get("event") == "task_reopened"
+                and str(e.get("task")) == tid
+                and i < done[-1]
+            ]
+            return max(boundaries) if boundaries else -1
     return _last_boundary_index(events)
 
 
@@ -2120,27 +2279,28 @@ def plan_protocol_block(repo_root: Path, task_dir: Path) -> str:
         active = ", ".join(status["in_progress"]) or "(none)"
         completed = bool(status["total"]) and len(status["completed"]) == status["total"]
         if completed:
-            next_display = display_path(
-                repo_root, plans_root(task_dir) / str(live_number + 1)
-            ) if repo_root is not None else f"{task_display}/{PLANS_DIR}/{live_number + 1}"
             return (
                 head
                 + base
                 + f"\nLive plan {live_number} is fully completed (every phase, including the "
                   "terminal report). Choose the exit that matches the change:\n"
                   "- **Small patch:** edit the code directly, run the affected checks, and write a "
-                  "Spec only when the convention will recur. Do NOT run `revise`, do NOT add a "
-                  "phase, and do NOT touch any execution-plan file — a completed plan is closed "
-                  "history.\n"
-                  "- **Same requirement, but it needs new phases/checks/report** (or blocking fixes "
-                  "are too many, messy and complex for a small patch): freeze this plan and open "
-                  f"the next one with `{cli} --task \"<task-path>\" sequel --reason \"...\"`, then "
-                  f"edit `{next_display}/{PLAN_FILE}` and `validate` before any further source "
-                  "edit.\n"
+                  "Spec only when the convention will recur. Do NOT run `revise` for it and do NOT "
+                  "touch any execution-plan file.\n"
+                  "- **Same requirement, but it needs new phases/checks/report** (completed steps "
+                  "must change, or blocking fixes are too many, messy and complex for a small "
+                  f"patch): reopen this live plan in place with `{cli} --task \"<task-path>\" "
+                  "revise --reason \"...\"`. Unmodified completed phases stay `completed` and the "
+                  f"terminal report resets to `pending`; then edit `{live_display}/{PLAN_FILE}` "
+                  "(keep the single terminal `report` phase pending with `level=report` and "
+                  "`depends_on` covering every other phase) and `validate` before any further "
+                  "source edit.\n"
                   "- **Different requirement, or an archived task:** open a new Trellis task "
-                  "instead of a sequel.\n"
-                  "`revise` only reopens the current live plan; rewriting the completed report "
-                  "phase into a normal phase is rejected by validation.\n"
+                  "instead.\n"
+                  f"- `sequel` stays available when a separate plan book is explicitly wanted: it "
+                  f"freezes this plan under `{PLANS_DIR}/<n>/` and opens the next live plan. It is "
+                  "no longer the required completion-state exit, and a completed report phase can "
+                  "never be rewritten into a normal phase either way.\n"
                 + "\n"
                 + format_status(task_dir, repo_root, verbose=True)
                 + "\n"
@@ -2165,8 +2325,8 @@ def plan_protocol_block(repo_root: Path, task_dir: Path) -> str:
               "Read-only work (search/analysis) needs no task lock, but each edit-bearing phase does.\n"
               "A small in-scope fix stays in the current phase (batch edit → record → done); do not "
               "`revise` and do not open a sequel for it. Blocking review/implementation fixes default "
-              "to this small-patch path; only work too large, messy and complex to fit it justifies a "
-              "sequel.\n"
+              "to this small-patch path; only work too large, messy and complex to fit it justifies an "
+              "in-place `revise --reason \"...\"` (a sequel is refused while any phase is open).\n"
               f"Note: `record --result pass` is your attestation of a run you actually performed; plan.py never executes "
               "checks, and independent verification stays with the Phase 2.2 review/check stage.\n"
             + "\n"

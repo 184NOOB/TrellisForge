@@ -1,0 +1,231 @@
+{
+  "schema": 3,
+  "task": ".trellis/tasks/10-01-allow-plan-post-complete-edit",
+  "revision": 1,
+  "status": "approved",
+  "audit": {
+    "required": true,
+    "file": "execution-events.jsonl"
+  },
+  "created_by": "trellis-implement",
+  "goal": "模板执行计划完成后可原地 revise 补加/重开步骤并重跑终态 report；sequel 降级为兼容路径",
+  "constraints": {
+    "forbidden_git_operations": [
+      "commit",
+      "push",
+      "tag",
+      "reset",
+      "restore-modified-source"
+    ],
+    "max_tasks": 8,
+    "max_edits_per_file": 5,
+    "allow_parallel_tasks": false
+  },
+  "tasks": [
+    {
+      "id": "engine-and-tests",
+      "title": "引擎完成态重开规则 + 模板单测",
+      "status": "completed",
+      "objective": "在模板 execution_plan.py 中实现：effective/task_reopened 回放、cmd_revise 全完成时重置 report 为 pending、cmd_validate sanctioned 重开与完成态 report 必须在位且 pending、plan_approved 原子写追加 task_reopened、replay_statuses/_replay_start_index 处理重开、protocol block 完成态出口改为原地 revise；并同步 test_execution_plan.py（补加阶段/重开改字段/仍 completed 改指纹拒绝/report 降级拒绝/协议块文案）。",
+      "depends_on": [],
+      "scope": {
+        "read": [
+          "templates/embedded-c-overlay/.trellis/scripts/common/execution_plan.py",
+          "templates/embedded-c-overlay/.trellis/scripts/tests/test_execution_plan.py",
+          "templates/embedded-c-overlay/.trellis/scripts/tests/test_small_patch_and_sequel_contract.py"
+        ],
+        "write": [
+          "templates/embedded-c-overlay/.trellis/scripts/common/execution_plan.py",
+          "templates/embedded-c-overlay/.trellis/scripts/tests/test_execution_plan.py"
+        ]
+      },
+      "verification": {
+        "level": "minimal",
+        "required_checks": [
+          "template-tests",
+          "py-compile",
+          "diff-check"
+        ]
+      },
+      "verification_results": {
+        "template-tests": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-10-01T08:25:18Z",
+          "command": "python -B -m unittest discover -s templates/embedded-c-overlay/.trellis/scripts/tests -p test_*.py",
+          "summary": "246 tests OK (new completion-state reopen/validate/report-rerun cases included)"
+        },
+        "py-compile": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-10-01T08:25:18Z",
+          "command": "python -m py_compile templates/embedded-c-overlay/.trellis/scripts/common/execution_plan.py",
+          "summary": "execution_plan.py compiles"
+        },
+        "diff-check": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-10-01T08:25:18Z",
+          "command": "git diff --check -- . :(exclude).trellis/tasks/09-17-trellisforge-1-3-upgrade/task.json",
+          "summary": "template diff is whitespace-clean; global diff --check only fails on the pre-existing CRLF parent task.json (out of task scope)"
+        }
+      }
+    },
+    {
+      "id": "text-and-contract-tests",
+      "title": "工作流/Agent/Hook/CLI 文案与契约测试",
+      "status": "completed",
+      "objective": "把完成态出口文案从「必须 sequel」改为「默认原地 revise，sequel 仅显式兼容」：plan.py 模块说明、workflow.md（246/274/357/604/614/615）、四平台 implement Agent、Claude plan-pretool-reminder.py，并同步 test_small_patch_and_sequel_contract.py 的断言。",
+      "depends_on": [
+        "engine-and-tests"
+      ],
+      "scope": {
+        "read": [
+          "templates/embedded-c-overlay/.trellis/workflow.md",
+          "templates/embedded-c-overlay/.trellis/scripts/plan.py",
+          "templates/embedded-c-overlay/.trellis/agents/implement.md",
+          "templates/embedded-c-overlay/.claude/agents/trellis-implement.md",
+          "templates/embedded-c-overlay/.codex/agents/trellis-implement.toml",
+          "templates/embedded-c-overlay/.opencode/agents/trellis-implement.md",
+          "templates/embedded-c-overlay/.claude/hooks/plan-pretool-reminder.py"
+        ],
+        "write": [
+          "templates/embedded-c-overlay/.trellis/workflow.md",
+          "templates/embedded-c-overlay/.trellis/scripts/plan.py",
+          "templates/embedded-c-overlay/.trellis/agents/implement.md",
+          "templates/embedded-c-overlay/.claude/agents/trellis-implement.md",
+          "templates/embedded-c-overlay/.codex/agents/trellis-implement.toml",
+          "templates/embedded-c-overlay/.opencode/agents/trellis-implement.md",
+          "templates/embedded-c-overlay/.claude/hooks/plan-pretool-reminder.py",
+          "templates/embedded-c-overlay/.trellis/scripts/tests/test_small_patch_and_sequel_contract.py"
+        ]
+      },
+      "verification": {
+        "level": "minimal",
+        "required_checks": [
+          "template-tests",
+          "py-compile",
+          "diff-check"
+        ]
+      },
+      "verification_results": {
+        "template-tests": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-10-01T08:29:02Z",
+          "command": "python -B -m unittest discover -s templates/embedded-c-overlay/.trellis/scripts/tests -p test_*.py",
+          "summary": "246 tests OK (workflow/agent/hook contract assertions updated)"
+        },
+        "py-compile": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-10-01T08:29:02Z",
+          "command": "python -m py_compile templates/embedded-c-overlay/.trellis/scripts/plan.py templates/embedded-c-overlay/.claude/hooks/plan-pretool-reminder.py",
+          "summary": "plan.py and Claude hook compile; codex toml re-parsed with tomllib"
+        },
+        "diff-check": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-10-01T08:29:02Z",
+          "command": "git diff --check -- . :(exclude).trellis/tasks/09-17-trellisforge-1-3-upgrade/task.json",
+          "summary": "edited text files pass whitespace check (global diff --check only fails on the pre-existing CRLF parent task.json)"
+        }
+      }
+    },
+    {
+      "id": "spec-contract",
+      "title": "更新模板 sequel 合同 Spec",
+      "status": "completed",
+      "objective": "更新 .trellis/spec/main/tooling/python.md 的 sequel 场景：默认完成后原地 revise、report 重置 pending、task_reopened 事实、sequel 兼容定位、错误矩阵与测试清单同步。",
+      "depends_on": [
+        "engine-and-tests"
+      ],
+      "scope": {
+        "read": [
+          ".trellis/spec/main/tooling/python.md"
+        ],
+        "write": [
+          ".trellis/spec/main/tooling/python.md"
+        ]
+      },
+      "verification": {
+        "level": "minimal",
+        "required_checks": [
+          "diff-check"
+        ]
+      },
+      "verification_results": {
+        "diff-check": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-10-01T08:29:58Z",
+          "command": "git diff --check -- . :(exclude).trellis/tasks/09-17-trellisforge-1-3-upgrade/task.json",
+          "summary": "python.md scenario updated; only tracked edits are template files + this spec (pre-existing CRLF task.json excluded)"
+        }
+      }
+    },
+    {
+      "id": "verify-final",
+      "title": "final acceptance",
+      "status": "completed",
+      "objective": "确认 AC1–AC8：模板与根目录测试、py_compile、git diff --check 全绿；根目录 workflow/execution_plan.py 无写入；写出 final-report.md 并登记。",
+      "depends_on": [
+        "engine-and-tests",
+        "text-and-contract-tests",
+        "spec-contract"
+      ],
+      "scope": {
+        "read": [
+          "templates/embedded-c-overlay/.trellis/scripts/common/execution_plan.py",
+          "templates/embedded-c-overlay/.trellis/workflow.md",
+          ".trellis/spec/main/tooling/python.md"
+        ],
+        "write": [
+          "final-report.md"
+        ]
+      },
+      "verification": {
+        "level": "report",
+        "required_checks": [
+          "template-tests",
+          "root-tests",
+          "py-compile",
+          "diff-check"
+        ],
+        "report_path": "final-report.md"
+      },
+      "verification_results": {
+        "template-tests": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-10-01T08:31:22Z",
+          "command": "python -B -m unittest discover -s templates/embedded-c-overlay/.trellis/scripts/tests -p test_*.py",
+          "summary": "Ran 246 tests, OK"
+        },
+        "root-tests": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-10-01T08:31:22Z",
+          "command": "python -B -m unittest discover -s .trellis/scripts/tests -p test_*.py",
+          "summary": "Ran 154 tests, OK (read-only regression)"
+        },
+        "py-compile": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-10-01T08:31:22Z",
+          "command": "python -m py_compile templates/embedded-c-overlay/.trellis/scripts/common/execution_plan.py templates/embedded-c-overlay/.trellis/scripts/plan.py templates/embedded-c-overlay/.claude/hooks/plan-pretool-reminder.py",
+          "summary": "exit 0; codex toml parsed with tomllib"
+        },
+        "diff-check": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-10-01T08:31:22Z",
+          "command": "git diff --check -- templates/embedded-c-overlay .trellis/spec/main/tooling/python.md",
+          "summary": "task-scoped diff clean; global git diff --check fails only on unrelated pre-existing/concurrent CRLF task.json files",
+          "artifact": ".trellis/tasks/10-01-allow-plan-post-complete-edit/final-report.md"
+        }
+      }
+    }
+  ],
+  "approved_fingerprint": "00c4056a9d2399040b8506c1a6b1db9ba58ea2166984544acc43f90295255836"
+}

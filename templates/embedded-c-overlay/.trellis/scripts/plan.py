@@ -22,8 +22,11 @@ Usage (from the repo root):
 
 A task may hold several sequentially closed plans: the live one resolves from
 the task-root execution-plan.json (legacy single file, or a
-{"schema": 3, "live": N} pointer into plans/<N>/). `sequel` freezes the fully
-completed live plan and opens the next one; every other command acts on the
+{"schema": 3, "live": N} pointer into plans/<N>/). `revise` reopens the live
+plan in place — including a fully completed one (unmodified completed phases
+stay completed and the terminal report resets to pending). `sequel` stays
+available and freezes a completed live plan to open a separate next one, but
+it is no longer the required completion-state exit. Every command acts on the
 live plan only, and frozen plans stay read-only.
 
 Exit codes: 0 = success, 1 = rejected or invalid state (reason printed to

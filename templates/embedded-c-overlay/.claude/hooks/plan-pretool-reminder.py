@@ -111,10 +111,11 @@ def main() -> int:
     if target == plan_file.resolve() and plan.get("status") == "approved":
         if all_completed:
             warnings.append(
-                "This live plan is fully completed; completed history must not be "
-                "rewritten. A small patch leaves every execution-plan file alone; a "
-                "same-requirement change that needs new phases/checks/report runs "
-                "plan.py sequel --reason \"...\"."
+                "This live plan is fully completed. A small patch leaves every "
+                "execution-plan file alone; a same-requirement change that needs "
+                "new phases/checks/report reopens it in place with plan.py revise "
+                "--reason \"...\" (unmodified completed phases stay completed; the "
+                "terminal report resets to pending)."
             )
         else:
             warnings.append(
@@ -159,7 +160,8 @@ def main() -> int:
                 "not run plan.py revise and do not touch any execution-plan file: "
                 "edit code, run the affected checks, and write a Spec only when the "
                 "convention will recur. If the same requirement needs new "
-                "phases/checks/report, run plan.py sequel --reason \"...\" first."
+                "phases/checks/report, run plan.py revise --reason \"...\" first "
+                "(in place; no sequel is required)."
             )
         elif not in_progress:
             if status["runnable"]:

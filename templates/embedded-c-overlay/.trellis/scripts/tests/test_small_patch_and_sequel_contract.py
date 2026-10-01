@@ -1,9 +1,12 @@
-"""Contract tests for the small-patch bypass and same-task sequel rules.
+"""Contract tests for the small-patch bypass and completion-state reopen rules.
 
 These lock the workflow / implement-agent wording that lets a small patch
-bypass plan.py and that freezes a fully completed plan via `plan.py sequel`,
-plus the live-plan resolution surfaces the wording depends on (completion-state
-protocol block, breadcrumb/status, Claude PreToolUse reminder).
+bypass plan.py and that reopens a fully completed live plan in place via
+`plan.py revise` (unmodified completed phases stay completed, the terminal
+report resets to pending); `plan.py sequel` stays an explicit compatibility
+command for opening a separate plan book. They also cover the live-plan
+resolution surfaces the wording depends on (completion-state protocol block,
+breadcrumb/status, Claude PreToolUse reminder).
 """
 from __future__ import annotations
 
@@ -116,7 +119,7 @@ class SmallPatchWorkflowContractTests(unittest.TestCase):
         )
         self.assertIn(
             "only blocking work that is too much, messy, and complex enough to "
-            "need new steps/checks/report justifies a `sequel`",
+            "need new steps/checks/report justifies an in-place `revise`",
             text,
         )
 
@@ -124,20 +127,20 @@ class SmallPatchWorkflowContractTests(unittest.TestCase):
         text = normalized(".trellis/workflow.md")
         self.assertIn("Completion-state exit", text)
         self.assertIn("a small patch touches no execution-plan file at all", text)
-        self.assertIn('freezes the old plan with `plan.py sequel --reason "..."`', text)
-        self.assertIn(
-            "`revise` never creates a sequel and can never rewrite a completed "
-            "report phase into a normal phase",
-            text,
-        )
+        self.assertIn("reopens the same live plan with `plan.py revise", text)
+        self.assertIn("unmodified completed phases stay `completed`", text)
+        self.assertIn("the terminal report resets to `pending`", text)
+        self.assertIn("no longer the required completion-state exit", text)
         self.assertIn("opens a new Trellis task", text)
+        self.assertNotIn("freezes the old plan", text)
 
     def test_workflow_gate_routes_by_plan_state_not_revise(self) -> None:
         text = normalized(".trellis/workflow.md")
         self.assertIn("Phase 2 source edits require an approved live", text)
         self.assertIn("while the live plan is open", text)
         self.assertIn(
-            "follow the small-patch / `sequel` exit instead of `revise`", text
+            "follow the small-patch exit or reopen it in place with `plan.py revise`",
+            text,
         )
         self.assertNotIn(
             "Phase 2 source edits require an approved `<task>/execution-plan.json`;",
@@ -150,12 +153,15 @@ class SmallPatchWorkflowContractTests(unittest.TestCase):
                 text = normalized(relative)
                 self.assertIn("Small patch (hard rule, bypasses plan.py)", text)
                 self.assertIn("never `revise`", text)
-                self.assertIn("sequel --reason", text)
+                self.assertIn("Completion-state reopen", text)
+                self.assertIn("plan.py revise --reason", text)
+                self.assertIn("terminal report resets to `pending`", text)
+                self.assertIn("no longer the required completion-state exit", text)
                 self.assertIn("Blocking", text)
                 self.assertIn("default to", text)
                 self.assertIn("frozen read-only history", text)
-                self.assertIn("Same-task sequel", text)
                 self.assertIn("touch no execution-plan file at all", text)
+                self.assertNotIn("Same-task sequel", text)
 
     def test_check_agents_reference_the_live_plan(self) -> None:
         for relative in CHECK_AGENTS:
@@ -164,6 +170,9 @@ class SmallPatchWorkflowContractTests(unittest.TestCase):
                 self.assertIn("live execution plan", text)
                 self.assertIn("plans/<N>/execution-plan.json", text)
                 self.assertIn("read-only history", text)
+                self.assertIn("prior sequel books", text)
+                self.assertIn("reopened in place with `plan.py revise`", text)
+                self.assertIn("is not frozen", text)
 
     def test_plan_cli_help_exposes_sequel(self) -> None:
         result = subprocess.run(
@@ -181,7 +190,7 @@ class SmallPatchWorkflowContractTests(unittest.TestCase):
 
 class PlanReminderHookContractTests(unittest.TestCase):
     """The Claude PreToolUse reminder resolves the live plan and advises the
-    small-patch / sequel exit instead of pointing at `revise`."""
+    small-patch / in-place `revise` exit for a completed live plan."""
 
     def setUp(self) -> None:
         self._tmp = tempfile.TemporaryDirectory()
@@ -244,11 +253,12 @@ class PlanReminderHookContractTests(unittest.TestCase):
             return ""
         return json.loads(text)["systemMessage"]
 
-    def test_completed_plan_edit_outside_task_advises_small_patch_or_sequel(self) -> None:
+    def test_completed_plan_edit_outside_task_advises_small_patch_or_revise(self) -> None:
         message = self._run_hook(self.root / "src" / "a.c")
         self.assertIn("fully completed", message)
         self.assertIn("small patch", message)
-        self.assertIn("sequel --reason", message)
+        self.assertIn("revise --reason", message)
+        self.assertNotIn("sequel --reason", message)
 
     def test_pointer_and_frozen_history_tamper_are_reported(self) -> None:
         message = self._run_hook(self.task_dir / ep.PLAN_FILE)
@@ -260,8 +270,9 @@ class PlanReminderHookContractTests(unittest.TestCase):
 
     def test_completed_live_plan_rewrite_is_reported(self) -> None:
         message = self._run_hook(self.task_dir / ep.PLANS_DIR / "2" / ep.PLAN_FILE)
-        self.assertIn("completed history must not be rewritten", message)
-        self.assertIn("sequel", message)
+        self.assertIn("fully completed", message)
+        self.assertIn("revise --reason", message)
+        self.assertNotIn("sequel", message)
 
     def test_live_events_file_keeps_append_only_warning(self) -> None:
         message = self._run_hook(self.task_dir / ep.PLANS_DIR / "2" / ep.EVENTS_FILE)

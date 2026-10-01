@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/main/tooling/templates-and-docs.md", "reason": "检查是否误改根目录工作流或提前改 README/升级补丁"}
+{"file": ".trellis/spec/main/tooling/python.md", "reason": "对照新合同：完成后可 revise 补加/重开；sequel 兼容；completed fingerprint 仍 fail closed"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "核对 workflow、协议块、四平台 Agent、Hook 完成态出口是否仍导向必须 sequel"}
+{"file": ".trellis/spec/shared/validation.md", "reason": "检查报告须区分 pass/fail/not run/not applicable；构建硬件 not applicable"}

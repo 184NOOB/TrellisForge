@@ -137,7 +137,7 @@ git diff              # View specific changes
 
 Read the task's prd.md, design.md if present, and implement.md if present, then read relevant specs in `.trellis/spec/` to check code:
 
-- Does the live execution plan declare `required_checks` that still match the acceptance criteria in prd.md — resolve the live plan with `plan.py status` (before a sequel it is `<task>/execution-plan.json`; after one the task-root file is only a pointer and the live plan is `plans/<N>/execution-plan.json`, with frozen `plans/` entries as read-only history) — renamed, dropped, or trivialized checks across revisions are a verification downgrade and must be reported
+- Does the live execution plan declare `required_checks` that still match the acceptance criteria in prd.md — resolve the live plan with `plan.py status` (before a sequel it is `<task>/execution-plan.json`; after one the task-root file is only a pointer and the live plan is `plans/<N>/execution-plan.json`, with frozen `plans/` entries (prior sequel books) as read-only history; a fully completed live plan is reopened in place with `plan.py revise` and is not frozen) — renamed, dropped, or trivialized checks across revisions are a verification downgrade and must be reported
 - Does it satisfy the task requirements
 - Does it follow the technical design and implementation plan when present
 - Does it follow directory structure conventions

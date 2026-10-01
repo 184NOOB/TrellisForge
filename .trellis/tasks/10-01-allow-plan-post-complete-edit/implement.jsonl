@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/main/tooling/templates-and-docs.md", "reason": "下游功能只改 templates/embedded-c-overlay/；根目录工作流只读；python.md 可作为模板合同文档更新"}
+{"file": ".trellis/spec/main/tooling/python.md", "reason": "现行 sequel/冻结/revise 不改 report 的合同与测试清单，实施时改为默认原地 revise"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "plan.py 完成态出口、live 指针、workflow/Agent/Hook 多副本必须同义"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "扩展 cmd_revise/cmd_validate/replay，不要另开 reopen 命令或复制完成态判定"}
+{"file": ".trellis/spec/shared/validation.md", "reason": "模板 unittest / py_compile / git diff --check 与 not applicable 口径"}

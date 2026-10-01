@@ -702,17 +702,30 @@ class ExecutionPlanTests(unittest.TestCase):
             ep.cmd_validate(self.root, self.task_dir)
         self.assertIn("without audit history", str(ctx.exception))
 
-    def test_completed_task_cannot_be_downgraded_by_edit(self) -> None:
+    def test_completed_task_reopen_is_sanctioned_and_requires_rerun(self) -> None:
+        # R3/AC3: after revise, resetting a completed non-report phase to
+        # pending is a sanctioned reopen — validate records task_reopened and
+        # clears the superseded managed map. Re-marking it completed by hand
+        # without re-running stays rejected.
         self.approve()
         ep.cmd_start(self.root, self.task_dir, "discover")
         ep.cmd_done(self.root, self.task_dir, "discover")
-        ep.cmd_revise(self.root, self.task_dir, "reorder")
+        ep.cmd_revise(self.root, self.task_dir, "redo discovery")
         plan = self.read_plan()
-        plan["tasks"][0]["status"] = "pending"  # try to redo finished work
+        plan["tasks"][0]["status"] = "pending"
+        plan["tasks"][0]["objective"] = "re-map symbols with the new spec"
+        self.write_plan(plan)
+        ep.cmd_validate(self.root, self.task_dir)
+        reopened = [e for e in self.events() if e["event"] == "task_reopened"]
+        self.assertEqual([e["task"] for e in reopened], ["discover"])
+        ep.cmd_revise(self.root, self.task_dir, "second revision")
+        plan = self.read_plan()
+        self.assertEqual(plan["tasks"][0]["status"], "pending")
+        plan["tasks"][0]["status"] = "completed"  # no re-run happened
         self.write_plan(plan)
         with self.assertRaises(ep.PlanError) as ctx:
             ep.cmd_validate(self.root, self.task_dir)
-        self.assertIn("downgraded", str(ctx.exception))
+        self.assertIn("cannot be marked completed again", str(ctx.exception))
 
     def test_forged_verification_result_rejected_by_done(self) -> None:
         self.start_edit()
@@ -977,15 +990,120 @@ class ExecutionPlanTests(unittest.TestCase):
         self.assertIn("execution plan:", text)
         self.assertNotIn("frozen plans:", text)
 
-    def test_protocol_block_offers_small_patch_and_sequel_when_complete(self) -> None:
+    def test_protocol_block_offers_small_patch_and_in_place_revise_when_complete(self) -> None:
         self.complete_report_plan()
         text = ep.plan_protocol_block(self.root, self.task_dir)
         self.assertIn("fully completed", text)
         self.assertIn("Small patch (hard rule)", text)
         self.assertIn("touch any execution-plan file", text)
-        self.assertIn("sequel --reason", text)
+        self.assertIn("revise --reason", text)
+        self.assertIn("Unmodified completed phases stay `completed`", text)
+        self.assertIn("terminal report resets to `pending`", text)
+        self.assertIn("sequel", text)
         self.assertIn("new Trellis task", text)
         self.assertNotIn("Per phase loop", text)
+
+    def test_revise_reopens_completed_report_and_clears_its_records(self) -> None:
+        # R1/R4: a fully completed live plan reopens in place; unmodified
+        # completed phases stay completed while the terminal report resets to
+        # pending with its managed map cleared. No sequel directory appears.
+        self.complete_report_plan()
+        out = ep.cmd_revise(self.root, self.task_dir, "same requirement continues")
+        self.assertFalse((self.task_dir / ep.PLANS_DIR).exists())
+        self.assertIn("reopened terminal report", out)
+        plan = self.read_live_plan()
+        self.assertEqual(plan["revision"], 2)
+        self.assertEqual(plan["status"], "proposed")
+        by_id = {t["id"]: t for t in plan["tasks"]}
+        self.assertEqual(by_id["discover"]["status"], "completed")
+        self.assertEqual(by_id["edit"]["status"], "completed")
+        self.assertEqual(by_id["verify-final"]["status"], "pending")
+        self.assertNotIn("verification_results", by_id["verify-final"])
+        revised = [e for e in self.events() if e["event"] == "plan_revised"][-1]
+        self.assertEqual(revised["reopened"], ["verify-final"])
+
+    def test_add_phase_after_completion_validates_and_reruns_report(self) -> None:
+        # AC1/AC2: no sequel, no new task — revise, add a phase, update the
+        # report's depends_on, validate, then re-run the new phase and the
+        # terminal report, producing a fresh live final-report.md.
+        self.complete_report_plan()
+        ep.cmd_revise(self.root, self.task_dir, "a phase was missed")
+        plan = self.read_live_plan()
+        by_id = {t["id"]: t for t in plan["tasks"]}
+        plan["tasks"].append({
+            "id": "extra",
+            "title": "extra phase",
+            "status": "pending",
+            "objective": "cover the missed work",
+            "depends_on": ["edit"],
+            "scope": {"read": ["src/"], "write": ["src/b.c"]},
+            "verification": {"level": "minimal", "required_checks": ["extra-check"]},
+        })
+        by_id["verify-final"]["depends_on"] = ["edit", "extra"]
+        self.write_plan(plan)
+        ep.cmd_validate(self.root, self.task_dir)
+        live = self.read_live_plan()
+        self.assertEqual(live["tasks"][0]["status"], "completed")
+        report = next(t for t in live["tasks"] if t["id"] == "verify-final")
+        self.assertEqual(report["status"], "pending")
+        reopened = [e for e in self.events() if e["event"] == "task_reopened"]
+        self.assertEqual([e["task"] for e in reopened], ["verify-final"])
+        ep.cmd_start(self.root, self.task_dir, "extra")
+        self.record("extra", "extra-check")
+        ep.cmd_done(self.root, self.task_dir, "extra")
+        ep.cmd_start(self.root, self.task_dir, "verify-final")
+        (self.live_dir() / "final-report.md").write_text(
+            "# Second final report\n", encoding="utf-8"
+        )
+        self.record("verify-final", "build", command="keil-build-all",
+                    artifact="final-report.md")
+        self.record("verify-final", "test", command="unit-tests")
+        self.record("verify-final", "diff-check", command="git-diff-check",
+                    artifact="final-report.md")
+        ep.cmd_done(self.root, self.task_dir, "verify-final")
+        self.assertEqual(
+            (self.live_dir() / "final-report.md").read_text(encoding="utf-8"),
+            "# Second final report\n",
+        )
+        self.assertFalse((self.task_dir / ep.PLANS_DIR).exists())
+        completed = [e for e in self.events() if e["event"] == "plan_completed"]
+        self.assertEqual(completed[-1]["revision"], 2)
+
+    def test_completed_step_fingerprint_change_requires_pending_first(self) -> None:
+        self.complete_report_plan()
+        ep.cmd_revise(self.root, self.task_dir, "change edit scope")
+        plan = self.read_live_plan()
+        edit_task = next(t for t in plan["tasks"] if t["id"] == "edit")
+        edit_task["objective"] = "changed while still completed"
+        self.write_plan(plan)
+        with self.assertRaises(ep.PlanError) as ctx:
+            ep.cmd_validate(self.root, self.task_dir)
+        self.assertIn("rewritten after completion", str(ctx.exception))
+
+    def test_report_demotion_after_completion_is_rejected(self) -> None:
+        # AC4: the completion-state report cannot be demoted to a normal phase
+        # or marked completed again by hand.
+        self.complete_report_plan()
+        ep.cmd_revise(self.root, self.task_dir, "reopen the live plan")
+        plan = self.read_live_plan()
+        report = next(t for t in plan["tasks"] if t["id"] == "verify-final")
+        self.assertEqual(report["status"], "pending")
+        report["verification"] = {"level": "minimal", "required_checks": ["build"]}
+        self.write_plan(plan)
+        with self.assertRaises(ep.PlanError) as ctx:
+            ep.cmd_validate(self.root, self.task_dir)
+        self.assertIn("must stay level=report", str(ctx.exception))
+
+    def test_report_marked_completed_again_is_rejected(self) -> None:
+        self.complete_report_plan()
+        ep.cmd_revise(self.root, self.task_dir, "reopen the live plan")
+        plan = self.read_live_plan()
+        report = next(t for t in plan["tasks"] if t["id"] == "verify-final")
+        report["status"] = "completed"  # guarded fields untouched hand-flip
+        self.write_plan(plan)
+        with self.assertRaises(ep.PlanError) as ctx:
+            ep.cmd_validate(self.root, self.task_dir)
+        self.assertIn("must be reset to pending", str(ctx.exception))
 
     def test_sequel_freezes_completed_plan_and_opens_live_two(self) -> None:
         self.complete_report_plan()
@@ -1198,15 +1316,17 @@ class ExecutionPlanTests(unittest.TestCase):
         plan = self.read_live_plan()
         self.assertEqual(plan["revision"], 2)
         self.assertEqual(plan["status"], "proposed")
-        # Rewriting the completed report phase into a normal phase is refused.
+        # revise resets the terminal report to pending; rewriting it into a
+        # normal phase is still refused.
         report = next(t for t in plan["tasks"] if t["id"] == "verify-final")
+        self.assertEqual(report["status"], "pending")
         report["verification"] = {"level": "minimal", "required_checks": ["build"]}
         ep.plan_path(self.task_dir).write_text(
             json.dumps(plan, ensure_ascii=False, indent=2), encoding="utf-8"
         )
         with self.assertRaises(ep.PlanError) as ctx:
             ep.cmd_validate(self.root, self.task_dir)
-        self.assertIn("rewritten after completion", str(ctx.exception))
+        self.assertIn("must stay level=report", str(ctx.exception))
 
     def test_sequel_cli_flow(self) -> None:
         self.complete_report_plan()
@@ -1219,6 +1339,24 @@ class ExecutionPlanTests(unittest.TestCase):
         self.assertEqual(exit_code, 0)
         pointer = json.loads((self.task_dir / ep.PLAN_FILE).read_text(encoding="utf-8"))
         self.assertEqual(pointer["live"], 2)
+
+    def test_revise_cli_flow_after_completion_stays_in_place(self) -> None:
+        # AC1/AC6: the CLI `revise` subcommand is the completion-state exit —
+        # no sequel pointer is created, the live plan reopens as proposed.
+        self.complete_report_plan()
+        with patch.object(plan_cli, "get_repo_root", return_value=self.root), \
+             patch.object(plan_cli, "resolve_task_dir", return_value=self.task_dir):
+            exit_code = plan_cli.main([
+                "--task", str(self.task_dir), "revise",
+                "--reason", "same requirement continues",
+            ])
+        self.assertEqual(exit_code, 0)
+        self.assertFalse((self.task_dir / ep.PLANS_DIR).exists())
+        plan = self.read_live_plan()
+        self.assertEqual(plan["revision"], 2)
+        self.assertEqual(plan["status"], "proposed")
+        report = next(t for t in plan["tasks"] if t["id"] == "verify-final")
+        self.assertEqual(report["status"], "pending")
 
     # -- template -----------------------------------------------------------
 

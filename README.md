@@ -67,10 +67,17 @@ trellis init
 收据的项目重复运行直接报告 `already-current` 并安全退出。
 
 1.2 来源升级时，`.opencode/package.json` 由 `1.2-to-1.3` 结构步骤显式接管：
-它退出 1.3 收据与受管集合，但升级器不会删除磁盘文件；若该文件已被 git 跟踪，
-请按 [docs/接入指南.md](docs/接入指南.md) 自行执行
-`git rm --cached .opencode/package.json`，ignore 规则才会生效。首次接入同样
-不安装该文件：请在目标 `.opencode/` 手工创建依赖声明并运行
+它退出 1.3 收据与受管集合，但升级器不会删除磁盘文件。`.gitignore` 只拦从未
+进过 Git 的新文件，拦不住已经跟踪的路径；所以升级后该文件仍会以 `M` 出现在
+`git status`。正确做法是取消跟踪、保留磁盘文件后再提交：
+
+```powershell
+git rm --cached .opencode/package.json
+git status --short   # 应变为删除暂存、工作树文件仍在且被忽略
+```
+
+不要 `git rm` 不加 `--cached`，那会删掉本机依赖声明。首次接入同样不安装该
+文件：请在目标 `.opencode/` 手工创建依赖声明并运行
 `npm install @opencode-ai/plugin`，随覆盖层安装的 `.opencode/.gitignore`
 会让本机依赖产物从一开始不进 git。
 

@@ -39,7 +39,7 @@ python ./.trellis/scripts/get_context.py --mode packages   # list packages / lay
 
 ### Task System
 
-Every task has its own directory under `.trellis/tasks/{MM-DD-name}/` holding `task.json`, `prd.md`, optional `design.md`, optional `implement.md`, optional `research/`, and context manifests (`implement.jsonl`, `check.jsonl`) for sub-agent-capable platforms.
+Every task has its own directory under `.trellis/tasks/{MM-DD-HHmm-name}/` holding `task.json`, `prd.md`, optional `design.md`, optional `implement.md`, optional `research/`, and context manifests (`implement.jsonl`, `check.jsonl`) for sub-agent-capable platforms.
 
 ```bash
 # Task lifecycle
@@ -144,15 +144,16 @@ python ./.trellis/scripts/get_context.py --mode phase --step <X.Y>  # detailed g
 ## Phase Index
 
 ```
-Phase 1: Plan    → classify, get task-creation consent, run Grill Me, then write planning artifacts
+Phase 1: Plan    → triage; ask task-creation consent only for complex coding work, then run Grill Me and write planning artifacts
 Phase 2: Execute → implement only after task status is in_progress
 Phase 3: Finish  → verify, update spec, commit, and wrap up
 ```
 
 ### Request Triage
 
-- Simple conversation or small task: ask only whether this turn should create a Trellis task. If the user says no, skip Trellis for this session.
-- Complex task: ask whether you may create a Trellis task and enter planning. If the user says no, do not do broad inline implementation; explain, clarify scope, or suggest a smaller split.
+- Default: do the work. Code analysis, Q&A, and single-file local edits proceed directly with no Trellis prompt.
+- Ask about creating a Trellis task only when the user explicitly wants code written AND it is complex (spans multiple files, touches workflow/Hook/contract mechanisms, needs design tradeoffs or multi-step implementation, or affects the published template).
+- If the user says no, do not do broad inline implementation; explain, clarify scope, or suggest a smaller split.
 - User approval to create a task is not approval to start implementation. Planning still happens first.
 
 ### Planning Artifacts
@@ -174,9 +175,8 @@ Create new children with `task.py create "<title>" --slug <name> --parent <paren
 <!-- Per-turn breadcrumb: shown when there is no active task (before Phase 1) -->
 
 [workflow-state:no_task]
-No active task. First classify the current turn and ask for task-creation consent before creating any Trellis task.
-Simple conversation / small task: ask only whether this turn should create a Trellis task. If the user says no, skip Trellis for this session.
-Complex task: ask the user if you can create a Trellis task and enter the planning phase. If the user says no, explain, clarify scope, or suggest a smaller split.
+No active task. Default to doing the work: code analysis, Q&A, and single-file local edits proceed directly with no Trellis prompt.
+Ask about creating a Trellis task only when the user explicitly wants code written AND it is complex (multi-file, workflow/Hook/contract mechanism, design tradeoffs or multi-step, or template-affecting). If the user says no, do not do broad inline implementation; explain, clarify scope, or suggest a smaller split.
 [/workflow-state:no_task]
 
 ### Phase 1: Plan
@@ -190,7 +190,8 @@ Complex task: ask the user if you can create a Trellis task and enter the planni
 <!-- Per-turn breadcrumb: shown throughout Phase 1 (status='planning') -->
 
 [workflow-state:planning]
-Load `trellis-brainstorm`, the upstream `grill-me`, and `trellisforge-trellis-grill-adapter`; stay in planning. First use repository evidence to separate facts, explicit user decisions, engineering decisions, and unresolved user-owned decisions. Ask one Grill question only when a user-owned product/scope/compatibility/risk/acceptance branch remains; never manufacture a question. Resolve engineering alternatives during planning and do not leave "implementation decides" branches. The project-local `task.py start` blocks unless convergence and subsequent approval markers are present.
+Load `trellis-brainstorm`, the upstream `grill-me`, and `trellisforge-trellis-grill-adapter`; stay in planning. First use repository evidence to separate facts, explicit user decisions, engineering decisions, and unresolved user-owned decisions. Ask one Grill question only when a user-owned product/scope/compatibility/risk/acceptance branch remains; never manufacture a question. Resolve engineering alternatives during planning and do not leave "implementation decides" branches. The project-local `task.py start` blocks unless convergence and subsequent approval markers are present, `prd.md` carries a non-empty `## Spec References` section, and (on sub-agent-dispatch platforms) `implement.jsonl`/`check.jsonl` each hold at least one curated entry.
+First discover and read the relevant `.trellis/spec/` indexes and guideline files (`get_context.py --mode packages`); persist the consulted files in `prd.md` under `## Spec References` (state none-applicable explicitly when nothing applies).
 Persist `## Workflow Settings` with `Review level: light|standard|reinforced|comprehensive|strict` in `prd.md`; use the latest explicit user choice, otherwise default to `standard` and show it in the final planning summary. Complex tasks still need `design.md` and `implement.md`.
 Persist `## Planning Convergence`; it may become `ready` only when blocking user and technical decisions are both zero and the final summary is ready. A final approval request does not count as a Grill clarification question.
 Multi-deliverable scope: consider a parent task plus independently verifiable child tasks; dependencies must be written in child artifacts, not implied by tree position.
@@ -204,7 +205,8 @@ Sub-agent mode: curate `implement.jsonl` and `check.jsonl` as spec/research mani
      into a sub-agent. -->
 
 [workflow-state:planning-inline]
-Load `trellis-brainstorm`, the upstream `grill-me`, and `trellisforge-trellis-grill-adapter`; stay in planning. First use repository evidence to separate facts, explicit user decisions, engineering decisions, and unresolved user-owned decisions. Ask one Grill question only when a user-owned product/scope/compatibility/risk/acceptance branch remains; never manufacture a question. Resolve engineering alternatives during planning and do not leave "implementation decides" branches. The project-local `task.py start` blocks unless convergence and subsequent approval markers are present.
+Load `trellis-brainstorm`, the upstream `grill-me`, and `trellisforge-trellis-grill-adapter`; stay in planning. First use repository evidence to separate facts, explicit user decisions, engineering decisions, and unresolved user-owned decisions. Ask one Grill question only when a user-owned product/scope/compatibility/risk/acceptance branch remains; never manufacture a question. Resolve engineering alternatives during planning and do not leave "implementation decides" branches. The project-local `task.py start` blocks unless convergence and subsequent approval markers are present, `prd.md` carries a non-empty `## Spec References` section, and (on sub-agent-dispatch platforms) `implement.jsonl`/`check.jsonl` each hold at least one curated entry.
+First discover and read the relevant `.trellis/spec/` indexes and guideline files (`get_context.py --mode packages`); persist the consulted files in `prd.md` under `## Spec References` (state none-applicable explicitly when nothing applies).
 Persist `## Workflow Settings` with `Review level: light|standard|reinforced|comprehensive|strict` in `prd.md`; use the latest explicit user choice, otherwise default to `standard` and show it in the final planning summary. Complex tasks still need `design.md` and `implement.md`.
 Persist `## Planning Convergence`; it may become `ready` only when blocking user and technical decisions are both zero and the final summary is ready. A final approval request does not count as a Grill clarification question.
 Multi-deliverable scope: consider a parent task plus independently verifiable child tasks; dependencies must be written in child artifacts, not implied by tree position.
@@ -239,9 +241,11 @@ this template's supported scope and must not trigger extra files or dispatch wor
 [workflow-state:in_progress]
 Tools: `trellis-implement` / `trellis-research` are sub-agent types only (Task/Agent tool, NOT Skill; there is no skill by these names). `trellis-update-spec` and `trellisforge-trellis-review` are skills. `trellis-check` exists as both; prefer the Agent form according to the selected review level.
 Flow: `trellis-implement` -> `trellisforge-trellis-review` -> light main-session review OR standard/reinforced/comprehensive/strict `trellis-check` Agent -> `trellis-update-spec` -> commit (Phase 3.4) -> `/trellis:finish-work`.
-Main-session default: dispatch the implement sub-agent. Review dispatch follows the persisted profile: light stays in the main session and does not load the bundled generic `trellis-check` Skill; standard dispatches exactly one independent affected-scope `trellis-check` Agent when supported; reinforced dispatches independent affected-scope `trellis-check` Agents and re-dispatches a fresh agent after each blocking-fix round until blocking findings are zero; comprehensive does the same at full-scope without an extra commit-ready review; strict adds a mandatory fresh full-scope `trellis-check` Agent on the stable commit-ready snapshot. Each re-review round uses a newly dispatched agent, never a resumed reviewer session. Sub-agent self-exemption: if already running as `trellis-implement`, do NOT spawn another `trellis-implement` or `trellis-check`; if already running as `trellis-check`, do NOT spawn another `trellis-check` or `trellis-implement`. Dispatch is main session only.
+Main-session default: dispatch the implement sub-agent. Review dispatch follows the persisted profile: light stays in the main session and does not load the bundled generic `trellis-check` Skill; standard dispatches exactly one independent affected-scope `trellis-check` Agent when supported; reinforced dispatches independent affected-scope `trellis-check` Agents and re-dispatches a fresh agent after each blocking-fix round until the main session's Severity Adjudication shows an adjudicated count of zero blocking findings; comprehensive does the same at full-scope without an extra commit-ready review; strict adds a mandatory fresh full-scope `trellis-check` Agent on the stable commit-ready snapshot. Each re-review round uses a newly dispatched agent, never a resumed reviewer session. Sub-agent self-exemption: if already running as `trellis-implement`, do NOT spawn another `trellis-implement` or `trellis-check`; if already running as `trellis-check`, do NOT spawn another `trellis-check` or `trellis-implement`. Dispatch is main session only.
 Dispatch prompt starts with `Active task: <task path from task.py current>`. Read context: jsonl entries -> `prd.md` -> `design.md if present` -> `implement.md if present`.
-Execution plan: the implement sub-agent creates/approves `<task>/execution-plan.json` via `plan.py` before any source edit and advances only through `plan.py start/record/done/block/revise` (two-level verification: minimal records required_checks, one terminal report phase writes final-report.md); between rounds run `python .trellis/scripts/plan.py --task "<task-path>" status` to decide re-dispatch vs 2.2. The `<execution-plan>` breadcrumb is display-only.
+Execution plan: By default the implement sub-agent creates/approves the live `<task>/execution-plan.json` via `plan.py` before any source edit and advances only through `plan.py start/record/done/block/revise` (two-level verification: minimal records required_checks, one terminal report phase writes final-report.md); between rounds run `python .trellis/scripts/plan.py --task "<task-path>" status` to decide re-dispatch vs 2.2. When the live plan is already fully completed, a small patch bypasses plan.py entirely and a same-requirement change that needs new phases/checks/report reopens it in place with `plan.py revise --reason "..."`; `plan.py sequel` stays available when a separate plan book is explicitly wanted (see the Phase 2 gate). The `<execution-plan>` breadcrumb is display-only.
+Dispatch granularity (default): one implement round = one dispatch = the whole remaining runnable chain (the sub-agent walks phase after phase up to the terminal report phase), not one phase per dispatch. In sub-agent dispatch modes the implement sub-agent advances plan state itself (start/record/done/block); by default the main session runs only read-only `plan.py status` between rounds to decide re-dispatch vs 2.2, and does not advance plan state on the sub-agent's behalf. The `<execution-plan>` breadcrumb prints the current round's `dispatch chain:` line.
+User instructions override these defaults: when the user explicitly asks the main session to implement directly, the main session acts as the implementer for that round and advances `plan.py` itself, with the same chain duty and the same failure reporting; when the user explicitly asks the main session to write the plan first, the main session may create and `validate` the execution plan and then dispatch an implement sub-agent that picks up the in-progress chain instead of re-planning.
 
 ### Sub-agent dispatch efficiency contract
 
@@ -267,9 +271,9 @@ does not repeat an unaffected scan or build merely to confirm it again.
 
 [workflow-state:in_progress-inline]
 Flow: `trellis-before-dev` -> edit -> `trellisforge-trellis-review` + profiled review -> validation -> `trellis-update-spec` -> commit (Phase 3.4) -> `/trellis:finish-work`.
-Inline mode keeps implementation in the main session. For review, `light` is a main-session changed-scope review; `standard` dispatches one independent affected-scope `trellis-check` agent when supported; `reinforced` dispatches independent affected-scope reviews and re-dispatches a fresh agent after each blocking-fix round until blocking findings are zero; `comprehensive` repeats the same independent loop at full-scope with no extra commit-ready review; `strict` adds a mandatory fresh full-scope final review on the stable commit-ready snapshot.
+Inline mode keeps implementation in the main session. For review, `light` is a main-session changed-scope review; `standard` dispatches one independent affected-scope `trellis-check` agent when supported; `reinforced` dispatches independent affected-scope reviews and re-dispatches a fresh agent after each blocking-fix round until the main session's Severity Adjudication shows an adjudicated count of zero blocking findings; `comprehensive` repeats the same independent loop at full-scope with no extra commit-ready review; `strict` adds a mandatory fresh full-scope final review on the stable commit-ready snapshot.
 Read context: `prd.md` -> `design.md if present` -> `implement.md if present`, plus relevant spec/research loaded by skills.
-Execution plan (same gate, main session as executor): write `<task>/execution-plan.json` first, `plan.py validate` before touching business source, then advance exclusively via `plan.py start/record/done/block/revise` per phase.
+Execution plan (same gate, main session as executor): write the live `<task>/execution-plan.json` first, `plan.py validate` before touching business source, then advance exclusively via `plan.py start/record/done/block/revise` per phase; a small patch on a fully completed live plan bypasses plan.py, and a same-requirement change that needs new phases/checks/report reopens it in place with `plan.py revise --reason "..."` (`sequel` only for an explicitly separate plan book; see the Phase 2 gate).
 [/workflow-state:in_progress-inline]
 
 ### Phase 3: Finish
@@ -349,9 +353,10 @@ When a user request matches one of these intents inside an active task, route fi
 - Task creation approval is not implementation approval; implementation waits for `task.py start` after artifact review.
 - PRD-only is valid for lightweight tasks; complex tasks need `design.md` + `implement.md`.
 - Planning must be persisted to task artifacts; checks must run before reporting completion.
+- Before the decision inventory, discover and read the relevant `.trellis/spec/` indexes and guideline files (`get_context.py --mode packages`), and persist the consulted files in `prd.md` under `## Spec References`; an explicit none-applicable entry is valid, a missing or empty section is not.
 - Every Trellis task in `planning` or `planning-inline` must complete the upstream `grill-me` protocol with `trellisforge-trellis-grill-adapter`; task size and risk do not create an exemption.
 - Every task `prd.md` must include `## Workflow Settings` with `Review level: light|standard|reinforced|comprehensive|strict`; missing or invalid values default to `standard`.
-- Phase 2 source edits require an approved `<task>/execution-plan.json`; task state advances only through `plan.py` with its audit log intact — hand-edited statuses, verification result maps, revisions, or guarded plan content are rejected against the audit replay, and no hook is load-bearing for that enforcement.
+- Phase 2 source edits require an approved live `<task>/execution-plan.json` while the live plan is open: with no plan, create and approve one first; with an unfinished plan, advance through `plan.py`; with a fully completed plan, follow the small-patch exit or reopen it in place with `plan.py revise` (see the Phase 2 completion-state exit). Task state advances only through `plan.py` with its audit log intact — hand-edited statuses, verification result maps, revisions, or guarded plan content are rejected against the audit replay, and no hook is load-bearing for that enforcement.
 
 ### Loading Step Detail
 
@@ -360,6 +365,10 @@ At each step, run this to fetch detailed guidance:
 ```bash
 python ./.trellis/scripts/get_context.py --mode phase --step <step>
 # e.g. python ./.trellis/scripts/get_context.py --mode phase --step 1.1
+# Pass your platform so platform-tagged blocks are filtered:
+#   Claude Code: --platform claude
+#   Codex: --platform codex
+#   OpenCode: --platform opencode
 ```
 
 ---
@@ -376,7 +385,7 @@ Create the task directory only after task-creation consent. The command sets sta
 python ./.trellis/scripts/task.py create "<task title>" --slug <name>
 ```
 
-`--slug` is the human-readable name only. Do **not** include the `MM-DD-` date prefix; `task.py create` adds that prefix automatically.
+`--slug` is the human-readable name only. Do **not** include the `MM-DD-HHmm-` date prefix; `task.py create` adds that prefix automatically. When several tasks are created within the same minute, the prefix advances to the next free minute so directory-name order matches creation order; the minute is a sorting marker only and `task.json` `createdAt` keeps the real creation date.
 
 For task trees, create the parent task first and then create each child with `--parent <parent-dir>`. Do not start the parent just because children exist; start the child that owns the next independently verifiable deliverable.
 
@@ -403,6 +412,8 @@ Skip when `python ./.trellis/scripts/task.py current --source` already points to
 #### 1.1 Requirement exploration and Grill Me `[required · repeatable]`
 
 Load `trellis-brainstorm`, the upstream `grill-me`, and `trellisforge-trellis-grill-adapter`. `trellis-brainstorm` owns evidence inspection, decision ownership, artifact convergence, and the rule against manufactured questions. `grill-me` supplies the one-question-at-a-time interview format for unresolved user-owned branches. The adapter persists convergence and approval markers. The project-local `task.py start` verifies those markers before changing task state.
+
+**Spec discovery (mandatory first evidence step)**: run `python ./.trellis/scripts/get_context.py --mode packages`, read each relevant spec index (`index.md` per package/layer), then the guideline files those indexes point to plus `.trellis/spec/guides/index.md`. Persist every consulted file with a one-line reason in the `## Spec References` section of `prd.md`. If no spec applies, keep the section and state explicitly that none applies and why; never leave it missing or empty.
 
 The brainstorm skill will guide you to:
 - Ask one question at a time
@@ -553,9 +564,9 @@ python ./.trellis/scripts/task.py set-meta <task-dir> plan_approved true
 python ./.trellis/scripts/task.py start <task-dir>
 ```
 
-For lightweight tasks, `prd.md` can be enough. For complex tasks, `prd.md`, `design.md`, and `implement.md` must exist and be reviewed before start. On sub-agent-dispatch platforms, `implement.jsonl` and `check.jsonl` must both have real curated entries before start. Runtime consumers tolerate missing or seed-only manifests for compatibility, but that tolerance is not a planning-ready state.
+For lightweight tasks, `prd.md` can be enough. For complex tasks, `prd.md`, `design.md`, and `implement.md` must exist and be reviewed before start. On sub-agent-dispatch platforms, `implement.jsonl` and `check.jsonl` must both have real curated entries before start. Runtime consumers tolerate missing or seed-only manifests for compatibility, but that tolerance is not a planning-ready state; the start gate rejects missing or seed-only manifests.
 
-`task.py start` rejects planning tasks unless `prd.md` contains a valid review level and a ready `## Planning Convergence` block, and task metadata contains both `planning_ready=true` and `plan_approved=true`. Rejection happens before active-task or status mutation. After the command succeeds, the breadcrumb auto-switches to `[workflow-state:in_progress]`, and the rest of Phase 2 / 3 follows.
+`task.py start` rejects planning tasks unless `prd.md` contains a valid review level, a `## Spec References` section with at least one entry (or an explicit none-applicable entry), and a ready `## Planning Convergence` block; task metadata contains both `planning_ready=true` and `plan_approved=true`; and, on sub-agent-dispatch platforms, `implement.jsonl` and `check.jsonl` each carry at least one curated entry. Rejection happens before active-task or status mutation. After the command succeeds, the breadcrumb auto-switches to `[workflow-state:in_progress]`, and the rest of Phase 2 / 3 follows.
 
 If `task.py start` errors with a session-identity message (no context key from hook input, `TRELLIS_CONTEXT_ID`, or platform-native session env), follow the hint in the error to set up session identity, then retry.
 
@@ -566,6 +577,7 @@ If `task.py start` errors with a session-identity message (no context key from h
 | `prd.md` exists | ✅ |
 | Evidence/decision inventory converged; Grill questions asked only where user-owned decisions remained | ✅ |
 | `prd.md` contains `## Workflow Settings` and `Review level` | ✅ |
+| `prd.md` contains a `## Spec References` section with at least one entry (or an explicit none-applicable entry) | ✅ |
 | `prd.md` contains a ready `## Planning Convergence` block | ✅ |
 | Task metadata contains `planning_ready=true` | ✅ |
 | User confirms task should enter implementation | ✅ |
@@ -591,16 +603,18 @@ Goal: turn reviewed planning artifacts into code that passes quality checks.
 
 Implementation progress is driven by the execution plan in the active task directory, advanced through `.trellis/scripts/plan.py`:
 
-- `<task-path>/execution-plan.json` (schema 3) holds the model-authored plan and current state; `<task-path>/execution-events.jsonl` is the append-only audit log. Both files live inside the task directory. `<task-path>/final-report.md` is written only by the single `report` phase.
+- The live plan is `<task-path>/execution-plan.json` (schema 3) plus `<task-path>/execution-events.jsonl` (append-only audit log). After `plan.py sequel`, the completed plan is frozen under `<task-path>/plans/<n>/` with its own ledger and `final-report.md`, the task-root `execution-plan.json` becomes a live pointer `{"schema": 3, "live": N}`, and the new live plan is `<task-path>/plans/<N>/`. Exactly one plan is live; frozen plans are read-only history, and `status` plus the injected breadcrumb always describe the live plan only. `final-report.md` is written only by the single `report` phase and lives in the live plan directory. A fully completed live plan is reopened in place with `plan.py revise --reason "..."`: unmodified completed phases stay `completed`, the terminal report resets to `pending`, and approval records `task_reopened`; `sequel` is a compatibility command for explicitly opening a separate plan book, not the required completion-state exit.
 - Round 1: the implementer reads PRD/Spec/code and writes the plan first (`python .trellis/scripts/plan.py --task "<task-path>" template` prints the skeleton; ≤ 8 phase-level tasks with `depends_on`, `scope.read`/`scope.write`, and `verification` `{level, required_checks[, report_path]}`). Business source code stays untouched until `plan.py validate` approves the plan.
 - Verification is two-level only: `minimal` (normal phases) records each declared `required_checks` result with exit code and a short summary — no phase Markdown, no mandatory raw logs; `report` (at most one, terminal, and transitively depending on every other phase) additionally writes `final-report.md` and registers it via `record --artifact final-report.md` before `done`. There is no `risk` field, no `raw` level, and no `required_evidence`.
 - `required_checks` cannot be bypassed by an empty list: only a pure read-only/analysis phase (empty `scope.write`) may declare none, and then it must state a non-empty `no_check_reason`. Any file-modifying/build/test phase needs ≥ 1 declared check, and `done` refuses missing or non-pass records. A recorded `fail` is permanent for the revision. Check ids are declarative, so `plan.py` can only verify presence/pass — the 2.2 review must additionally re-check the declared check list itself against `prd.md` acceptance criteria: renaming, dropping, or trivializing a declared check between revisions is a verification downgrade that only the independent review catches.
 - State advances only through `plan.py` (`start` / `record` / `done` / `block` / `revise`). Hand-edited task statuses, revisions, verification result maps, guarded task content, and completed-task history are rejected — statuses and managed maps are cross-checked against the audit replay. Consistent forgery of the plan JSON and the audit log together is outside this mechanism's defense envelope; the independent 2.2 review remains the real verification.
 - `plan.py record <id> --check <declared-check-id> --result pass|fail --command <command-id> --exit-code <number> --summary "<short text>" [--artifact <task-relative-path>]` is the implementer's attestation of a check it actually ran (plan.py never executes builds or tests); `--artifact` is an optional task-directory-local reference, never required for `minimal`. Independent verification belongs to the 2.2 quality-check review, which must rerun or otherwise confirm the declared checks. A failed phase is audited through `plan.py block <id> --reason "..."` — there is no separate `task_failed` event; `blocked` + reason + `plan_revised` history carry failure semantics.
 - The phase loop is batch-shaped: `start` → batch read / batch edit / batch check → `record` every declared check → `done`. Hooks/plugins are display-only aids: the UserPromptSubmit hook (Claude/Codex) and the OpenCode per-turn plugin show an `<execution-plan>` breadcrumb, the sub-agent injection hooks/plugin carry the protocol + current state, and the PreToolUse edit counter only warns (it never feeds `done`). The CLI flow must work completely with every hook or plugin disabled or unavailable (Codex `SubagentStart` has no PreToolUse equivalent; OpenCode plugins are context carriers, never gates).
-- Between implement rounds the main session runs `plan.py --task "<task-path>" status`: runnable tasks → re-dispatch (or continue inline); all completed → 2.2 quality check; `blocked` or `plan_revised` history → review the reason before proceeding.
-- Crash recovery depends on task-directory files only: re-read `execution-plan.json`, resume the `in_progress` phase (its recorded checks are already in the plan) or the first dependency-ready `pending` phase. Session ids, hooks, and sidechain/bg state must never be load-bearing.
+- Between implement rounds the main session runs `plan.py --task "<task-path>" status`: runnable tasks → re-dispatch (or continue inline); all completed → 2.2 quality check; `blocked` or `plan_revised` history → review the reason before proceeding. One round = one dispatch = the whole remaining chain: when runnable tasks exist, re-dispatch once and expect that dispatch to walk every runnable phase through to the terminal report phase; do not split one chain into one dispatch per phase.
+- Crash recovery depends on task-directory files only: re-read the live plan (`plan.py status` / live `execution-plan.json`), resume the `in_progress` phase (its recorded checks are already in the plan) or the first dependency-ready `pending` phase. Session ids, hooks, and sidechain/bg state must never be load-bearing.
 - When a damaged `execution-events.jsonl` is reported, fix the audit log before any further state change; never bypass `plan.py`.
+- **Small patch (hard rule, bypasses plan.py):** when the user explicitly says this is a small patch (`小修`) or says not to go through `plan.py`, treat it as one without further gates; otherwise all four objective gates must hold together: (1) acceptance is unchanged, or only user-confirmed-obsolete limits are removed; (2) the change is small, in one module, with no architecture change; (3) no new phase split is needed; (4) PRD/design are not synced by default and a Spec is written only for a convention that will recur. A small patch edits code directly, runs the affected checks, and updates a Spec only when needed: no `revise`, no new phase, no new task. Blocking fixes from review or implementation default to a small patch; only blocking work that is too much, messy, and complex enough to need new steps/checks/report justifies an in-place `revise` (or an explicit `sequel` for a separate plan book).
+- **Completion-state exit:** a small patch inside an unfinished live plan stays in the current phase (batch edit → `record` → `done`). Once the live plan is fully completed (all phases, including the terminal report), a small patch touches no execution-plan file at all. A same-requirement change that does need new phases/checks/report — including blocks too many/messy/complex for a small patch — reopens the same live plan with `plan.py revise --reason "..."`: unmodified completed phases stay `completed`, the terminal report resets to `pending` with its `depends_on` updated to cover the new work, and the revised plan is `validate`d before further source edits (PRD acceptance changes go into `prd.md` first). `plan.py sequel --reason "..."` stays available when a separate plan book is explicitly wanted; it is no longer the required completion-state exit. A different requirement, an archived task, or a need for independent review/rollback opens a new Trellis task.
 
 #### 2.1 Implement `[required · repeatable]`
 
@@ -611,6 +625,7 @@ Spawn the implement sub-agent:
 - **Agent type**: `trellis-implement`
 - **Task description**: Implement the reviewed task artifacts, consulting materials under `{TASK_DIR}/research/`; finish by running applicable project checks/builds; report unavailable or inapplicable checks in the final message (plan.py record only accepts pass|fail — a declared check that cannot run goes through block/revise, never a false pass). The task-content portion should contain only the objective, affected scope, explicit non-goals, acceptance conditions already in task artifacts, and validation commands already defined by the task or project; do not paste full PRD, Spec, research, checklist, or diff bodies.
 - **Dispatch prompt guard**: The prompt MUST start with `Active task: <task path>`, then tell the spawned agent it is already the `trellis-implement` sub-agent and must implement directly, not spawn another `trellis-implement` / `trellis-check`. Preserve these role and lifecycle instructions in addition to the task-content boundary.
+- **Dispatch scope**: one dispatch covers the whole remaining chain. The implement sub-agent walks every runnable phase in sequence (`start` -> batch read/edit/check -> `record` -> `done`) until the terminal report phase is done, and must not return after a single phase. If it cannot continue, it blocks the phase with a reason and returns a structured failure report; a silent empty return is a protocol violation.
 
 The platform hook/plugin auto-handles:
 - Reads `implement.jsonl` and injects referenced spec/research files into the agent prompt
@@ -675,6 +690,42 @@ wait 终端 session，整段等待期间只处理这一个进程：
 
 [/Codex]
 
+#### 2.1.2 Codex 主会话：原生子代理派发与静默等待
+
+[Codex]
+
+Codex 主会话通过原生 `spawn_agent` / `wait_agent` 派发实施或审查子代理时
+（`codex-sub-agent` 与 `codex-inline` 两种主会话都适用，inline 模式的审查
+派发同样受本节约束），等待期间保持静默等待：
+
+- 每个工作单元只派发一次：只 `spawn_agent` 一次，等待只对同一 agent/thread
+  连续调用 `wait_agent`；单次 `timeout_ms` 取该工具允许的最大值，正常路径为
+  分钟级且不低于实测可行的 `120000`。30 秒级窗口只允许出现在明确说明原因的
+  诊断场景，正常路径禁用 30000 这类短周期窗口；未实测的更大值不得写成工具
+  上限。
+- `wait_agent` 返回 `{"timed_out":true}`（"Wait timed out."）表示窗口到期而
+  agent 仍在运行，不是失败信号：复用同一 agent/thread 继续等待，不重新
+  `spawn_agent`、不新建等待循环。
+- 等待期间禁止读代码或 diff 正文，包括 `git diff` / `git log`、被改动文件
+  内容、`execution-events.jsonl` 或半成品 `final-report.md` 正文，也不运行
+  `plan.py status`、不反复 `list_agents` 做周期观测。理由：此时读到的是半成品
+  状态，容易误判进度，并把无意义上下文灌入主会话，让实施子代理失去意义。
+- 允许且只允许两种“最小上下文进展确认”，各自最多一次：(1) 派发早期允许一次
+  轻量存活探测，只看“是否有改动”的信号——文件路径、时间戳、大小，或
+  `git status --short` 的路径清单，不得读取文件内容；(2) 长时间没有终态且
+  需要判断时，允许一次 `send_message` 向实施/审查 agent 询问进度，由该 agent
+  用摘要回复。不得重复追问，也不得用询问替代终态等待。
+- 用户在等待期间发来的新指令是交互中断，不算轮询。
+- 收到终态后只读取判断下一步所需的最小最终结果，再回到 Phase 2 正常路径
+  （`plan.py status`、审查派发或报告）；完整 diff 阅读属于审查步骤而非等待。
+- 异常入口：`wait_agent` 报错、agent 明确失败或长时间无进展时，允许一次最小
+  诊断（最多一次 `list_agents` 或一次状态读取），据此决定中止、恢复或重新
+  派发；不得把重复等待写成无条件循环。
+- 以上规则只约束 Codex 主会话；Claude Code / OpenCode 主会话不要求使用
+  `spawn_agent` / `wait_agent`。
+
+[/Codex]
+
 #### 2.2 Quality check `[required · repeatable]`
 
 Load `trellisforge-trellis-review` before choosing the review route. Read `prd.md`
@@ -707,10 +758,12 @@ Apply the selected profile:
   listed files; do not paste their contents into the prompt.
 - `reinforced`: dispatch an independent affected-scope `trellis-check` agent
   after implementation using the same dispatch prompt guard as `standard`.
-  If the report has blocking findings, batch-complete that round's fixes per
-  the ownership rules, then dispatch a fresh independent `trellis-check`
-  agent for a new full affected-scope round. Repeat until the newest
-  independent report shows zero blocking findings. Every re-review round
+  If the report has blocking findings after Severity Adjudication (report
+  labels are signals; loop exit uses the adjudicated count), batch-complete
+  that round's adjudicated blocking fixes per the ownership rules, then
+  dispatch a fresh independent `trellis-check` agent for a new full
+  affected-scope round. Repeat until the main session's adjudicated count
+  shows zero blocking findings. Every re-review round
   re-covers the complete affected-scope instead of only confirming the
   previous round's findings, and a new round means a newly dispatched agent,
   never a resumed reviewer session.
@@ -733,7 +786,8 @@ Apply the selected profile:
   - Out-of-task-scope or environment/permission blocks are report-only; the
     main session decides whether to open a follow-up task.
   - Other implementation blocking defects are returned to the main session,
-    which verifies the finding against the current snapshot and then routes
+    which verifies the finding against the current snapshot, re-grades it
+    per Severity Adjudication, and then routes
     in this order:
     - Codex inline fixes the defect in the main session itself.
     - Otherwise the main session preferably relies on being able to reliably
@@ -743,8 +797,8 @@ Apply the selected profile:
       for a complex implementation repair.
     Report-only categories are design/judgment issues, implementation
     blocking defects, planning defects, and out-of-task-scope findings.
-  Non-blocking findings never by themselves trigger another complete
-  independent round. If the task change set, public contracts, acceptance
+  Non-blocking findings (after Severity Adjudication) never by themselves
+  trigger another complete independent round. If the task change set, public contracts, acceptance
   criteria, or applicable Specs materially change after a review, the old
   evidence is invalidated and the selected profile's review runs again.
 
@@ -774,9 +828,9 @@ Apply the selected profile:
   `trellisforge-trellis-review`, task artifacts, and applicable TrellisForge project
   Specs. Do not load the bundled generic `trellis-check` Skill.
 - `standard`: Codex inline keeps implementation in the main session but still dispatches one independent affected-scope `trellis-check` agent when supported. Platforms that cannot dispatch a reviewer must explicitly record a main-session equivalent review.
-- `reinforced`: like `standard`, but after each blocking-fix round dispatch a fresh independent affected-scope `trellis-check` agent for a new full round, repeating until the newest independent report shows zero blocking findings. Platforms that cannot dispatch a reviewer must explicitly record a main-session equivalent review and the missing independence.
+- `reinforced`: like `standard`, but after each blocking-fix round dispatch a fresh independent affected-scope `trellis-check` agent for a new full round, repeating until the main session's Severity Adjudication shows an adjudicated count of zero blocking findings. Platforms that cannot dispatch a reviewer must explicitly record a main-session equivalent review and the missing independence.
 - `comprehensive`: the same independent full-scope blocking-fix loop as `reinforced` but with full-scope rounds; reaching zero blocking findings does not add an extra commit-ready review round. Platforms that cannot dispatch a reviewer must explicitly record a main-session equivalent review.
-- `strict`: run the full-scope independent blocking-fix loop when supported, and additionally require one fresh independent full-scope commit-ready final review on the stable snapshot before Phase 3.4, repeating until blocking findings are zero. Platforms that cannot dispatch a reviewer must explicitly record a main-session equivalent review.
+- `strict`: run the full-scope independent blocking-fix loop when supported, and additionally require one fresh independent full-scope commit-ready final review on the stable snapshot before Phase 3.4, repeating until the adjudicated count of blocking findings is zero. Platforms that cannot dispatch a reviewer must explicitly record a main-session equivalent review.
 
 All profiles check spec compliance, acceptance evidence, validation, and cross-layer consistency when changes span layers. Each independent re-review round re-covers the complete scope of the selected profile with a newly dispatched agent; blocking findings are fixed in batches before the next round, and non-blocking findings never by themselves trigger another complete round. Material post-review changes to the task diff, public contracts, acceptance criteria, or applicable Specs invalidate prior evidence and re-trigger the current profile's review.
 
@@ -784,7 +838,7 @@ If issues are found → fix → re-check, until green.
 
 [/codex-inline]
 
-**Final pass (before Phase 3.4 commit)**: use the selected profile from `trellisforge-trellis-review`: `light` = changed-scope main-session review, `standard` = one independent affected-scope review when supported, `reinforced` = independent affected-scope rounds until the newest report shows zero blocking findings, `comprehensive` = the same loop at full-scope with no extra commit-ready round, and `strict` = the full-scope loop plus the mandatory fresh commit-ready final review defined in Phase 3.4. Before committing, confirm the latest review evidence is still valid; material post-review changes invalidate it and re-trigger the current profile's review. Derive affected packages from the actual diff, task manifest, and direct call graph; load only package/spec indexes supported by that evidence. Do not enumerate unrelated packages without evidence of impact.
+**Final pass (before Phase 3.4 commit)**: use the selected profile from `trellisforge-trellis-review`: `light` = changed-scope main-session review, `standard` = one independent affected-scope review when supported, `reinforced` = independent affected-scope rounds until the main session's Severity Adjudication shows an adjudicated count of zero blocking findings, `comprehensive` = the same loop at full-scope with no extra commit-ready round, and `strict` = the full-scope loop plus the mandatory fresh commit-ready final review defined in Phase 3.4. Before committing, confirm the latest review evidence is still valid; material post-review changes invalidate it and re-trigger the current profile's review. Derive affected packages from the actual diff, task manifest, and direct call graph; load only package/spec indexes supported by that evidence. Do not enumerate unrelated packages without evidence of impact.
 
 #### 2.3 Rollback `[on demand]`
 
@@ -820,7 +874,7 @@ Update the docs under `.trellis/spec/` accordingly. Even if the conclusion is "n
 
 **Spec-sync preamble**: before drafting commits, ask: did this task fix a bug or surface non-obvious knowledge that should land in `.trellis/spec/` so future-you (or future-AI) doesn't repeat the mistake? If yes, return to Phase 3.3 first — spec writes belong in the same task's commit batch, not as a forgotten follow-up.
 
-**Review-profile preamble**: before drafting commits, confirm the selected `trellisforge-trellis-review` profile from `prd.md` has completed and its latest evidence is still valid. `light`, `standard`, `reinforced`, and `comprehensive` require no extra commit-ready review round once their review path has reached a valid completed state (zero blocking findings where independent rounds apply). `strict` additionally requires, after code, tests, Specs, and task artifacts are all stable, one fresh independent full-scope commit-ready final review of the stable snapshot — even when nothing materially changed — repeating the fresh final review after any blocking-fix round until the final report shows zero blocking findings. Do not commit while the required profile is incomplete.
+**Review-profile preamble**: before drafting commits, confirm the selected `trellisforge-trellis-review` profile from `prd.md` has completed and its latest evidence is still valid. All "zero blocking findings" / "blocking findings are zero" exit tests mean the main session's Severity Adjudication adjudicated count, not the Agent report label alone. `light`, `standard`, `reinforced`, and `comprehensive` require no extra commit-ready review round once their review path has reached a valid completed state (zero blocking findings where independent rounds apply). `strict` additionally requires, after code, tests, Specs, and task artifacts are all stable, one fresh independent full-scope commit-ready final review of the stable snapshot — even when nothing materially changed — repeating the fresh final review after any blocking-fix round until the adjudicated count for that final report shows zero blocking findings. Do not commit while the required profile is incomplete.
 
 The AI may drive a batched commit of this task's code changes only after the user explicitly approves the proposed commit plan. This project keeps `session_auto_commit: false`: `/finish-work`, `task.py archive`, and `add_session.py` update bookkeeping files but do not create Git commits. Work commits happen first; after finish-work, any archive/journal changes require a separate commit plan and fresh user approval.
 
@@ -883,7 +937,7 @@ This section is for developers who want to modify the Trellis workflow itself. A
 ### Changing what a step means
 
 Edit the corresponding step's walkthrough body in the Phase 1 / 2 / 3 sections above. Critical invariants:
-- No active task must triage first and ask for task-creation consent before creating a Trellis task.
+- No active task must triage first; ask for task-creation consent only for explicitly-requested complex code changes before creating a Trellis task.
 - Planning must distinguish lightweight PRD-only tasks from complex tasks that require `prd.md`, `design.md`, and `implement.md` before start.
 - Every required execution path must keep the Phase 3.4 commit reminder reachable before `/trellis:finish-work`.
 

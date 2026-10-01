@@ -14,9 +14,12 @@ protocol.
 
 This adapter combines the upstream interview format with
 `trellis-brainstorm`'s evidence and decision-ownership rules. The project also
-uses a local `task.py start` readiness gate, but that gate only verifies the
-persisted convergence and approval markers. It cannot prove that an AI
-classified every decision correctly, so the artifact rules remain mandatory.
+uses a local `task.py start` readiness gate, but that gate checks structural
+artifacts only: the persisted convergence and approval markers, a non-empty
+`## Spec References` section in `prd.md`, and (on sub-agent platforms) at least
+one curated entry in each of `implement.jsonl` and `check.jsonl`. It cannot
+prove that an AI classified every decision correctly, so the artifact rules
+remain mandatory.
 
 ## Decision Ownership
 
@@ -43,8 +46,13 @@ Implementation approval is a phase-transition gate, not a Grill question.
    `session-fallback:*` as another session's state; do not read, preserve, or
    plan against it as the current task. For task trees, bind exactly one
    next-actionable planning child and keep parent/deferred children unselected.
-   Then read that task's existing `prd.md`, `design.md`, `implement.md`,
-   relevant Specs, and repository evidence.
+   Then discover specs: run
+   `python ./.trellis/scripts/get_context.py --mode packages`, read each
+   relevant index and the guideline files it names (plus
+   `.trellis/spec/guides/index.md`), then read the task's existing `prd.md`,
+   `design.md`, `implement.md`, and repository evidence. Record every consulted
+   spec with a one-line reason in `prd.md` under `## Spec References`; keep the
+   section and state none-applicable explicitly when nothing applies.
 2. Run `trellis-brainstorm`'s evidence pass and decision inventory, then apply
    the unmodified `grill-me` question format to every unresolved user-owned
    branch. Do not bypass this merely because a task is labeled lightweight.
@@ -74,8 +82,10 @@ Implementation approval is a phase-transition gate, not a Grill question.
    - Final summary ready: yes
    ```
 
-   Use `pending` / non-zero values while the plan is not converged. Never mark
-   the section ready merely to satisfy the start gate.
+   Alongside it, keep the `## Spec References` section current: every
+   consulted spec file with a one-line reason, or an explicit none-applicable
+   statement. Use `pending` / non-zero values while the plan is not converged.
+   Never mark the section ready merely to satisfy the start gate.
 8. After convergence, set task metadata `planning_ready=true`, present the
    latest planning summary with scope, acceptance criteria, key decisions,
    risks/deferred items, and selected review level, then stop.

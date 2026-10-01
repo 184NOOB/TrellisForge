@@ -63,7 +63,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--step",
-        help="Step id for --mode phase, e.g. 1.1, 2.2. Omit to get the Phase Index.",
+        help="Step id for --mode phase, e.g. 1.1, 2.1.1, 2.2. Omit to get the Phase Index.",
     )
     parser.add_argument(
         "--platform",

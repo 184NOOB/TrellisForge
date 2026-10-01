@@ -96,7 +96,7 @@ def cmd_start(args: argparse.Namespace) -> int:
 
     task_json_path = full_path / FILE_TASK_JSON
 
-    gate = validate_planning_gate(full_path)
+    gate = validate_planning_gate(full_path, repo_root)
     if not gate.ok:
         print(colored("Error: planning gate rejected task start", Colors.RED))
         for error in gate.errors:
@@ -464,7 +464,7 @@ def main() -> int:
         )
         print("See .trellis/workflow.md planning artifact guidance or run:", file=sys.stderr)
         print(
-            "  python ./.trellis/scripts/get_context.py --mode phase --step 1",
+            "  python ./.trellis/scripts/get_context.py --mode phase --step 1.1",
             file=sys.stderr,
         )
         print(
@@ -482,7 +482,7 @@ def main() -> int:
     # create
     p_create = subparsers.add_parser("create", help="Create new task")
     p_create.add_argument("title", help="Task title")
-    p_create.add_argument("--slug", "-s", help="Task slug without the MM-DD date prefix")
+    p_create.add_argument("--slug", "-s", help="Task slug without the MM-DD-HHmm date prefix")
     p_create.add_argument("--assignee", "-a", help="Assignee developer")
     p_create.add_argument("--priority", "-p", default="P2", help="Priority (P0-P3)")
     p_create.add_argument("--description", "-d", help="Task description")

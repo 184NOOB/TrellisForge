@@ -32,6 +32,10 @@ def write_json(path: Path, data: dict) -> bool:
     the existing file intact rather than truncated, so a corrupted task.json
     can never make a task silently vanish from `task.py list`.
 
+    The temp file is opened with ``newline="\\n"``: Windows text mode would
+    otherwise translate ``\\n`` to ``\\r\\n``, and that CRLF noise makes
+    downstream ``git diff --check`` report trailing whitespace.
+
     Returns True on success, False on error.
     """
     payload = json.dumps(data, indent=2, ensure_ascii=False)
@@ -44,7 +48,7 @@ def write_json(path: Path, data: dict) -> bool:
 
     try:
         try:
-            f = os.fdopen(fd, "w", encoding="utf-8")
+            f = os.fdopen(fd, "w", encoding="utf-8", newline="\n")
         except OSError:
             # fdopen never took ownership of fd; close it ourselves.
             os.close(fd)

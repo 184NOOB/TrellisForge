@@ -199,7 +199,16 @@ def execution_contract() -> str:
         "Batch independent reads and searches; perform targeted follow-up only when "
         "a batch result proves it is needed. Do not rebuild for comment or historical "
         "documentation matches. After a real code fix, rerun only affected checks "
-        "and stop when scope, evidence, verification, and report are complete."
+        "and stop when scope, evidence, verification, and report are complete. "
+        "One dispatch owns the whole remaining plan chain: after a phase reaches done, "
+        "start the next runnable phase and continue (start -> edit inside that phase's "
+        "scope.write -> run declared checks -> record -> done) until the terminal report "
+        "phase is done. Completion means that terminal report phase is done, not the end "
+        "of the current phase. Never return to the main session after a single phase. If "
+        "you cannot continue, run plan.py block <id> --reason '...' and return a "
+        "structured failure report; a silent empty return is a protocol violation. The "
+        "only other legitimate early return is context-budget exhaustion: record/done the "
+        "current phase first, then return listing the remaining runnable phases."
     )
 
 

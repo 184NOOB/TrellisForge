@@ -74,9 +74,10 @@ reported. You execute exactly one review round of the selected profile:
   the routing mismatch and use changed-scope only if told to continue.
 - `standard`: one affected-scope round.
 - `reinforced`: one affected-scope round; the main session dispatches a fresh
-  agent like you for the next round until blocking findings are zero.
+  agent like you for the next round until the adjudicated blocking count is
+  zero.
 - `comprehensive`: one full-scope round with the same loop; no extra
-  commit-ready round is implied once blocking findings are zero.
+  commit-ready round is implied once the adjudicated blocking count is zero.
 - `strict`: one full-scope round; in addition the main session must dispatch a
   fresh commit-ready final review (`Review stage: commit-ready-final`) on the
   stable snapshot even when nothing materially changed.
@@ -84,7 +85,10 @@ reported. You execute exactly one review round of the selected profile:
 Set `Review round` (starting at 1 within the same stage) and `Review stage`
 (`implementation-loop` or `commit-ready-final`) from the dispatch prompt, and
 report the `Blocking findings count` still open in your round. Never treat a
-previous round's "fixed" note as current zero-blocking evidence.
+previous round's "fixed" note as current zero-blocking evidence. The main
+session independently re-grades every finding against the absolute gate;
+loop exit uses that adjudicated blocking count, not this report's count
+alone.
 
 ## Workflow
 
@@ -99,7 +103,7 @@ git diff              # View specific changes
 
 Read the task's prd.md, design.md if present, and implement.md if present, then read relevant specs in `.trellis/spec/` to check code:
 
-- Does `<task>/execution-plan.json` declare `required_checks` that still match the acceptance criteria in prd.md — renamed, dropped, or trivialized checks across revisions are a verification downgrade and must be reported
+- Does the live execution plan declare `required_checks` that still match the acceptance criteria in prd.md — resolve the live plan with `plan.py status` (before a sequel it is `<task>/execution-plan.json`; after one the task-root file is only a pointer and the live plan is `plans/<N>/execution-plan.json`, with frozen `plans/` entries (prior sequel books) as read-only history; a fully completed live plan is reopened in place with `plan.py revise` and is not frozen) — renamed, dropped, or trivialized checks across revisions are a verification downgrade and must be reported
 - Does it satisfy the task requirements
 - Does it follow the technical design and implementation plan when present
 - Does it follow directory structure conventions
@@ -114,7 +118,8 @@ After finding issues, classify each before writing:
 
 1. If the issue is simultaneously mechanical, small, determinate, and in-scope, fix it directly (use edit tool) and record what was fixed
 2. If it is a design/judgment, implementation-blocking, planning, or out-of-scope finding, record and report it with evidence instead of silently rewriting it
-3. Continue checking other issues
+3. Any failure that touches safety, correctness, or an acceptance criterion must be classified as blocking severity and counted in `Blocking findings count`; never downgrade it to high/medium/low (or major/minor). The main session independently re-grades every finding against this absolute gate.
+4. Continue checking other issues
 
 ### Step 4: Run Verification
 

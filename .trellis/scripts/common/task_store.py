@@ -20,7 +20,7 @@ import argparse
 import json
 import re
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from .config import (
@@ -108,6 +108,50 @@ def _repo_relative_path(path: Path, repo_root: Path) -> str:
         return path.relative_to(repo_root).as_posix()
     except ValueError:
         return str(path)
+
+
+def _allocate_task_prefix(tasks_dir: Path, base_prefix: str) -> str:
+    """Return the first free MM-DD-HHmm prefix at or after ``base_prefix``.
+
+    Tasks created within the same minute (e.g. a parent task creating several
+    children in one batch) would otherwise sort by slug instead of creation
+    order. When the active tasks directory already uses the base prefix,
+    advance one minute at a time until a free prefix is found, so
+    directory-name order matches creation order. The search may cross midnight;
+    the resulting minute is a sorting marker only — the real creation date
+    stays in ``task.json`` ``createdAt``.
+    """
+    parts = base_prefix.split("-")
+    if len(parts) != 3 or len(parts[2]) != 4:
+        return base_prefix
+    try:
+        base_dt = datetime(
+            datetime.now().year,
+            int(parts[0]),
+            int(parts[1]),
+            int(parts[2][:2]),
+            int(parts[2][2:]),
+        )
+    except ValueError:
+        return base_prefix
+
+    def _is_free(candidate: str) -> bool:
+        marker = f"{candidate}-"
+        if not tasks_dir.is_dir():
+            return True
+        for child in tasks_dir.iterdir():
+            if child.name != DIR_ARCHIVE and child.name.startswith(marker):
+                return False
+        return True
+
+    for offset in range(1440):
+        candidate = (base_dt + timedelta(minutes=offset)).strftime("%m-%d-%H%M")
+        if _is_free(candidate):
+            return candidate
+
+    # Defensive fallback: unreachable in practice (a full day of minute
+    # prefixes occupied). The caller's task_dir.exists() warning covers it.
+    return base_prefix
 
 
 # =============================================================================
@@ -208,6 +252,12 @@ def _default_prd_content(title: str, description: str | None = None) -> str:
 
 {goal}
 
+## Spec References
+
+<!-- List the spec files consulted during planning, one per line, each with a
+short reason. If no spec applies, keep this section and state that none
+applies and why. -->
+
 ## Requirements
 
 - TBD
@@ -284,22 +334,54 @@ def cmd_create(args: argparse.Namespace) -> int:
         print(colored("Error: could not generate slug from title", Colors.RED), file=sys.stderr)
         return 1
 
-    # Create task directory with MM-DD-slug format
+    # Create task directory with MM-DD-HHmm-slug format
     tasks_dir = get_tasks_dir(repo_root)
-    date_prefix = generate_task_date_prefix()
+    base_prefix = generate_task_date_prefix()
 
     # Guard against date-prefixed --slug (e.g. a full task dir name pasted in),
-    # which would otherwise produce MM-DD-MM-DD-slug (issue #377). Only an
-    # explicit --slug is guarded; title-derived slugs are left untouched.
+    # which would otherwise produce MM-DD-HHmm-MM-DD-HHmm-slug (issue #377).
+    # Only an explicit --slug is guarded; title-derived slugs are left
+    # untouched. The comparison always uses the real-time base prefix; the
+    # same-minute stagger allocation below may advance the directory prefix,
+    # but a pasted prefix identifies a task by the real clock.
     if args.slug:
-        m = re.match(r"^(\d{2})-(\d{2})-(.+)$", slug)
+        m = re.match(r"^(\d{2})-(\d{2})-(?:(\d{4})-)?(.+)$", slug)
         if m and 1 <= int(m.group(1)) <= 12 and 1 <= int(m.group(2)) <= 31:
             slug_prefix = f"{m.group(1)}-{m.group(2)}"
-            if slug_prefix == date_prefix:
-                slug = m.group(3)
+            slug_hhmm = m.group(3)
+            valid_hhmm = (
+                slug_hhmm is not None
+                and 0 <= int(slug_hhmm[:2]) <= 23
+                and 0 <= int(slug_hhmm[2:]) <= 59
+            )
+            if slug_prefix != base_prefix[:5]:
                 print(
                     colored(
-                        f'warning: --slug should not include the MM-DD prefix; normalized to "{slug}"',
+                        f"Error: --slug starts with a date prefix ({slug_prefix}-), but task.py create always uses today's date ({base_prefix}).",
+                        Colors.RED,
+                    ),
+                    file=sys.stderr,
+                )
+                print(f"Pass only the slug body, e.g. --slug {m.group(4)}", file=sys.stderr)
+                return 1
+            if slug_hhmm is not None and not valid_hhmm:
+                # Not a real HHmm (hour > 23 or minute > 59): treat the whole
+                # value as a plain slug body instead of a pasted directory name.
+                pass
+            elif slug_hhmm is None:
+                slug = m.group(4)
+                print(
+                    colored(
+                        f'warning: --slug should not include a date prefix; normalized to "{slug}"',
+                        Colors.YELLOW,
+                    ),
+                    file=sys.stderr,
+                )
+            elif f"{slug_prefix}-{slug_hhmm}" == base_prefix:
+                slug = m.group(4)
+                print(
+                    colored(
+                        f'warning: --slug should not include the MM-DD-HHmm date prefix; normalized to "{slug}"',
                         Colors.YELLOW,
                     ),
                     file=sys.stderr,
@@ -307,14 +389,15 @@ def cmd_create(args: argparse.Namespace) -> int:
             else:
                 print(
                     colored(
-                        f"Error: --slug starts with a date prefix ({slug_prefix}-), but task.py create always uses today's date ({date_prefix}).",
+                        f"Error: --slug starts with today's task-directory prefix ({slug_prefix}-{slug_hhmm}-) but not the current minute; it looks like another task's directory name, not a slug.",
                         Colors.RED,
                     ),
                     file=sys.stderr,
                 )
-                print(f"Pass only the slug body, e.g. --slug {m.group(3)}", file=sys.stderr)
+                print(f"Pass only the slug body, e.g. --slug {m.group(4)}", file=sys.stderr)
                 return 1
 
+    date_prefix = _allocate_task_prefix(tasks_dir, base_prefix)
     dir_name = f"{date_prefix}-{slug}"
     task_dir = tasks_dir / dir_name
     task_json_path = task_dir / FILE_TASK_JSON

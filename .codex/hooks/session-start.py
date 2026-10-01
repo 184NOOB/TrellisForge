@@ -238,8 +238,8 @@ def _get_task_status(trellis_dir: Path, hook_input: dict) -> str:
     if not active.task_path:
         return (
             "Status: NO ACTIVE TASK\n"
-            "Next: Classify the current turn and ask for task-creation consent "
-            "before creating any Trellis task."
+            "Next: Default: do the work. Code analysis, Q&A, and single-file local edits proceed directly with no Trellis prompt. "
+            "Ask about creating a Trellis task only when the user explicitly wants code written AND it is complex (multi-file, workflow/Hook/contract mechanism, design tradeoffs or multi-step, or template-affecting)."
         )
 
     task_ref = active.task_path
@@ -281,7 +281,10 @@ def _get_task_status(trellis_dir: Path, hook_input: dict) -> str:
     if not has_prd:
         return (
             f"Status: PLANNING\nTask: {task_title}\nPresent: {present_line}\n"
-            "Next: Load trellis-brainstorm and write prd.md. Stay in planning."
+            "Next: Load trellis-brainstorm and write prd.md. Stay in planning.\n"
+            "Specs: Read the relevant .trellis/spec indexes and guideline files "
+            "before the decision inventory, and persist consulted specs in prd.md "
+            'under "## Spec References".'
         )
 
     if task_status == "planning":
@@ -294,7 +297,10 @@ def _get_task_status(trellis_dir: Path, hook_input: dict) -> str:
             )
         return (
             f"Status: PLANNING\nTask: {task_title}\nPresent: {present_line}\n"
-            f"Next: {next_action}"
+            f"Next: {next_action}\n"
+            "Specs: Read the relevant .trellis/spec indexes and guideline files "
+            "before the decision inventory, and persist consulted specs in prd.md "
+            'under "## Spec References".'
         )
 
     return (
@@ -467,7 +473,7 @@ def _build_workflow_toc(workflow_path: Path) -> str:
 
     out_lines = [
         "# Development Workflow - Session Summary",
-        "Full guide: .trellis/workflow.md. Step detail: `python ./.trellis/scripts/get_context.py --mode phase --step <X.Y>`.",
+        "Full guide: .trellis/workflow.md. Step detail: `python ./.trellis/scripts/get_context.py --mode phase --step <X.Y> --platform codex`.",
         "",
     ]
 

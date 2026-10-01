@@ -200,9 +200,8 @@ export function getTaskStatus(ctx, platformInput = null) {
   if (!taskRef) {
     const base =
       "Status: NO ACTIVE TASK\n" +
-      "Next-Action: Classify the current turn before creating any Trellis task. " +
-      "Simple conversation / small task asks only whether this turn should create a Trellis task. " +
-      "Complex task asks whether task creation and planning are allowed."
+      "Next-Action: Default: do the work. Code analysis, Q&A, and single-file local edits proceed directly with no Trellis prompt. " +
+      "Ask about creating a Trellis task only when the user explicitly wants code written AND it is complex (multi-file, workflow/Hook/contract mechanism, design tradeoffs or multi-step, or template-affecting)."
     if (active.source === "ambiguous") {
       return (
         base +
@@ -254,7 +253,7 @@ export function getTaskStatus(ctx, platformInput = null) {
     (!existsSync(checkJsonl) || hasCuratedJsonlEntry(checkJsonl))
 
   if (taskStatus === "planning" && !hasPrd) {
-    return `Status: PLANNING\nTask: ${taskTitle}\nPresent: ${presentLine}\nNext-Action: Load \`trellis-brainstorm\` and write \`prd.md\`. Stay in planning.`
+    return `Status: PLANNING\nTask: ${taskTitle}\nPresent: ${presentLine}\nNext-Action: Load \`trellis-brainstorm\` and write \`prd.md\`. Stay in planning.\nSpecs: Read the relevant .trellis/spec indexes and guideline files before the decision inventory, and persist consulted specs in prd.md under "## Spec References".`
   }
 
   if (taskStatus === "planning") {
@@ -272,7 +271,7 @@ export function getTaskStatus(ctx, platformInput = null) {
     if (!jsonlReady) {
       nextBits.push("curate `implement.jsonl` and `check.jsonl` before sub-agent mode start")
     }
-    return `Status: PLANNING\nTask: ${taskTitle}\nPresent: ${presentLine}\nNext-Action: ${nextBits.join("; ")}. Do not enter implementation until the user confirms start.`
+    return `Status: PLANNING\nTask: ${taskTitle}\nPresent: ${presentLine}\nNext-Action: ${nextBits.join("; ")}. Do not enter implementation until the user confirms start.\nSpecs: Read the relevant .trellis/spec indexes and guideline files before the decision inventory, and persist consulted specs in prd.md under "## Spec References".`
   }
 
   return (
@@ -623,7 +622,7 @@ Trellis compact SessionStart context. Use it to orient the session; load details
     const allLines = workflowContent.split("\n")
     const overviewLines = [
       "# Development Workflow - Session Summary",
-      "Full guide: .trellis/workflow.md. Step detail: `python ./.trellis/scripts/get_context.py --mode phase --step <X.Y>`.",
+      "Full guide: .trellis/workflow.md. Step detail: `python ./.trellis/scripts/get_context.py --mode phase --step <X.Y> --platform opencode`.",
       "",
     ]
 
@@ -825,7 +824,16 @@ export const STATIC_EXECUTION_CONTRACT =
   "Batch independent reads and searches; perform targeted follow-up only when " +
   "a batch result proves it is needed. Do not rebuild for comment or historical " +
   "documentation matches. After a real code fix, rerun only affected checks " +
-  "and stop when scope, evidence, verification, and report are complete."
+  "and stop when scope, evidence, verification, and report are complete. " +
+  "One dispatch owns the whole remaining plan chain: after a phase reaches done, " +
+  "start the next runnable phase and continue (start -> edit inside that phase's " +
+  "scope.write -> run declared checks -> record -> done) until the terminal report " +
+  "phase is done. Completion means that terminal report phase is done, not the end " +
+  "of the current phase. Never return to the main session after a single phase. If " +
+  "you cannot continue, run plan.py block <id> --reason '...' and return a " +
+  "structured failure report; a silent empty return is a protocol violation. The " +
+  "only other legitimate early return is context-budget exhaustion: record/done the " +
+  "current phase first, then return listing the remaining runnable phases."
 
 // ---------------------------------------------------------------------------
 // Shell identity bridge (TRELLIS_CONTEXT_ID) for OpenCode shell tools

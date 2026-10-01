@@ -55,11 +55,16 @@ artifact. Proceed silently into implementation.
 
 ## Execution Plan Protocol (mandatory)
 
-Progress is driven by `<task-path>/execution-plan.json` plus the append-only
-audit log `<task-path>/execution-events.jsonl`, not by memory of past turns.
+Progress is driven by the live task execution plan plus its append-only audit
+log, not by memory of past turns. Resolve the live plan with
+`plan.py status`: legacy tasks keep `<task-path>/execution-plan.json` +
+`<task-path>/execution-events.jsonl`; after a sequel the task-root
+`execution-plan.json` is only a live pointer and the live plan is
+`plans/<N>/execution-plan.json` + `plans/<N>/execution-events.jsonl`. Everything
+else under `plans/` is frozen read-only history.
 
-1. **Round 1 — plan generation:** if the task has no `execution-plan.json`
-   (schema 3), read the PRD, specs, and code, then create it
+1. **Round 1 — plan generation:** if the task has no execution plan (schema 3),
+   read the PRD, specs, and code, then create it
    (`python .trellis/scripts/plan.py --task "<task-path>" template` prints the
    skeleton; ≤ 8 phase-level tasks with `depends_on`, `scope.read`/`scope.write`,
    and `verification` (`level` ∈ {`minimal`, `report`}, `required_checks`
@@ -77,14 +82,44 @@ audit log `<task-path>/execution-events.jsonl`, not by memory of past turns.
    for every declared check → `plan.py done <id>`. Write no phase Markdown and
    keep no mandatory raw logs; a recorded fail is permanent for the revision
    (recover via block/revise). The single terminal report phase additionally
-   writes `<task-path>/final-report.md` and registers it with
+   writes `<live-plan-dir>/final-report.md` and registers it with
    `--artifact final-report.md` before `done`. Re-run `plan.py status` when the
    phase is unclear; after a crash resume from the task-directory files alone.
-3. **Never hand-edit** task statuses or verification results; `plan.py` is the
-   only state advancer. When the plan itself is wrong:
+   Chain duty: one execution round covers the whole remaining chain, not one
+   phase; after each `done`, continue with the next runnable phase until the
+   terminal report phase is done. Do not return after a single phase; return
+   early only via `plan.py block <id> --reason "..."` plus a structured failure
+   report, or via context-budget exhaustion after record/done of the current
+   phase (then list the remaining runnable phases). A silent empty return is a
+   protocol violation. Completion means the terminal report phase is done, not
+   the end of the current phase.
+3. **Small patch (hard rule, bypasses plan.py):** when the user explicitly
+   calls this a small patch or says not to use `plan.py`, that wins; otherwise
+   all four objective gates must hold together — acceptance unchanged (or only
+   user-confirmed-obsolete limits removed); small, single-module, no
+   architecture change; no new phase split; PRD/design untouched by default
+   with a Spec written only for a convention that will recur. A small patch
+   edits the code directly, runs the affected checks, and writes a Spec only
+   when needed: never `revise`, never add a phase, never open a task. Inside an
+   unfinished live plan stay in the current phase (record/done); once the live
+   plan is fully completed, touch no execution-plan file at all. Blocking
+   review/implementation fixes default to this small-patch path.
+4. **Completion-state reopen:** when the same requirement line needs new
+   phases/checks/report, or completed steps must change, or blocking fixes are
+   too many, messy and complex for a small patch, reopen the same live plan in
+   place with `plan.py revise --reason "..."`: unmodified completed phases stay
+   `completed`, the terminal report resets to `pending`, then edit the live plan
+   (keep the report phase pending, `level=report`, with `depends_on` covering
+   every other phase) and `validate` before further source edits. `plan.py
+   sequel` stays available when a separate plan book is explicitly wanted, but
+   it is no longer the required completion-state exit; a completed report phase
+   can never be rewritten into a normal phase. A different requirement or an
+   archived task opens a new Trellis task instead.
+5. **Never hand-edit** task statuses or verification results; `plan.py` is the
+   only state advancer. When the plan itself is wrong (not a small patch):
    `plan.py block <id> --reason "..."` → `plan.py revise --reason "..."` →
    edit → `validate`.
-4. If `plan.py` reports a damaged audit log, stop advancing state and surface
+6. If `plan.py` reports a damaged audit log, stop advancing state and surface
    it back to the channel.
 
 ## Core Responsibilities
@@ -111,7 +146,9 @@ audit log `<task-path>/execution-events.jsonl`, not by memory of past turns.
    verification, and the report are complete, stop. Do not repeat unaffected
    scans or builds merely to confirm them again. If task wording says “逐项”
    or “每项附证据”, interpret that as report granularity, not one tool call
-   per item.
+   per item. Completion means the whole plan through the terminal report phase,
+   not the end of the current phase; if the chain cannot continue, block the
+   phase and report instead of stopping silently.
 
 ## Forbidden Operations
 
@@ -160,6 +197,10 @@ the signal the dispatcher waits on:
 ### Implementation Summary
 1. <step>
 2. <step>
+
+### Plan Chain
+- Plan phases advanced: <ids>
+- Remaining runnable: <ids|none>
 
 ### Verification Results
 - Static checks: <pass|fail|not run|not applicable + reason>

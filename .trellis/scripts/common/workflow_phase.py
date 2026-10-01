@@ -6,16 +6,30 @@ Workflow Phase Extraction.
 Extracts step-level content from .trellis/workflow.md and optionally filters
 platform-specific blocks.
 
+Step ids are full dotted numbers: ``get_step("2.1")`` returns the 2.1 body
+*plus* its numbered substeps (``#### 2.1.1``, ``#### 2.1.2``, ...), while
+``get_step("2.1.1")`` locates that single substep. Bare major ids (``1``,
+``2``, ``3``) stay unresolved and yield empty content.
+
 Platform marker syntax in workflow.md:
 
     [Claude Code, Cursor, ...]
     agent-capable content
     [/Claude Code, Cursor, ...]
 
+Two platform family aliases exist on top of equality matching: ``[Codex]``
+matches ``codex-sub-agent`` and ``codex-inline`` (which never match each
+other), and ``[Claude Code]`` matches ``claude`` / ``claude-code``. No
+cross-family alias exists.
+
 Provides:
     get_phase_index   - Extract the Phase Index section (no --step)
-    get_step          - Extract a single step (#### X.X) section
+    get_step          - Extract a single step (#### X.Y[.Z]) section + substeps
     filter_platform   - Strip platform blocks that don't include the given name
+
+``filter_platform`` is only reachable through ``--mode phase``
+(``common/git_context.py``); the empty-content check there runs *before*
+platform filtering, so a substep whose body is filtered out still exits 0.
 """
 
 from __future__ import annotations
@@ -31,8 +45,10 @@ def _workflow_md_path():
 # Match a line that *is* a platform marker: "[A, B, C]" or "[/A, B, C]"
 _MARKER_RE = re.compile(r"^\[(/?)([A-Za-z][^\[\]]*)\]\s*$")
 
-# Step heading: "#### 1.0 Title" or "#### 1.0 ..."
-_STEP_HEADING_RE = re.compile(r"^####\s+(\d+\.\d+)\b.*$")
+# Step heading: "#### 1.0 Title", "#### 2.1.1 Title"; capture the full number.
+# The old `(\d+\.\d+)` pattern collapsed "2.1.1" to "2.1", which made numbered
+# substeps invisible to get_step.
+_STEP_HEADING_RE = re.compile(r"^####\s+(\d+(?:\.\d+)+)\b.*$")
 
 # Phase Index starts here; Phase 1/2/3 step bodies follow; ends at Breadcrumbs.
 _PHASE_INDEX_HEADING = "## Phase Index"
@@ -98,9 +114,20 @@ def get_phase_index() -> str:
 
 
 def get_step(step_id: str) -> str:
-    """Return the `#### X.X` section matching step_id (header + body).
+    """Return the `#### X.Y[.Z]` section matching step_id (header + body).
 
-    Body ends at the next `####` or `---` or `##` heading (whichever comes first).
+    Numbered substep merge rules:
+
+    - ``step_id`` ``X.Y`` starts at the exact ``#### X.Y`` heading when it
+      exists; otherwise (and only for a dotted id) it falls back to the first
+      ``#### X.Y.`` prefix heading, for documents that only ship the substep.
+    - Headings whose number equals ``step_id`` or starts with ``step_id + "."``
+      belong to the section and stay inside it; any other ``####`` heading ends
+      it. A ``####`` heading whose number cannot be parsed ends it too.
+    - Bare major ids (``1``, ``2``, ``3``) never fall back, so they still
+      return empty and make the CLI exit 2.
+
+    Body also ends at the next `##` heading or a `---` rule line.
     """
     text = _read_workflow()
     lines = text.splitlines()
@@ -111,15 +138,28 @@ def get_step(step_id: str) -> str:
         if m and m.group(1) == step_id:
             start = i
             break
+    if start is None and "." in step_id:
+        prefix = step_id + "."
+        for i, line in enumerate(lines):
+            m = _STEP_HEADING_RE.match(line)
+            if m and m.group(1).startswith(prefix):
+                start = i
+                break
     if start is None:
         return ""
+
+    def _belongs(number: str) -> bool:
+        return number == step_id or number.startswith(step_id + ".")
 
     end: int = len(lines)
     for j in range(start + 1, len(lines)):
         line = lines[j]
         if line.startswith("#### "):
-            end = j
-            break
+            m = _STEP_HEADING_RE.match(line)
+            if m is None or not _belongs(m.group(1)):
+                end = j
+                break
+            continue
         if line.startswith("## "):
             end = j
             break
@@ -131,12 +171,43 @@ def get_step(step_id: str) -> str:
     return "\n".join(lines[start:end]).rstrip() + "\n"
 
 
+# Platform family aliases, keyed by normalized marker/platform name
+# (lowercase, '-' / '_' / space stripped). Symmetric by construction:
+#
+#   [Codex]         <- codex-sub-agent, codex-inline
+#   [codex-sub-agent] <- codex only (never codex-inline)
+#   [codex-inline]  <- codex only (never codex-sub-agent)
+#   [Claude Code]   <- claude, claude-code
+#   [claude-code]   <- claude
+#
+# No cross-family alias exists: `claude` never matches [Codex] and `codex*`
+# never matches [Claude Code].
+_PLATFORM_FAMILY_ALIASES: dict[str, frozenset[str]] = {
+    "codex": frozenset({"codexsubagent", "codexinline"}),
+    "codexsubagent": frozenset({"codex"}),
+    "codexinline": frozenset({"codex"}),
+    "claude": frozenset({"claudecode"}),
+    "claudecode": frozenset({"claude"}),
+}
+
+
+def _normalize_platform(name: str) -> str:
+    """Lowercase and strip '-' / '_' / spaces for stable comparisons."""
+    return name.lower().replace("-", "").replace("_", "").replace(" ", "")
+
+
 def _platform_matches(platform: str, block_names: list[str]) -> bool:
-    """Case-insensitive fuzzy match: accept 'cursor', 'Cursor', 'claude-code', 'Claude Code'."""
-    needle = platform.lower().replace("-", "").replace("_", "").replace(" ", "")
+    """Case-insensitive match with the two platform family aliases.
+
+    Normalization makes ``claude-code`` == ``Claude Code``. On top of
+    equality, ``[Codex]`` matches the concrete ``codex-sub-agent`` /
+    ``codex-inline`` names (which never match each other), and
+    ``[Claude Code]`` matches ``claude``. See ``_PLATFORM_FAMILY_ALIASES``.
+    """
+    needle = _normalize_platform(platform)
     for name in block_names:
-        hay = name.lower().replace("-", "").replace("_", "").replace(" ", "")
-        if needle == hay:
+        hay = _normalize_platform(name)
+        if needle == hay or needle in _PLATFORM_FAMILY_ALIASES.get(hay, ()):
             return True
     return False
 
@@ -151,11 +222,20 @@ def resolve_effective_platform(platform: str, config: dict) -> str:
     namespaced name (e.g. ``[codex-sub-agent, ...]`` or ``[codex-inline, Kilo,
     Antigravity, Devin]``).
 
+    Because both namespaced names belong to the ``codex`` family, the
+    ``[Codex]`` marker is rendered for either resolved value (see
+    ``_PLATFORM_FAMILY_ALIASES``); ``[codex-sub-agent]`` and ``[codex-inline]``
+    stay exclusive to their own dispatch mode.
+
     Native Codex context injection supports the ``auto`` default. Invalid
     explicit values fall back to ``inline`` safely; this renderer deliberately
     does not warn because it can run in normal CLI output flows.
 
-    Other platforms are returned unchanged.
+    Other platforms are returned unchanged (``claude`` stays ``claude`` and
+    matches ``[Claude Code]`` through the family alias).
+
+    Scope: the only caller is ``--mode phase`` in ``common/git_context.py``;
+    SessionStart / Phase Index injection does not run ``filter_platform``.
     """
     if platform == "codex":
         mode = "auto"
@@ -178,7 +258,13 @@ def resolve_effective_platform(platform: str, config: dict) -> str:
 def filter_platform(content: str, platform: str) -> str:
     """Keep lines outside any `[...]` block + lines inside blocks that include platform.
 
-    Marker lines themselves are dropped from the output.
+    Matching is equality after normalization plus the ``codex`` / ``claude``
+    family aliases (``_PLATFORM_FAMILY_ALIASES``). Marker lines themselves are
+    dropped from the output.
+
+    Callers should note that the CLI's empty-content check runs *before* this
+    filter (``common/git_context.py``), so content that becomes empty here
+    still exits 0.
     """
     lines = content.splitlines()
     out: list[str] = []

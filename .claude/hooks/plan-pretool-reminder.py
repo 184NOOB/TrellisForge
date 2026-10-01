@@ -85,6 +85,7 @@ def main() -> int:
         return 0
     try:
         plan = ep.load_plan(task_dir)
+        live_dir = ep.resolve_live_plan(task_dir)[1]
     except ep.PlanError:
         emit("Trellis plan: execution-plan.json is unreadable — run plan.py status before editing.")
         return 0
@@ -97,20 +98,51 @@ def main() -> int:
 
     warnings: list[str] = []
 
-    plan_file = task_dir / ep.PLAN_FILE
-    events_file = task_dir / ep.EVENTS_FILE
+    plan_file = live_dir / ep.PLAN_FILE
+    events_file = live_dir / ep.EVENTS_FILE
+    pointer_file = task_dir / ep.PLAN_FILE
+    status = ep.compute_status(plan)
+    all_completed = bool(status["total"]) and len(status["completed"]) == status["total"]
     if target == events_file.resolve():
         warnings.append(
             "execution-events.jsonl is append-only through plan.py; direct writes "
             "break the audit chain and pause all state-changing commands."
         )
     if target == plan_file.resolve() and plan.get("status") == "approved":
+        if all_completed:
+            warnings.append(
+                "This live plan is fully completed. A small patch leaves every "
+                "execution-plan file alone; a same-requirement change that needs "
+                "new phases/checks/report reopens it in place with plan.py revise "
+                "--reason \"...\" (unmodified completed phases stay completed; the "
+                "terminal report resets to pending)."
+            )
+        else:
+            warnings.append(
+                "The plan is approved. To change guarded content run "
+                "plan.py revise --reason \"...\" first, then validate again."
+            )
+    if (
+        pointer_file.resolve() != plan_file.resolve()
+        and target == pointer_file.resolve()
+    ):
         warnings.append(
-            "The plan is approved. To change guarded content run "
-            "plan.py revise --reason \"...\" first, then validate again."
+            "The task-root execution-plan.json is the live-plan pointer; it is "
+            "written only by plan.py sequel. Do not hand-edit it."
         )
+    frozen_area = f"{ep.task_rel_path(root, task_dir)}/{ep.PLANS_DIR}/"
+    if target_rel.startswith(frozen_area):
+        try:
+            target.relative_to(live_dir.resolve())
+            is_live_path = True
+        except ValueError:
+            is_live_path = False
+        if not is_live_path:
+            warnings.append(
+                "This file is outside the live plan directory; frozen plan "
+                "history under plans/ is read-only and only the live plan advances."
+            )
 
-    status = ep.compute_status(plan)
     in_progress = status["in_progress"]
     constraints = plan.get("constraints") or {}
     max_edits = constraints.get("max_edits_per_file", ep.DEFAULT_MAX_EDITS_PER_FILE)
@@ -122,7 +154,16 @@ def main() -> int:
         target_rel == task_rel or target_rel.startswith(task_rel + "/")
     )
     if not under_task and plan.get("status") == "approved":
-        if not in_progress:
+        if all_completed:
+            warnings.append(
+                "The live plan is fully completed. If this edit is a small patch, do "
+                "not run plan.py revise and do not touch any execution-plan file: "
+                "edit code, run the affected checks, and write a Spec only when the "
+                "convention will recur. If the same requirement needs new "
+                "phases/checks/report, run plan.py revise --reason \"...\" first "
+                "(in place; no sequel is required)."
+            )
+        elif not in_progress:
             if status["runnable"]:
                 warnings.append(
                     f"No plan task is in_progress; this edit likely belongs to "

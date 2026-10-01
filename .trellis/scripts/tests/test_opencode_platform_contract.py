@@ -6,8 +6,11 @@ These tests prove the observable template contracts required by task
 network session:
 
 - the managed asset closure is complete: every path enumerated by upstream
-  Trellis 0.6.10 ``collectOpenCodeTemplates()`` is present, plus the mirrored
-  project-custom Skills (byte-identical to the authoritative .agents copies);
+  Trellis 0.6.10 ``collectOpenCodeTemplates()`` is present -- except the
+  locally generated dependency manifest ``.opencode/package.json``, which 1.3
+  no longer ships and instead covers with the managed ``.opencode/.gitignore``
+  -- plus the mirrored project-custom Skills (byte-identical to the
+  authoritative .agents copies);
 - each plugin module exposes exactly one default factory export (OpenCode
   1.2.x calls every export as a factory);
 - Agent frontmatter/permissions match role boundaries;
@@ -92,8 +95,11 @@ CUSTOM_MIRROR_PAIRS = (
 )
 
 # Roots every downstream OpenCode install needs regardless of Node presence.
+# `.opencode/package.json` is NOT delivered by the overlay (1.3+): the
+# dependency manifest is generated locally by the user; the managed
+# `.opencode/.gitignore` keeps that local file out of git from the start.
 REQUIRED_ROOTS = (
-    ".opencode/package.json",
+    ".opencode/.gitignore",
     ".opencode/lib/trellis-context.js",
     ".opencode/lib/session-utils.js",
     ".opencode/plugins/session-start.js",
@@ -117,6 +123,11 @@ REQUIRED_GENERIC_SKILLS = (
     "trellis-spec-bootstrap",
     "trellis-channel",
 )
+
+# Upstream 0.6.10 ``collectOpenCodeTemplates()`` still emits these paths, but
+# 1.3 delivers them as local, machine-generated artifacts instead of template
+# files. They must be covered by the managed ``.opencode/.gitignore``.
+LOCAL_ONLY_UPSTREAM_PATHS = (".opencode/package.json",)
 
 
 def _read(rel: str) -> str:
@@ -164,14 +175,25 @@ class OpenCodeClosureStaticTests(unittest.TestCase):
         collector_paths = json.loads(result.stdout)
         self.assertTrue(len(collector_paths) >= 50, "collector returned an unexpected file set")
         for rel in collector_paths:
-            disk = TEMPLATE_ROOT / Path(rel.replace("\\", "/"))
+            normalized = rel.replace("\\", "/")
+            if normalized in LOCAL_ONLY_UPSTREAM_PATHS:
+                # Generated locally by the user; delivered only via the
+                # managed gitignore, never as an official template file.
+                continue
+            disk = TEMPLATE_ROOT / Path(normalized)
             self.assertTrue(disk.exists(), f"collector path missing from template closure: {rel}")
 
-    def test_package_json_declares_plugin_dependency(self) -> None:
-        data = json.loads(_read(".opencode/package.json"))
-        deps = data.get("dependencies", {})
-        self.assertIn("@opencode-ai/plugin", deps)
-        self.assertTrue(deps["@opencode-ai/plugin"].lstrip("^~>= ").split(".")[0].isdigit())
+    def test_local_package_json_is_gitignored_not_delivered(self) -> None:
+        # 1.3: the dependency manifest is a local, machine-generated artifact
+        # (`npm install @opencode-ai/plugin`), not an official template file.
+        # The managed gitignore must keep it (and its lockfile) out of git.
+        lines = {line.strip() for line in _read(".opencode/.gitignore").splitlines()}
+        self.assertIn("package.json", lines)
+        self.assertIn("package-lock.json", lines)
+        self.assertFalse(
+            (OPENCODE / "package.json").exists(),
+            "the OpenCode dependency manifest must not ship as a template file",
+        )
 
     def test_plugins_have_only_one_default_export(self) -> None:
         pattern = re.compile(r"^export\s+(?!default)", re.M)

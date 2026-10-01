@@ -47,9 +47,9 @@ Never rely on numeric comparison; each profile below is defined explicitly.
 |---|---|---|---|---|
 | `light` | changed-scope | none; main-session review | main session reruns failed or directly affected checks | none |
 | `standard` | affected-scope | exactly one | main-session verification; no repeat independent review unless evidence is invalidated | none |
-| `reinforced` | affected-scope | yes | dispatch a fresh independent Check Agent; fully re-review until blocking findings are zero | none |
-| `comprehensive` | full-scope | yes | dispatch a fresh independent Check Agent; fully re-review until blocking findings are zero | none; reaching zero blocking findings does not add a commit-ready review |
-| `strict` | full-scope | yes; also after significant implementation batches | dispatch a fresh independent Check Agent; fully re-review until blocking findings are zero | required: one fresh independent full-scope final review on the stable commit-ready snapshot, repeating until zero blocking |
+| `reinforced` | affected-scope | yes | dispatch a fresh independent Check Agent; fully re-review until the main session's adjudicated count shows zero blocking findings | none |
+| `comprehensive` | full-scope | yes | dispatch a fresh independent Check Agent; fully re-review until the main session's adjudicated count shows zero blocking findings | none; reaching zero blocking findings does not add a commit-ready review |
+| `strict` | full-scope | yes; also after significant implementation batches | dispatch a fresh independent Check Agent; fully re-review until the main session's adjudicated count shows zero blocking findings | required: one fresh independent full-scope final review on the stable commit-ready snapshot, repeating until adjudicated zero blocking |
 
 ## Light
 
@@ -106,10 +106,12 @@ Never rely on numeric comparison; each profile below is defined explicitly.
 - Use affected-scope exactly as defined in `Standard`.
 - Run an independent review after implementation whenever the platform can
   dispatch a `trellis-check` agent.
-- If the latest independent report has blocking findings, batch-fix that
-  round's blocking findings first (ownership rules below), then dispatch a
-  fresh independent `trellis-check` agent for the next review round. Repeat
-  until the newest independent report shows zero blocking findings.
+- If the main session's Severity Adjudication finds blocking findings (the
+  latest independent report's labels are signals only), batch-fix that
+  round's adjudicated blocking findings first (ownership rules below), then
+  dispatch a fresh independent `trellis-check` agent for the next review
+  round. Repeat until the main session's adjudicated count shows zero blocking
+  findings.
 - Each re-review round re-covers the profile's complete affected-scope; it is
   not a spot-check of only the previous round's findings. A materially
   changed task diff must be reviewed as a new full round of this profile.
@@ -126,9 +128,10 @@ Never rely on numeric comparison; each profile below is defined explicitly.
 - Run an independent full-scope review after implementation whenever the
   platform can dispatch a `trellis-check` agent.
 - Use the same blocking-fix and independent re-review loop as `reinforced`:
-  batch-fix the round's blocking findings, dispatch a fresh independent
-  `trellis-check` agent, and continue until the newest independent report
-  shows zero blocking findings. Each round re-covers the complete full-scope.
+  batch-fix the round's adjudicated blocking findings, dispatch a fresh
+  independent `trellis-check` agent, and continue until the main session's
+  adjudicated count shows zero blocking findings. Each round re-covers the
+  complete full-scope.
 - After reaching zero blocking findings, entering commit preparation does NOT
   add an extra commit-ready review round. This is the fixed distinction from
   `strict`.
@@ -142,8 +145,8 @@ Never rely on numeric comparison; each profile below is defined explicitly.
 - Codex inline mode suppresses implement-agent dispatch, not review dispatch;
   use independent `trellis-check` agents whenever the platform supports them.
 - Run the same blocking-fix and independent full-scope re-review loop as
-  `comprehensive` until the newest independent report shows zero blocking
-  findings.
+  `comprehensive` until the main session's adjudicated count shows zero
+  blocking findings.
 - In addition to that loop, before committing dispatch one fresh independent
   full-scope final review against the stable commit-ready snapshot — code,
   tests, Specs, and task artifacts all settled. This final review is
@@ -151,7 +154,8 @@ Never rely on numeric comparison; each profile below is defined explicitly.
   the implementation-loop review reached zero blocking findings.
 - If the commit-ready final review finds blocking issues, fix them, rebuild a
   stable snapshot, and run another fresh full-scope final review until the
-  final report shows zero blocking findings.
+  main session's adjudicated count for that final report shows zero blocking
+  findings.
 - A blocking correctness, safety, or acceptance failure cannot be waived by
   lowering the profile or accepting it as residual risk.
 
@@ -164,7 +168,8 @@ and the Evidence Invalidation rules below.
 Route each round's findings in batches before the next review round:
 
 1. **Verify before routing** — the main session first confirms the finding is
-   real against the current snapshot and belongs to the current task. This
+   real against the current snapshot and belongs to the current task, then
+   re-grades it per Severity Adjudication before routing. This
    ownership check is a routing judgment, not a new independent review round.
 2. **Mechanical, small, and determinate issues** — an issue the current Check
    Agent may fix directly must be simultaneously local, mechanical, small,
@@ -209,18 +214,39 @@ order:
   regression risk, or a repair that needs a fuller implementation context and
   batched verification.
 
-Finding count and severity are signals only and never decide routing by
-themselves. A single high-risk finding can be complex enough to warrant a new
+Finding count and severity are signals only and never decide routing or
+loop exit by themselves. A single high-risk finding can be complex enough to warrant a new
 Implement Agent, while multiple same-root local findings may still suit a
 main-session fix. When a host cannot resume, degradation to a main-session fix
 or a new Implement Agent is the normal path, not a failure, and this policy
 never requires new resume infrastructure.
 
-Non-blocking findings may remain recorded as fixed items or residual risks in
-the report; they never by themselves trigger another complete independent
-review round, and fix ownership itself never schedules a review round.
+Non-blocking findings — after Severity Adjudication, not the Agent's raw
+label — may remain recorded as fixed items or residual risks in the report;
+they never by themselves trigger another complete independent review round,
+and fix ownership itself never schedules a review round.
 Blocking correctness, safety, or acceptance findings are never waivable under
 any profile.
+
+## Severity Adjudication
+
+Check Agent severity labels and `Blocking findings count` are signals, not
+final facts. The main session independently re-grades every still-open finding
+against this absolute gate after Verify before routing and before routing or
+loop-exit:
+
+1. Any failure that touches safety, correctness, or an acceptance criterion is
+   blocking under every profile. Escalate a non-blocking Agent label to
+   blocking when it hits this gate; never record that upgrade as residual risk
+   and never waive it.
+2. Findings that miss the gate may keep the Agent label, or the main session
+   may downgrade an Agent-marked blocking item to non-blocking residual risk
+   with a recorded reason. Findings that hit the gate cannot be downgraded.
+3. Record every escalate or downgrade and its reason. The adjudicated blocking
+   count, not the report count alone, drives profile loop exit. Adjudicated
+   blocking findings follow that profile's existing blocking-fix path
+   (`light` / `standard` do not gain extra independent rounds from an upgrade;
+   `reinforced` / `comprehensive` / `strict` re-dispatch per the matrix).
 
 ## Evidence Invalidation
 
@@ -250,7 +276,9 @@ enter commit preparation:
 - `Review scope`: `changed-scope`, `affected-scope`, or `full-scope`.
 - `Review round`: round number starting at 1 within the same stage.
 - `Review stage`: `implementation-loop` or `commit-ready-final`.
-- `Blocking findings count`: blocking findings still open in this round.
+- `Blocking findings count`: blocking findings still open in this round. The
+  main session independently re-grades this count per Severity Adjudication;
+  only the adjudicated count drives loop exit.
 - Findings: split fixed vs not fixed, with severity, location, and reason.
 - Fixes/ownership: what was fixed and where unfixed items return (implement,
   plan, or follow-up task).

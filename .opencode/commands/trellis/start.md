@@ -54,8 +54,10 @@ From Step 1 you know the current task and status. Check the task directory:
 - **Active task status `planning` + `prd.md` exists** → stay in Phase 1.
   Lightweight tasks can be PRD-only; complex tasks need `design.md` +
   `implement.md`. `prd.md` must carry a `Review level` among `light`,
-  `standard`, `reinforced`, `comprehensive`, `strict` and a ready
-  `## Planning Convergence` block. Load the relevant Phase 1 step detail
+  `standard`, `reinforced`, `comprehensive`, `strict`, a `## Spec References`
+  section with at least one entry, and a ready `## Planning Convergence`
+  block. On sub-agent platforms `implement.jsonl` and `check.jsonl` must each
+  contain a curated entry. Load the relevant Phase 1 step detail
   before `task.py start`; `task.py start` also requires `planning_ready` and
   the user's subsequent explicit approval — never skip those gates.
 - **Active task status `in_progress`** → Phase 2 step 2.1. Load the step
@@ -65,10 +67,7 @@ From Step 1 you know the current task and status. Check the task directory:
   ```
 - **Active task status `completed`** → Phase 3 finishing steps, then the
   project `trellis-finish-work` Skill.
-- **No active task** → classify first. For simple conversation / small task,
-  ask only whether this turn should create a Trellis task. For complex work,
-  ask whether you may create a Trellis task and enter planning. If the user
-  says no, skip Trellis for this session.
+- **No active task** → triage. Default to doing the work: code analysis, Q&A, and single-file local edits proceed directly with no Trellis prompt. Ask about creating a Trellis task only when the user explicitly wants code written AND it is complex (multi-file, workflow/Hook/contract mechanism, design tradeoffs or multi-step, or template-affecting). If the user says no, skip Trellis for this session.
 
 ---
 

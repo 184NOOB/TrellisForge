@@ -402,3 +402,39 @@ trellis-implement(sonnet) 8/8 阶段交付 templates/embedded-c-overlay/.opencod
 ### Status
 
 [OK] **Completed**
+
+
+## Session 14: 发布 TrellisForge 1.3 并归档父任务
+
+**Date**: 2026-10-01
+**Task**: 发布 TrellisForge 1.3 并归档父任务
+**Package**: main
+**Branch**: `v1.3-development`
+
+### Summary
+
+完成 1.3 发布收尾：VERSION/manifest/结构链/文档同步，模板停止官方交付 .opencode/package.json；reinforced 审查阻塞为 0；归档收尾子任务与 1.3 父任务。
+
+### Main Changes
+
+- VERSION 提升为 1.3，追加 versions/1.3 与 1.2-to-1.3（remove package.json，不删盘）
+- 模板删除 .opencode/package.json 并新增 .opencode/.gitignore；升级器 structural-remove 只退出收据
+- 同步 README、接入指南、TEMPLATE-CONTENTS 与 overlay-upgrade Spec
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `869d7ab` | (see git log) |
+
+### Testing
+
+- [OK] 工具回归 52、模板 271、根 154、verify_assets、py_compile、PowerShell 解析、交付路径 git diff --check 全绿
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- 根 .opencode/package.json 仍为本地脏文件，保持不提交

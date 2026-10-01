@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 13
+- **Total Sessions**: 14
 - **Last Active**: 2026-10-01
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~404 | Active |
+| `journal-1.md` | ~440 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 14 | 2026-10-01 | 发布 TrellisForge 1.3 并归档父任务 | `869d7ab` | `v1.3-development` |
 | 13 | 2026-10-01 | 完成模板派发链合同并归档 | `7f737f4` | `v1.3-development` |
 | 12 | 2026-10-01 | 模板执行计划完成后可原地 revise 补加步骤 | `e7061e7` | `v1.3-development` |
 | 11 | 2026-10-01 | 模板审查循环以主会话复核后的 blocking 数为准 | `ed255c6` | `v1.3-development` |

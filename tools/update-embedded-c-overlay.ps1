@@ -189,8 +189,9 @@ function Invoke-OverlayUpgradePreflight {
         if ($DstByPath.ContainsKey($relative)) { $dstEntry = $DstByPath[$relative] }
 
         if ($null -eq $dstEntry) {
-            # 来源独有：已被结构链显式处理（本版本无删除动作），不进入合并计划
-            Add-OverlayClassification -List $classifications -Path $relative -Action 'structural-remove' -Status 'already-current' -Content $null -Candidate $null -Suggestion '来源版本独有路径已由结构迁移链显式处理。' -UseCrLf $false
+            # 来源独有：已被结构链显式处理，不进入合并计划；-Apply 时退出新收据，
+            # 但保留磁盘文件（如 1.2 -> 1.3 的 .opencode/package.json）。
+            Add-OverlayClassification -List $classifications -Path $relative -Action 'structural-remove' -Status 'already-current' -Content $null -Candidate $null -Suggestion '来源版本独有路径已由结构迁移链显式处理；不写入、不删除磁盘文件。' -UseCrLf $false
             continue
         }
 
@@ -385,6 +386,12 @@ if (-not $Apply) {
 $writes = @()
 $receiptEntries = @()
 foreach ($cl in $classifications) {
+    if ($cl.Action -eq 'structural-remove') {
+        # 来源独有路径（例如 1.2 -> 1.3 的 .opencode/package.json）：已由结构
+        # 迁移链显式覆盖。该路径退出目标版本受管集合与新收据，但本工具不写入、
+        # 不删除下游磁盘文件；是否清理由用户自行决定。
+        continue
+    }
     $destinationRelative = Get-OverlayRenderRelative -Relative $cl.Path -ProjectPrefix $resolvedPrefix
     $renderedRelative = (Assert-OverlaySafeRelative -Relative $destinationRelative -TargetRoot $targetRootFull)
     $dstEntry = $dstByPath[$cl.Path]

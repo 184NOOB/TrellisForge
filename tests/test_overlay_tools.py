@@ -1,21 +1,25 @@
 # -*- coding: utf-8 -*-
 """Automated tests for the TrellisForge overlay installer and the elevator-model
-updater (source 1.0/1.1 -> current 1.2).
+updater (sources 1.0/1.1/1.2 -> current 1.3).
 
 These tests build isolated temporary Git repositories from the elevator-model
-assets (history/embedded-c-overlay/versions/1.0 and 1.1 manifests plus the
-canonical object library) and the current 1.2 manifest/template, then drive the
-Windows PowerShell 5.1 entry scripts. The 1.1 downstream fixture is rendered
-from the immutable 1.1 manifest/canonical objects with a real schema-1 receipt;
-it is never faked by running the current installer. They do not depend on a
-real downstream project, the `trellis` CLI, or the network, and they do NOT
-reference the removed Plan-A baseline/new/migration.json layout.
+assets (history/embedded-c-overlay/versions/1.0, 1.1 and 1.2 manifests plus the
+canonical object library) and the current 1.3 manifest/template, then drive the
+Windows PowerShell 5.1 entry scripts. The 1.1 and 1.2 downstream fixtures are
+rendered from the immutable manifest/canonical objects with a real schema-1
+receipt; they are never faked by running the current installer. They do not
+depend on a real downstream project, the `trellis` CLI, or the network, and
+they do NOT reference the removed Plan-A baseline/new/migration.json layout.
 
-Body-merge contract asserted here: for both sources the file bodies merge
-exactly once from the SOURCE canonical + downstream current + 1.2 template
-(1.0 -> 1.2 never reads or lands a 1.1 body on disk); only the STRUCTURAL
-migration composes adjacent steps (1.0 -> 1.2 loads 1.0-to-1.1 AND
-1.1-to-1.2; 1.1 -> 1.2 loads only the latter).
+Body-merge contract asserted here: for every source the file bodies merge
+exactly once from the SOURCE canonical + downstream current + 1.3 template
+(e.g. 1.0 -> 1.3 never reads or lands a 1.1/1.2 body on disk); only the
+STRUCTURAL migration composes adjacent steps (1.0 -> 1.3 loads 1.0-to-1.1,
+1.1-to-1.2 AND 1.2-to-1.3; 1.2 -> 1.3 loads only the last one).
+
+1.3 retires `.opencode/package.json` from official delivery: the 1.2 fixture
+carries it, the 1.2-to-1.3 structural step covers its removal without deleting
+the downstream disk file, and the 1.3 receipt no longer lists it.
 """
 
 import hashlib
@@ -39,14 +43,16 @@ INSTALLER = TOOLS / "install-embedded-c-overlay.ps1"
 UPDATER = TOOLS / "update-embedded-c-overlay.ps1"
 MODULE = TOOLS / "lib" / "TrellisForgeOverlay.psm1"
 
-TARGET_VERSION = "1.2"
-SOURCE_VERSIONS = ("1.0", "1.1")
+TARGET_VERSION = "1.3"
+SOURCE_VERSIONS = ("1.0", "1.1", "1.2")
 COMMAND_REF = ".agents/skills/trellis-channel/references/command-reference.md"
 CHECK_MD = ".trellis/agents/check.md"
 WORKFLOW_MD = ".trellis/workflow.md"
 AGENTS = "AGENTS.md.trellisforge-template"
 OPENCODE_GRILL = ".opencode/skills/__PROJECT_PREFIX__-trellis-grill-adapter/SKILL.md"
 OPENCODE_CHECK_AGENT = ".opencode/agents/trellis-check.md"
+OPENCODE_PACKAGE = ".opencode/package.json"
+OPENCODE_GITIGNORE = ".opencode/.gitignore"
 PREFIX = "example"
 PROJECT_NAME = "Example Firmware"
 
@@ -223,6 +229,13 @@ class OverlayTestCase(unittest.TestCase):
         build_rendered_target(self.project, "1.1", prefix=prefix, name=name, with_receipt=True)
         return self.project
 
+    def make_12_project(self, prefix=PREFIX, name=PROJECT_NAME):
+        """Build a pristine 1.2 downstream tree with a schema-1 receipt. It
+        still contains the officially delivered `.opencode/package.json`."""
+        (self.project / ".trellis").mkdir(exist_ok=True)
+        build_rendered_target(self.project, "1.2", prefix=prefix, name=name, with_receipt=True)
+        return self.project
+
     def install(self, *extra, expect=0):
         params = ["-TargetRoot", str(self.project), "-ProjectPrefix", PREFIX, "-ProjectName", PROJECT_NAME]
         params += list(extra)
@@ -294,21 +307,28 @@ class OverlayTestCase(unittest.TestCase):
 
 
 class InstallTests(OverlayTestCase):
-    def test_fresh_install_full_12_writes_receipt(self):
+    def test_fresh_install_full_13_writes_receipt(self):
         self.make_10_project()
         r, out = self.install("-Force", expect=0)
         self.assertTrue((self.project / ".trellis/workflow.md").exists())
         self.assertTrue((self.project / ".agents/skills/trellis-channel/SKILL.md").exists())
-        # 1.2 installs the full OpenCode platform closure
+        # 1.3 installs the full OpenCode platform closure...
         self.assertTrue((self.project / ".opencode/agents/trellis-check.md").exists())
         self.assertTrue((self.project / ".opencode/plugins/session-start.js").exists())
         self.assertTrue((self.project / ".opencode/skills/example-trellis-grill-adapter/SKILL.md").exists())
+        # ...but the dependency manifest is a local artifact, never installed
+        self.assertFalse((self.project / OPENCODE_PACKAGE).exists(),
+                         "1.3 must not install an official .opencode/package.json")
+        ignore = (self.project / OPENCODE_GITIGNORE).read_text(encoding="utf-8")
+        self.assertIn("package.json\n", ignore)
+        self.assertIn("package-lock.json\n", ignore)
         receipt = self.read_json(".trellis/trellisforge.json")
         self.assertEqual(receipt["schema_version"], 1)
         self.assertEqual(receipt["trellisforge_version"], TARGET_VERSION)
         self.assertEqual(receipt["overlay"], "embedded-c")
         self.assertEqual(receipt["project_prefix"], PREFIX)
-        self.assertEqual(len(receipt["files"]), 151)
+        self.assertEqual(len(receipt["files"]), 158)
+        self.assertNotIn(OPENCODE_PACKAGE, [f["path"] for f in receipt["files"]])
         self.assertNotIn(
             b"\r\n",
             (self.project / ".trellis/trellisforge.json").read_bytes(),
@@ -383,14 +403,15 @@ class InstallTests(OverlayTestCase):
 
 
 class LiveTemplateConsistencyTests(OverlayTestCase):
-    def test_live_template_matches_12_manifest(self):
-        # evidence for installer/updater-live-manifest-consistent: every 1.2
+    def test_live_template_matches_13_manifest(self):
+        # evidence for installer/updater-live-manifest-consistent: every 1.3
         # managed file has identical LF-normalized content between live
-        # template, HEAD and its canonical object.
-        v12 = load_manifest("1.2")
-        self.assertEqual(v12["trellisforge_version"], TARGET_VERSION)
-        self.assertEqual(len(v12["files"]), 151)
-        for entry in v12["files"]:
+        # template and its canonical object, and the live path set equals the
+        # 1.3 manifest path set exactly (plus the generated AGENTS delivery).
+        v13 = load_manifest(TARGET_VERSION)
+        self.assertEqual(v13["trellisforge_version"], TARGET_VERSION)
+        self.assertEqual(len(v13["files"]), 158)
+        for entry in v13["files"]:
             if entry["path"] == AGENTS:
                 src = TEMPLATE / "AGENTS.md.template"
             else:
@@ -400,6 +421,21 @@ class LiveTemplateConsistencyTests(OverlayTestCase):
             obj = (OBJECTS / entry["canonical_sha256"]).read_bytes()
             self.assertEqual(norm(live.decode("utf-8")), norm(obj.decode("utf-8")),
                              f"live template drifted from canonical object: {entry['path']}")
+        manifest_paths = {f["path"] for f in v13["files"]}
+        live_paths = set()
+        for p in TEMPLATE.rglob("*"):
+            if not p.is_file():
+                continue
+            rel = p.relative_to(TEMPLATE).as_posix()
+            if rel in ("AGENTS.md.template", "TEMPLATE-CONTENTS.md"):
+                continue
+            if "__pycache__" in rel or rel.endswith((".pyc", ".pyo")):
+                continue
+            live_paths.add(rel)
+        self.assertEqual(manifest_paths - {AGENTS}, live_paths,
+                         "1.3 manifest must match the live managed path set exactly")
+        self.assertNotIn(OPENCODE_PACKAGE, manifest_paths)
+        self.assertIn(OPENCODE_GITIGNORE, manifest_paths)
 
     def test_11_manifest_matches_history_and_keeps_rules(self):
         # The immutable 1.1 manifest still resolves and still carries the
@@ -445,9 +481,9 @@ class LiveTemplateConsistencyTests(OverlayTestCase):
         driver = self.tmp / "drift_check.ps1"
         driver.write_text(
             "Import-Module '%s' -Force\n"
-            "$m = Get-OverlayVersionManifest -Overlay 'embedded-c' -Version '1.2'\n"
+            "$m = Get-OverlayVersionManifest -Overlay 'embedded-c' -Version '1.3'\n"
             "try {\n"
-            "  Assert-OverlayLiveTemplateMatchesManifest -Overlay 'embedded-c' -Version '1.2' -TemplateRoot '%s' -Manifest $m | Out-Null\n"
+            "  Assert-OverlayLiveTemplateMatchesManifest -Overlay 'embedded-c' -Version '1.3' -TemplateRoot '%s' -Manifest $m | Out-Null\n"
             "  Write-Output 'NO-DRIFT-DETECTED'\n"
             "  exit 2\n"
             "} catch {\n"
@@ -485,7 +521,7 @@ class UpgradeFrom10Tests(OverlayTestCase):
         r, out = self.upgrade("-Apply", expect=0)
         receipt = self.read_json(".trellis/trellisforge.json")
         self.assertEqual(receipt["trellisforge_version"], TARGET_VERSION)
-        self.assertEqual(len(receipt["files"]), 151)
+        self.assertEqual(len(receipt["files"]), 158)
         for entry in receipt["files"]:
             for key in ("canonical_sha256", "baseline_sha256", "installed_sha256"):
                 self.assertRegex(entry[key], r"^[0-9a-f]{64}$")
@@ -498,10 +534,10 @@ class UpgradeFrom10Tests(OverlayTestCase):
         self.assertIn("already-current", out)
 
     def test_clean_10_bodies_merge_once_from_10_canonical_never_land_11(self):
-        # 1.0 -> 1.2 file bodies are merged DIRECTLY (old = 1.0 canonical,
-        # new = 1.2 template). For every path that changed on both hops the
-        # resulting worktree file must equal the 1.2 rendering and must never
-        # equal the intermediate 1.1 rendering on disk.
+        # 1.0 -> 1.3 file bodies are merged DIRECTLY (old = 1.0 canonical,
+        # new = 1.3 template). For every path that changed on both the
+        # 1.0->1.1 and 1.1->1.2 hops the resulting worktree file must equal
+        # the 1.3 rendering and must never equal an intermediate rendering.
         double = double_changed_paths()
         self.assertGreaterEqual(len(double), 5)  # workflow.md, check.md, workers.md, ...
         self.make_10_project()
@@ -509,29 +545,31 @@ class UpgradeFrom10Tests(OverlayTestCase):
         for rel in double:
             target = self.project / render_path(rel, PREFIX)
             text = norm(target.read_text(encoding="utf-8"))
-            self.assertEqual(text, norm(rendered_body("1.2", rel)),
-                             f"1.0->1.2 result must equal 1.2 rendering: {rel}")
+            self.assertEqual(text, norm(rendered_body(TARGET_VERSION, rel)),
+                             f"1.0->1.3 result must equal 1.3 rendering: {rel}")
             self.assertNotEqual(text, norm(rendered_body("1.1", rel)),
                                 f"intermediate 1.1 body must never land on disk: {rel}")
         receipt = self.read_json(".trellis/trellisforge.json")
         by_path = {f["path"]: f for f in receipt["files"]}
         sample = by_path[render_path(WORKFLOW_MD, PREFIX)]
-        self.assertEqual(sample["canonical_sha256"], entries_by_path("1.2")[WORKFLOW_MD]["canonical_sha256"],
-                         "receipt canonical must be the 1.2 canonical, not 1.0 or 1.1")
+        self.assertEqual(sample["canonical_sha256"], entries_by_path(TARGET_VERSION)[WORKFLOW_MD]["canonical_sha256"],
+                         "receipt canonical must be the 1.3 canonical, not 1.0/1.1/1.2")
 
     def test_open_code_new_paths_added_on_upgrade(self):
         self.make_10_project()
         self.upgrade("-Apply", expect=0)
         for rel in (OPENCODE_CHECK_AGENT, OPENCODE_GRILL):
             target = self.project / render_path(rel, PREFIX)
-            self.assertTrue(target.is_file(), f"1.2 added path missing: {rel}")
-            self.assertEqual(norm(target.read_text(encoding="utf-8")), norm(rendered_body("1.2", rel)))
+            self.assertTrue(target.is_file(), f"1.2/1.3 added path missing: {rel}")
+            self.assertEqual(norm(target.read_text(encoding="utf-8")), norm(rendered_body(TARGET_VERSION, rel)))
+        self.assertFalse((self.project / OPENCODE_PACKAGE).exists())
+        self.assertTrue((self.project / OPENCODE_GITIGNORE).is_file())
 
     def test_open_code_new_path_existing_identical_is_already_current(self):
         self.make_10_project()
         target = self.project / render_path(OPENCODE_GRILL, PREFIX)
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(rendered_body("1.2", OPENCODE_GRILL), encoding="utf-8")
+        target.write_text(rendered_body(TARGET_VERSION, OPENCODE_GRILL), encoding="utf-8")
         r, out = self.upgrade(expect=0)
         self.assertIn(f"[ALREADY-CURRENT] {OPENCODE_GRILL}", out)
         self.assertNotIn("[CONFLICT]", out)
@@ -581,7 +619,7 @@ class UpgradeFrom10Tests(OverlayTestCase):
         self.make_10_project()
         chk = self.project / CHECK_MD
         text = chk.read_text(encoding="utf-8")
-        # edit the exact description line that changed 1.0 -> 1.2
+        # edit the exact description line that changed 1.0 -> 1.3
         self.assertIn(DESC_ANCHOR, text)
         text = text.replace(DESC_ANCHOR, DESC_ANCHOR + " (team fork)", 1)
         write_text_bytes(chk, text)
@@ -601,7 +639,7 @@ class UpgradeFrom10Tests(OverlayTestCase):
         self.assertFalse((self.project / ".trellis/trellisforge.json").exists())
         self.assertIn("(team fork)", chk.read_text(encoding="utf-8"))
         self.assertFalse((self.project / ".opencode").exists(),
-                         "no partial 1.2 application on conflict")
+                         "no partial 1.3 application on conflict")
 
     def test_new_file_conflict(self):
         self.make_10_project()
@@ -659,15 +697,15 @@ class UpgradeFrom10Tests(OverlayTestCase):
         self.assert_sentinel_untouched(before)
 
     def test_unmodified_canonical_paths_do_not_rewrite_worktree(self):
-        # Files whose canonical_sha256 is identical between 1.0 and 1.2 are
+        # Files whose canonical_sha256 is identical between 1.0 and 1.3 are
         # never rewritten; the new receipt still records baseline/installed.
         self.make_10_project()
         p10 = entries_by_path("1.0")
-        p12 = entries_by_path("1.2")
+        p13 = entries_by_path(TARGET_VERSION)
         unchanged = [
             rel for rel, e in p10.items()
-            if rel in p12 and rel != AGENTS and e["ownership"] == "managed"
-            and e["canonical_sha256"] == p12[rel]["canonical_sha256"]
+            if rel in p13 and rel != AGENTS and e["ownership"] == "managed"
+            and e["canonical_sha256"] == p13[rel]["canonical_sha256"]
         ]
         simple = next(p for p in unchanged if "__PROJECT_PREFIX__" not in p)
         target = self.project / simple
@@ -715,7 +753,7 @@ class UpgradeFrom11Tests(OverlayTestCase):
         self.assertEqual(r.returncode, 0, out)
         receipt = self.read_json(".trellis/trellisforge.json")
         self.assertEqual(receipt["trellisforge_version"], TARGET_VERSION)
-        self.assertEqual(len(receipt["files"]), 151)
+        self.assertEqual(len(receipt["files"]), 158)
         self.assertEqual(receipt["project_prefix"], PREFIX)
         for entry in receipt["files"]:
             for key in ("canonical_sha256", "baseline_sha256", "installed_sha256"):
@@ -723,7 +761,7 @@ class UpgradeFrom11Tests(OverlayTestCase):
         # newly added OpenCode paths were installed on top of the 1.1 tree
         self.assertEqual(
             norm((self.project / OPENCODE_CHECK_AGENT).read_text(encoding="utf-8")),
-            norm(rendered_body("1.2", OPENCODE_CHECK_AGENT)))
+            norm(rendered_body(TARGET_VERSION, OPENCODE_CHECK_AGENT)))
         r, out = self.upgrade_bare()
         self.assertIn("already-current", out)
         self.assertEqual(r.returncode, 0, out)
@@ -744,7 +782,7 @@ class UpgradeFrom11Tests(OverlayTestCase):
         self.assertIn("## Local team notes", final)
         self.assertIn("Keep me.", final)
         self.assertIn("fixes only mechanical, small, and determinate in-scope issues", final,
-                      "1.2 review-fix-ownership contract must be merged in")
+                      "1.3 review-fix-ownership contract must be merged in")
 
     def test_11_upgrade_conflict_zero_write_keeps_11_receipt(self):
         self.make_11_project()
@@ -799,18 +837,22 @@ class UpgradeFrom11Tests(OverlayTestCase):
         self.upgrade_bare("-Apply")
         self.assert_sentinel_untouched(before)
 
-    def test_11_source_uses_only_later_structural_step(self):
+    def test_sources_use_only_their_adjacent_structural_steps(self):
         # Structural composition is observable through the shared module:
-        # 1.1 -> 1.2 loads exactly one step, 1.0 -> 1.2 composes two.
+        # 1.2 -> 1.3 loads exactly one step (with the remove action),
+        # 1.1 -> 1.3 composes two, 1.0 -> 1.3 composes three.
         _, out = self.run_ps_driver(
             "Import-Module '%s' -Force\n"
-            "$a = Get-OverlayStructuralChain -Overlay 'embedded-c' -FromVersion '1.1' -ToVersion '1.2'\n"
-            "$b = Get-OverlayStructuralChain -Overlay 'embedded-c' -FromVersion '1.0' -ToVersion '1.2'\n"
-            "Write-Output ('S11=' + $a.Steps.Count + ' A11=' + $a.Actions.Count + ' T11=' + $a.ReceiptTransition)\n"
-            "Write-Output ('S10=' + $b.Steps.Count + ' A10=' + $b.Actions.Count + ' T10=' + $b.ReceiptTransition)\n"
+            "$a = Get-OverlayStructuralChain -Overlay 'embedded-c' -FromVersion '1.2' -ToVersion '1.3'\n"
+            "$b = Get-OverlayStructuralChain -Overlay 'embedded-c' -FromVersion '1.1' -ToVersion '1.3'\n"
+            "$c = Get-OverlayStructuralChain -Overlay 'embedded-c' -FromVersion '1.0' -ToVersion '1.3'\n"
+            "Write-Output ('S12=' + $a.Steps.Count + ' A12=' + $a.Actions.Count + ' T12=' + $a.ReceiptTransition)\n"
+            "Write-Output ('S11=' + $b.Steps.Count + ' A11=' + $b.Actions.Count + ' T11=' + $b.ReceiptTransition)\n"
+            "Write-Output ('S10=' + $c.Steps.Count + ' A10=' + $c.Actions.Count + ' T10=' + $c.ReceiptTransition)\n"
             % MODULE)
-        self.assertIn("S11=1 A11=0 T11=preserve-schema-1", out)
-        self.assertIn("S10=2 A10=0 T10=bootstrap-schema-1 + preserve-schema-1", out)
+        self.assertIn("S12=1 A12=1 T12=preserve-schema-1", out)
+        self.assertIn("S11=2 A11=1 T11=preserve-schema-1 + preserve-schema-1", out)
+        self.assertIn("S10=3 A10=1 T10=bootstrap-schema-1 + preserve-schema-1 + preserve-schema-1", out)
 
     def test_11_receipt_with_mismatched_project_name_fails_closed(self):
         self.make_11_project()
@@ -822,18 +864,108 @@ class UpgradeFrom11Tests(OverlayTestCase):
         self.assertEqual(self.read_receipt_version(), "1.1")
 
 
+class UpgradeFrom12Tests(OverlayTestCase):
+    def test_12_receipt_upgrade_retires_package_json_but_keeps_disk_file(self):
+        self.make_12_project()
+        pkg = self.project / OPENCODE_PACKAGE
+        self.assertTrue(pkg.is_file(), "1.2 fixture must carry the official package.json")
+        pkg_before = pkg.read_bytes()
+        self.assertEqual(self.read_receipt_version(), "1.2")
+
+        # preflight: structural-remove classification, zero worktree/receipt writes
+        r, out = self.upgrade_bare()
+        self.assertEqual(r.returncode, 0, out)
+        self.assertIn("1.2 -> ", out)
+        self.assertIn(f"[ALREADY-CURRENT] {OPENCODE_PACKAGE} (structural-remove)", out)
+        self.assertEqual(self.read_receipt_version(), "1.2", "preflight must not touch the old receipt")
+        self.assertEqual(pkg.read_bytes(), pkg_before, "preflight must not delete or rewrite the file")
+        self.assertFalse((self.project / OPENCODE_GITIGNORE).exists(), "preflight must not write")
+
+        r, out = self.upgrade_bare("-Apply")
+        self.assertEqual(r.returncode, 0, out)
+        receipt = self.read_json(".trellis/trellisforge.json")
+        self.assertEqual(receipt["trellisforge_version"], TARGET_VERSION)
+        self.assertEqual(len(receipt["files"]), 158)
+        paths = [f["path"] for f in receipt["files"]]
+        self.assertNotIn(OPENCODE_PACKAGE, paths,
+                         "the removed path must exit the 1.3 receipt")
+        # the structural remove never deletes the downstream disk file
+        self.assertTrue(pkg.is_file(), "structural remove must not delete the downstream file")
+        self.assertEqual(pkg.read_bytes(), pkg_before, "structural remove must not rewrite the file")
+        # the managed gitignore was installed and covers the local manifest
+        ignore = (self.project / OPENCODE_GITIGNORE).read_text(encoding="utf-8")
+        self.assertEqual(ignore, rendered_body(TARGET_VERSION, OPENCODE_GITIGNORE))
+        self.assertIn("package.json\n", ignore)
+        self.assertIn("package-lock.json\n", ignore)
+        # 1.3 test files arrived
+        self.assertTrue((self.project / ".trellis/scripts/tests/test_dispatch_chain_contract.py").is_file())
+
+        r, out = self.upgrade_bare()
+        self.assertEqual(r.returncode, 0, out)
+        self.assertIn("already-current", out)
+
+    def test_12_preflight_zero_write_on_gitignore_add_conflict(self):
+        self.make_12_project()
+        ignore = self.project / OPENCODE_GITIGNORE
+        ignore.parent.mkdir(parents=True, exist_ok=True)
+        write_text_bytes(ignore, "# local pre-existing ignore\n")
+        wf_before = (self.project / WORKFLOW_MD).read_bytes()
+        r, out = self.upgrade_bare()
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("[CONFLICT]", out)
+        self.assertIn(OPENCODE_GITIGNORE, out)
+        self.assertEqual(ignore.read_bytes(), b"# local pre-existing ignore\n")
+        self.assertEqual((self.project / WORKFLOW_MD).read_bytes(), wf_before,
+                         "conflict must leave the worktree unchanged")
+        self.assertEqual(self.read_receipt_version(), "1.2")
+        self.assertFalse((self.project / ".trellis/scripts/tests/test_dispatch_chain_contract.py").exists(),
+                         "conflict must block the whole apply (zero worktree writes)")
+
+    def test_12_upgrade_preserves_nonoverlapping_customization(self):
+        self.make_12_project()
+        policy = self.project / ".trellis/scripts/tests/test_opencode_platform_contract.py"
+        self.assertTrue(policy.is_file())
+        write_text_bytes(policy, policy.read_text(encoding="utf-8") + "\n# local note keeping\n")
+        r, out = self.upgrade_bare()
+        self.assertEqual(r.returncode, 0, out)
+        self.assertIn("[USER-MERGED]", out)
+        self.assertNotIn("[CONFLICT]", out)
+        r, out = self.upgrade_bare("-Apply")
+        self.assertEqual(r.returncode, 0, out)
+        final = policy.read_text(encoding="utf-8")
+        self.assertIn("# local note keeping", final)
+        self.assertIn("LOCAL_ONLY_UPSTREAM_PATHS", final,
+                      "1.3 OpenCode contract changes must be merged in")
+
+    def test_12_receipt_with_mismatched_project_name_fails_closed(self):
+        self.make_12_project()
+        r = run_ps(UPDATER, "-TargetRoot", str(self.project), "-ProjectPrefix", PREFIX,
+                   "-ProjectName", "Wrong Name")
+        out = r.stdout + r.stderr
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("fail closed", out)
+        self.assertEqual(self.read_receipt_version(), "1.2")
+
+
 class StructuralAndSafetyTests(OverlayTestCase):
     def test_structural_chain_files(self):
         for frm, to, transition in (("1.0", "1.1", "bootstrap-schema-1"),
-                                    ("1.1", TARGET_VERSION, "preserve-schema-1")):
+                                    ("1.1", "1.2", "preserve-schema-1"),
+                                    ("1.2", TARGET_VERSION, "preserve-schema-1")):
             chain = json.loads((STRUCTURAL / f"{frm}-to-{to}.json").read_text(encoding="utf-8"))
             self.assertEqual(chain["schema_version"], 1)
             self.assertEqual(chain["from_version"], frm)
             self.assertEqual(chain["to_version"], to)
             self.assertEqual(chain["receipt_transition"], transition)
-            self.assertEqual(chain["actions"], [])
-        # no direct 1.0-to-1.2 structural snapshot exists
-        self.assertFalse((STRUCTURAL / "1.0-to-1.2.json").exists())
+            if (frm, to) == ("1.2", TARGET_VERSION):
+                self.assertEqual(chain["actions"],
+                                 [{"action": "remove", "path": OPENCODE_PACKAGE}],
+                                 "1.2->1.3 must cover the retired package.json")
+            else:
+                self.assertEqual(chain["actions"], [])
+        # only adjacent steps exist; no cross-version shortcut snapshots
+        for shortcut in ("1.0-to-1.2.json", "1.0-to-1.3.json", "1.1-to-1.3.json"):
+            self.assertFalse((STRUCTURAL / shortcut).exists(), shortcut)
 
     def _synthetic_release(self):
         """Copy the module + history into a temp release root and fabricate
@@ -847,6 +979,7 @@ class StructuralAndSafetyTests(OverlayTestCase):
         steps.mkdir(parents=True)
         shutil.copy(STRUCTURAL / "1.0-to-1.1.json", steps / "1.0-to-1.1.json")
         shutil.copy(STRUCTURAL / "1.1-to-1.2.json", steps / "1.1-to-1.2.json")
+        shutil.copy(STRUCTURAL / "1.2-to-1.3.json", steps / "1.2-to-1.3.json")
         return release, steps
 
     def _chain_driver(self, module_path, cases):
@@ -905,7 +1038,7 @@ class StructuralAndSafetyTests(OverlayTestCase):
 
     def test_object_library_complete_and_consistent(self):
         refs = set()
-        for version in ("1.0", "1.1", "1.2"):
+        for version in ("1.0", "1.1", "1.2", "1.3"):
             m = load_manifest(version)
             for entry in m["files"]:
                 self.assertRegex(entry["canonical_sha256"], r"^[0-9a-f]{64}$")

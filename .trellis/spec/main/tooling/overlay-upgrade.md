@@ -84,6 +84,10 @@ schema 1）、`preserve-schema-1`（schema 保持不变）。执行器校验 sch
 from/to 与相邻对匹配、动作白名单与转换白名单；未知动作/转换或断链以
 `unsupported` 停止。
 
+`remove` 动作只声明「来源独有路径退出目标受管集合与新收据」：执行器把它
+分类为 `structural-remove` / `already-current`，不进入合并计划、不写入，
+也不删除下游磁盘文件；是否清理工作树文件由用户自行决定。
+
 ## 相邻链组合
 
 `Get-OverlayStructuralChain` 不再读取单个 `<from>-to-<to>.json`，而是：
@@ -109,7 +113,9 @@ from/to 与相邻对匹配、动作白名单与转换白名单；未知动作/�
      `new`（live 模板渲染后）三方合并；
    - `adoption-baseline` → 接管合并（old 取自来源对象）；
    - 目标新增且无 adoption baseline → `add`/`already-current`/`conflict`；
-   - 来源独有路径 → 必须由聚合结构动作显式覆盖，否则 `unsupported`。
+   - 来源独有路径 → 必须由聚合结构动作显式覆盖，否则 `unsupported`；被
+     `remove` 覆盖的路径在应用阶段分类为 `structural-remove` /
+     `already-current`：不写入、不删除下游文件，也不进入新收据。
    - `git merge-file` 返回 `0` 表示干净合并，返回 `1..127` 表示冲突块数量
      （超过 127 时截断为 127）；所有冲突结果都必须保留带冲突标记的候选文件，
      不得把多冲突块返回码误判为工具错误。
@@ -150,9 +156,11 @@ from/to 与相邻对匹配、动作白名单与转换白名单；未知动作/�
 ## 验证
 
 - `python -B -m unittest discover -s tests -p "test_*.py"`（安装/升级回归：
-  首装、1.1 收据升级、1.0 无收据直达、幂等、相邻链组合与拒绝、正文直达合并、
-  新增路径冲突、定制合并、预检零写入与回滚）
+  首装当前版本、1.0 无收据直达、1.1 收据升级、1.2 收据升级（`remove` 路径
+  留盘并退出新收据）、当前版本幂等、相邻链组合与拒绝、正文直达合并、新增
+  路径冲突、定制合并、预检零写入与回滚）
 - `python -B .trellis/tasks/…/verify_assets.py`（历史不变、对象/清单/结构链、
-  无方案 A 残留）
+  无方案 A 残留；四代资产示例：`versions/1.0|1.1|1.2|<current>` 与
+  `structural/1.0-to-1.1|1.1-to-1.2|1.2-to-<current>`，以当前 `VERSION` 为准）
 - PowerShell `Parser::ParseFile` 解析模块 + 两个入口
 - `git diff --check`（交付文件）

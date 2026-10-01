@@ -1,0 +1,296 @@
+{
+  "schema": 3,
+  "task": ".trellis/tasks/09-17-readme-integration-guide-upgrade-patch",
+  "revision": 1,
+  "status": "approved",
+  "audit": {
+    "required": true,
+    "file": "execution-events.jsonl"
+  },
+  "created_by": "trellis-implement",
+  "goal": "把已冻结的 TrellisForge 1.3 模板功能整理为可安装、可升级、可说明的正式交付；.opencode/package.json 退出官方受管清单。",
+  "constraints": {
+    "forbidden_git_operations": [
+      "commit",
+      "push",
+      "tag",
+      "reset",
+      "restore-modified-source"
+    ],
+    "max_tasks": 8,
+    "max_edits_per_file": 12,
+    "allow_parallel_tasks": false
+  },
+  "tasks": [
+    {
+      "id": "discover-baseline",
+      "title": "建立 1.3 发布资产前的基线盘点",
+      "status": "completed",
+      "objective": "记录实施前事实：VERSION、1.0/1.1/1.2 manifest 与结构步骤哈希、live 模板相对 1.2 的路径差、根 .opencode/package.json 既有脏改动；确认写入白名单与禁改根自用 Trellis。",
+      "depends_on": [],
+      "scope": {
+        "read": [
+          "VERSION",
+          "history/**",
+          "migrations/**",
+          "tools/**",
+          "tests/**",
+          "templates/embedded-c-overlay/**",
+          "docs/**",
+          "README.md",
+          ".trellis/spec/main/tooling/**",
+          ".trellis/tasks/09-17-readme-integration-guide-upgrade-patch/**"
+        ],
+        "write": []
+      },
+      "verification": {
+        "level": "minimal",
+        "required_checks": []
+      },
+      "no_check_reason": "纯只读基线盘点，不写入任何文件。"
+    },
+    {
+      "id": "template-unofficialize-package-json",
+      "title": "模板内取消官方 package.json 并加入 gitignore",
+      "status": "completed",
+      "objective": "删除 templates/embedded-c-overlay/.opencode/package.json；新增 .opencode/.gitignore 忽略 package.json 与 package-lock.json；改模板 test_opencode_platform_contract.py，不再要求模板内 package.json。不改根自用 Trellis。",
+      "depends_on": [
+        "discover-baseline"
+      ],
+      "scope": {
+        "read": [
+          "templates/embedded-c-overlay/.opencode/**",
+          "templates/embedded-c-overlay/.trellis/scripts/tests/test_opencode_platform_contract.py"
+        ],
+        "write": [
+          "templates/embedded-c-overlay/.opencode/package.json",
+          "templates/embedded-c-overlay/.opencode/.gitignore",
+          "templates/embedded-c-overlay/.trellis/scripts/tests/test_opencode_platform_contract.py"
+        ]
+      },
+      "verification": {
+        "level": "minimal",
+        "required_checks": [
+          "template-opencode-tests"
+        ]
+      },
+      "verification_results": {
+        "template-opencode-tests": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-10-01T12:45:12Z",
+          "command": "python -B -m unittest discover -s templates/embedded-c-overlay/.trellis/scripts/tests -p test_opencode_platform_contract.py",
+          "summary": "13 tests OK; template no longer requires .opencode/package.json and asserts .gitignore covers package.json/package-lock.json"
+        }
+      }
+    },
+    {
+      "id": "assets-1.3",
+      "title": "建立 1.3 版本资产与相邻结构步骤",
+      "status": "completed",
+      "objective": "将 VERSION 提升为 1.3；新增 gen_migration.py 与 verify_assets.py；追加 versions/1.3/manifest.json 与缺失对象；新增 structural/1.2-to-1.3.json，actions 仅 remove .opencode/package.json。校验 1.0/1.1/1.2 字节不变。",
+      "depends_on": [
+        "template-unofficialize-package-json"
+      ],
+      "scope": {
+        "read": [
+          "VERSION",
+          "history/**",
+          "migrations/**",
+          "templates/embedded-c-overlay/**"
+        ],
+        "write": [
+          "VERSION",
+          "history/embedded-c-overlay/versions/1.3/**",
+          "history/embedded-c-overlay/objects/**",
+          "migrations/embedded-c-overlay/structural/1.2-to-1.3.json",
+          ".trellis/tasks/09-17-readme-integration-guide-upgrade-patch/gen_migration.py",
+          ".trellis/tasks/09-17-readme-integration-guide-upgrade-patch/verify_assets.py"
+        ]
+      },
+      "verification": {
+        "level": "minimal",
+        "required_checks": [
+          "asset-verify"
+        ]
+      },
+      "verification_results": {
+        "asset-verify": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-10-01T12:47:21Z",
+          "command": "python -B .trellis/tasks/09-17-readme-integration-guide-upgrade-patch/verify_assets.py",
+          "summary": "ALL ELEVATOR-ASSET CHECKS PASSED; VERSION=1.3; v13 158 files; 1.2-to-1.3 remove .opencode/package.json"
+        }
+      }
+    },
+    {
+      "id": "tests-upgrade",
+      "title": "对齐安装/升级回归到 1.3",
+      "status": "completed",
+      "objective": "更新 tests/test_overlay_tools.py 到 TARGET_VERSION=1.3；新增 1.2 收据夹具；覆盖首装无官方 package.json、1.0/1.1/1.2 升级、1.2 升级后旧 package.json 留盘且退出收据、幂等、链组合与拒绝。工具入口仅在写死 1.2 目标语义时改注释/断言。",
+      "depends_on": [
+        "assets-1.3"
+      ],
+      "scope": {
+        "read": [
+          "tests/**",
+          "tools/**",
+          "templates/embedded-c-overlay/**",
+          "history/**",
+          "migrations/**"
+        ],
+        "write": [
+          "tests/test_overlay_tools.py",
+          "tools/install-embedded-c-overlay.ps1",
+          "tools/update-embedded-c-overlay.ps1",
+          "tools/lib/TrellisForgeOverlay.psm1"
+        ]
+      },
+      "verification": {
+        "level": "minimal",
+        "required_checks": [
+          "unit-tests-tools"
+        ]
+      },
+      "verification_results": {
+        "unit-tests-tools": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-10-01T14:01:14Z",
+          "command": "python -B -m unittest discover -s tests -p test_overlay_tools.py",
+          "summary": "52 tests OK: fresh 1.3 install (no package.json, gitignore), 1.0/1.1/1.2 upgrades, 1.2 structural remove keeps disk file and drops receipt entry, conflicts zero-write, chain composition"
+        }
+      }
+    },
+    {
+      "id": "docs-spec",
+      "title": "更新 Spec 与发布文档",
+      "status": "completed",
+      "objective": "更新 overlay-upgrade.md 的 remove 不删盘说明与四代资产举例；更新 TEMPLATE-CONTENTS.md、README.md、docs/接入指南.md，覆盖 1.3 能力与本机 npm install / git rm --cached。",
+      "depends_on": [
+        "tests-upgrade"
+      ],
+      "scope": {
+        "read": [
+          "README.md",
+          "docs/接入指南.md",
+          "templates/embedded-c-overlay/TEMPLATE-CONTENTS.md",
+          ".trellis/spec/main/tooling/overlay-upgrade.md"
+        ],
+        "write": [
+          "README.md",
+          "docs/接入指南.md",
+          "templates/embedded-c-overlay/TEMPLATE-CONTENTS.md",
+          ".trellis/spec/main/tooling/overlay-upgrade.md"
+        ]
+      },
+      "verification": {
+        "level": "minimal",
+        "required_checks": [
+          "docs-scan"
+        ]
+      },
+      "verification_results": {
+        "docs-scan": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-10-01T14:05:46Z",
+          "command": "python -B docs_scan_13.py (scoped regex scan: README.md, docs/接入指南.md, TEMPLATE-CONTENTS.md, template .opencode checks)",
+          "summary": "1.3 facts, npm install @opencode-ai/plugin, git rm --cached, structural-remove, 8 capabilities present; no stale 1.2 current-version claims; template package.json absent; gitignore covers package files"
+        }
+      }
+    },
+    {
+      "id": "verify-final",
+      "title": "最终验收",
+      "status": "completed",
+      "objective": "跑三套 Python 单测、资产校验、语法检查、PowerShell 解析、占位符/缓存扫描与交付路径 git diff --check；写 final-report.md。构建/部署/硬件 not applicable。不提交。",
+      "depends_on": [
+        "docs-spec"
+      ],
+      "scope": {
+        "read": [
+          "VERSION",
+          "history/**",
+          "migrations/**",
+          "tools/**",
+          "tests/**",
+          "templates/embedded-c-overlay/**",
+          "README.md",
+          "docs/接入指南.md",
+          ".trellis/spec/main/tooling/overlay-upgrade.md"
+        ],
+        "write": [
+          "final-report.md"
+        ]
+      },
+      "verification": {
+        "level": "report",
+        "required_checks": [
+          "root-tests",
+          "template-tests",
+          "unit-tests-tools",
+          "asset-verify",
+          "py-compile",
+          "powershell-parse",
+          "diff-check"
+        ],
+        "report_path": "final-report.md"
+      },
+      "verification_results": {
+        "root-tests": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-10-01T14:11:26Z",
+          "command": "python -B -m unittest discover -s .trellis/scripts/tests -p test_*.py",
+          "summary": "154 tests OK"
+        },
+        "template-tests": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-10-01T14:11:26Z",
+          "command": "python -B -m unittest discover -s templates/embedded-c-overlay/.trellis/scripts/tests -p test_*.py",
+          "summary": "271 tests OK"
+        },
+        "unit-tests-tools": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-10-01T14:11:26Z",
+          "command": "python -B -m unittest discover -s tests -p test_*.py",
+          "summary": "52 tests OK (fresh 1.3, 1.0/1.1/1.2 upgrades, remove keeps disk file, conflicts zero-write)"
+        },
+        "asset-verify": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-10-01T14:11:27Z",
+          "command": "python -B .trellis/tasks/09-17-readme-integration-guide-upgrade-patch/verify_assets.py",
+          "summary": "ALL ELEVATOR-ASSET CHECKS PASSED (1.0/1.1/1.2/1.3)"
+        },
+        "py-compile": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-10-01T14:11:27Z",
+          "command": "python -m py_compile (105 listed Python files incl. task scripts)",
+          "summary": "all listed files compile; caches cleaned afterwards"
+        },
+        "powershell-parse": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-10-01T14:11:27Z",
+          "command": "Parser::ParseFile on TrellisForgeOverlay.psm1 + install/update entry scripts",
+          "summary": "3/3 scripts parse clean"
+        },
+        "diff-check": {
+          "result": "pass",
+          "exit_code": 0,
+          "time": "2026-10-01T14:11:27Z",
+          "command": "git diff --check -- deliverable paths (VERSION history migrations tools tests README docs templates spec)",
+          "summary": "deliverable paths clean; pre-existing task.json/prd.md whitespace excluded per implement.md",
+          "artifact": ".trellis/tasks/09-17-readme-integration-guide-upgrade-patch/final-report.md"
+        }
+      }
+    }
+  ],
+  "approved_fingerprint": "730c2689c297f43e9ed4de0bce74447d23559a80002f2c5054f07197e8f934e0"
+}

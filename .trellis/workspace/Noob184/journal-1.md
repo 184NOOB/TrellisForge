@@ -358,3 +358,25 @@ trellis-implement(sonnet) 8/8 阶段交付 templates/embedded-c-overlay/.opencod
 ### Status
 
 [OK] **Completed**
+
+
+## Session 12: 模板执行计划完成后可原地 revise 补加步骤
+
+**Date**: 2026-10-01
+**Task**: 模板执行计划完成后可原地 revise 补加步骤
+**Package**: main
+**Branch**: `v1.3-development`
+
+### Summary
+
+仅改 templates/embedded-c-overlay：全完成 live 计划默认 plan.py revise 原地重开（report 重置 pending，未改动步骤保持 completed）；sequel 与 plans/ 冻结布局仅兼容。python.md 与 index.md 同步合同。根目录自用 Trellis 未改。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `e7061e7` | (see git log) |
+
+### Status
+
+[OK] **Completed**

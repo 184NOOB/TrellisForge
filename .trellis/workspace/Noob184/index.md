@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 11
+- **Total Sessions**: 12
 - **Last Active**: 2026-10-01
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~360 | Active |
+| `journal-1.md` | ~382 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 12 | 2026-10-01 | 模板执行计划完成后可原地 revise 补加步骤 | `e7061e7` | `v1.3-development` |
 | 11 | 2026-10-01 | 模板审查循环以主会话复核后的 blocking 数为准 | `ed255c6` | `v1.3-development` |
 | 10 | 2026-10-01 | 模板 Step detail 平台提示串与 task.py 步骤文案修复 | `f5b7ba2` | `v1.3-development` |
 | 9 | 2026-09-25 | 模板规划门禁加固：Spec 前置校验与 jsonl 机械门禁（仅模板） | `6e95dba` | `v1.3-development` |
